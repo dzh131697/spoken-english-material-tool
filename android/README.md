@@ -22,7 +22,13 @@ Android 版作为独立工程，与 Windows 版共用根目录的 `app.py` 和 `
 
 版本发布使用 GitHub 的公开发行包和 `android/update.json`。更新检查只读取版本信息，不发送视频、字幕、Cookie 或 API Key；网络或发行包不可用时自动检查会静默结束，手动检查会提示重试。
 
-发布新安卓版时，递增 `versionCode` 和 `versionName`，使用原签名构建，在 GitHub 创建 `android-v<versionCode>` 发行版并上传命名为 `spoken-material-android.apk` 的 APK，随后在 `android/update.json` 中更新版本、下载地址和 APK 的 SHA-256 并推送。仅推送源码不会让手机收到新版本。
+`.github/workflows/android.yml` 在 `main` 上的 Android 工程、`app.py`、`web/` 或工作流变动时自动构建并发布 APK，也支持在 Actions 页面手动运行。不需要人工上传 APK。工作流使用运行序号生成递增版本（`versionCode = 1000 + run_number`，`versionName = 0.2.<versionCode>`），本地构建仍默认使用源码中的版本。
+
+首次启用需在仓库 **Settings → Secrets and variables → Actions** 添加 `ANDROID_KEYSTORE_BASE64`：值为原 `.android-download/preferences/debug.keystore` 文件的 Base64 编码（Base64 本身不是加密，务必直接存入 Secret，不要提交文件、打印或贴到聊天）。沿用原体验版 debug keystore 的 `androiddebugkey` 别名与 `android` 密码；工作流固定校验原签名证书 SHA-256，不接受新生成的其他签名。签名只临时恢复到 runner，结束后删除。
+
+工作流先发布 `android-v<versionCode>` 及 `spoken-material-android.apk`，成功后才计算实际发布文件的 SHA-256 并提交 `android/update.json`。单独更新清单不会再次触发构建。失败可在 Actions 查看；重试已发布版本时复用原 APK，不覆盖线上文件。仓库需允许 Actions 写入 contents、创建 Release，并允许机器人向 `main` 提交更新清单；受分支保护限制时，清单推送会明确失败，需按仓库规则放行后重试。
+
+手机从 0.2.0 起会在启动时检查该清单，也可以在设置中手动检查；发现更新后仍由用户选择是否安装。工作流源码提交并推送、签名 Secret 配置完成且首次 Actions 发布成功后，此流程才算启用。GitHub Actions 云端构建尚待首次运行验证。
 
 ## 构建环境
 

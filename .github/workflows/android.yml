@@ -1,0 +1,137 @@
+name: Build and publish Android
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'android/app/**'
+      - 'android/*.gradle'
+      - 'android/gradle/**'
+      - 'android/gradlew*'
+      - 'app.py'
+      - 'web/**'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-publish
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: android-actions/setup-android@v3
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Prepare original signing key and version
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ -z "$KEYSTORE_BASE64" ]; then
+            echo '::error::Configure ANDROID_KEYSTORE_BASE64 with the original Android signing keystore.'
+            exit 1
+          fi
+          mkdir -p "$RUNNER_TEMP/android-user"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/android-user/debug.keystore"
+          chmod 600 "$RUNNER_TEMP/android-user/debug.keystore"
+          echo "ANDROID_USER_HOME=$RUNNER_TEMP/android-user" >> "$GITHUB_ENV"
+          echo "ANDROID_BUILD_PYTHON=$(command -v python)" >> "$GITHUB_ENV"
+          echo "VERSION_CODE=$((1000 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
+          echo "VERSION_NAME=0.2.$((1000 + GITHUB_RUN_NUMBER))" >> "$GITHUB_ENV"
+
+      - name: Build APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          sdkmanager 'platforms;android-35' 'build-tools;35.0.0'
+          bash android/gradlew -p android assembleDebug --console=plain \
+            -PandroidVersionCode="$VERSION_CODE" -PandroidVersionName="$VERSION_NAME"
+          mkdir -p release
+          cp android/app/build/outputs/apk/debug/app-debug.apk release/spoken-material-android.apk
+
+      - name: Verify original signature and APK version
+        shell: bash
+        run: |
+          set -euo pipefail
+          "$ANDROID_HOME/build-tools/35.0.0/apksigner" verify --print-certs release/spoken-material-android.apk > "$RUNNER_TEMP/apk-signature.txt"
+          grep -Fq 'Signer #1 certificate SHA-256 digest: 5f25a8c1da0566d9b4c4947b4184bbbe54239471b4dec608356e295eab4c2760' "$RUNNER_TEMP/apk-signature.txt"
+          "$ANDROID_HOME/build-tools/35.0.0/aapt" dump badging release/spoken-material-android.apk > "$RUNNER_TEMP/apk-badging.txt"
+          grep -Fq "package: name='com.spokenmaterial.app' versionCode='$VERSION_CODE' versionName='$VERSION_NAME'" "$RUNNER_TEMP/apk-badging.txt"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: android-apk
+          path: release/spoken-material-android.apk
+          if-no-files-found: error
+
+      - name: Publish APK before advertising the update
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="android-v$VERSION_CODE"
+          if gh release view "$tag" > /dev/null 2>&1; then
+            # On a retry, reuse the already published bytes and their hash.
+            gh release download "$tag" --pattern spoken-material-android.apk --dir release --clobber
+          else
+            gh release create "$tag" release/spoken-material-android.apk \
+              --target "$GITHUB_SHA" --title "Android $VERSION_NAME" \
+              --notes '安卓版自动构建更新。修复与改动详见对应源码提交；安装仍需用户确认。' --latest
+          fi
+          echo "APK_SHA256=$(sha256sum release/spoken-material-android.apk | cut -d ' ' -f 1)" >> "$GITHUB_ENV"
+
+      - name: Update phone version manifest
+        shell: bash
+        run: |
+          set -euo pipefail
+          git fetch origin main
+          git checkout -B android-update origin/main
+          python - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          path = Path('android/update.json')
+          current = json.loads(path.read_text(encoding='utf-8'))
+          code = int(os.environ['VERSION_CODE'])
+          if code > current['versionCode']:
+              data = {
+                  'versionCode': code,
+                  'versionName': os.environ['VERSION_NAME'],
+                  'apkUrl': f'https://github.com/{os.environ["GITHUB_REPOSITORY"]}/releases/download/android-v{code}/spoken-material-android.apk',
+                  'sha256': os.environ['APK_SHA256'],
+                  'notes': '安卓版有新更新，包含界面与功能修正。可选择下载并安装。',
+              }
+              path.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+          PY
+          if ! git diff --quiet -- android/update.json; then
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add android/update.json
+            git commit -m "Mod 安卓版 发布自动更新 $VERSION_NAME"
+            git push origin HEAD:main
+          fi
+
+      - name: Remove signing key
+        if: always()
+        shell: bash
+        run: rm -f "$RUNNER_TEMP/android-user/debug.keystore"
