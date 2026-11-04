@@ -144,7 +144,11 @@ class WorkflowTest(unittest.TestCase):
                                     '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest', str(folder / 'source.mp4')])
                     app.save_project({'id': pid, 'title': '测试素材', 'url': '', 'video': 'source.mp4', 'subtitles': [], 'clips': []})
                     result = app.export_clips(pid, [{'start': 1.2, 'end': 3.6, 'english': 'How was your weekend?',
-                                                    'chinese': '你周末过得怎么样？'}], False, lambda message: None)
+                                                    'chinese': '你周末过得怎么样？',
+                                                    'hint': {'keywords': [{'en': 'weekend', 'zh': '周末'}],
+                                                             'phrase': 'catch up with sb.',
+                                                             'grammar': '现在完成时强调结果'}}],
+                                              False, lambda message: None)
                     output = Path(result['folder'])
                     with Image.open(output / '001_中文题卡.png') as image:
                         self.assertEqual(image.size, (1920, 1080))
@@ -427,6 +431,45 @@ class WorkflowTest(unittest.TestCase):
                     app.save_project(project)
                     with self.assertRaisesRegex(ValueError, '没有音轨'):
                         app.waveform(pid, 0, 1)
+
+    def test_card_hint_rendering_and_normalization(self):
+        hint = app.normalize_hint({'keywords': [{'en': 'catch up', 'zh': '叙旧'}, 'weekend'],
+                                   'phrase': 'catch up with sb.', 'grammar': '现在完成时强调结果'})
+        self.assertEqual(hint['keywords'][0], {'en': 'catch up', 'zh': '叙旧'})
+        self.assertEqual(hint['keywords'][1], {'en': 'weekend', 'zh': ''})
+        self.assertIsNone(app.normalize_hint({}))
+        self.assertIsNone(app.normalize_hint('x'))
+        plain = app.render_card('你周末过得怎么样？', False, 'midnight')
+        rich = app.render_card('你周末过得怎么样？', False, 'midnight', hint)
+        self.assertEqual(plain.size, (1920, 1080))
+        self.assertEqual(rich.size, (1920, 1080))
+        self.assertNotEqual(plain.tobytes(), rich.tobytes())
+        self.assertEqual(app.render_card('你周末过得怎么样？', True, 'paper', hint).size, (1080, 1920))
+        with self.assertRaises(ValueError):
+            app.render_card('   ')
+        with self.assertRaises(ValueError):
+            app.render_card('测试', False, 'nope')
+        clip = app.validate_clip({'start': 0, 'end': 1, 'english': 'x', 'chinese': 'y',
+                                  'hint': {'keywords': [{'en': 'a', 'zh': 'b'}], 'grammar': 'g'}})
+        self.assertEqual(clip['hint'], {'keywords': [{'en': 'a', 'zh': 'b'}], 'phrase': '', 'grammar': 'g'})
+        self.assertNotIn('hint', app.validate_clip({'start': 0, 'end': 1, 'english': 'x', 'chinese': 'y'}))
+
+    def test_hint_generation_only_sends_english(self):
+        answer = {'keywords': [{'en': 'catch up', 'zh': '叙旧'}, {'en': 'weekend', 'zh': '周末'}],
+                  'phrase': 'catch up with sb. 找某人聊近况', 'grammar': '现在完成时强调结果'}
+        with patch.object(app, 'deepseek', return_value=(json.dumps(answer), {'total_tokens': 66})) as request:
+            result = app.hint_for('How was your weekend?', 'test-key')
+        self.assertEqual(len(result['hint']['keywords']), 2)
+        self.assertEqual(result['hint']['phrase'], answer['phrase'])
+        self.assertEqual(result['tokens'], 66)
+        payload = json.loads(request.call_args.args[0][1]['content'])
+        self.assertEqual(payload, {'english': 'How was your weekend?'})
+        self.assertIn('JSON', request.call_args.args[0][0]['content'])
+        with self.assertRaises(ValueError):
+            app.hint_for('Hello', '')
+        with patch.object(app, 'deepseek', return_value=('not json', {})):
+            with self.assertRaisesRegex(ValueError, '格式不正确'):
+                app.hint_for('Hello', 'test-key')
 
     def test_compose_writes_subtitle_versions(self):
         with tempfile.TemporaryDirectory(prefix='版本测试_') as directory:
