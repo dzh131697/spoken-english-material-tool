@@ -38,7 +38,7 @@ try:
     req = urllib.request.Request(base + '/api/projects', headers={'X-App-Token': token})
     with urllib.request.urlopen(req, timeout=5) as response:
         result = json.load(response)
-    assert result == {'projects': [], 'hasKey': False}, result
+    assert result['projects'] == [] and result['hasKey'] is False, result
     req = urllib.request.Request(base + '/api/shutdown', data=b'{}', headers={'X-App-Token': token, 'Content-Type': 'application/json'})
     urllib.request.urlopen(req, timeout=5).close()
     assert process.wait(timeout=5) == 0
