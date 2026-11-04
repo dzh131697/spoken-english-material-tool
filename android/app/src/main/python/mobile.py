@@ -52,6 +52,8 @@ def start(root_path, native_path, packages_path, bridge):
         raise ValueError('手机缺少可用的中文字体')
 
     app.font_path = font_path
+    app.subtitle_font = lambda: 'Noto Sans CJK SC'
+    app.subtitle_font_dir = lambda: '/system/fonts'
     def youtube_dl(options):
         options = dict(options)
         options['js_runtimes'] = {'quickjs': {'path': str(quickjs)}}

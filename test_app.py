@@ -1,4 +1,5 @@
 import importlib.util
+import io
 import json
 import math
 import os
@@ -11,6 +12,8 @@ import types
 import unittest
 import urllib.error
 import urllib.request
+import wave
+from array import array
 from pathlib import Path
 from unittest.mock import patch
 
@@ -44,7 +47,8 @@ class WorkflowTest(unittest.TestCase):
         with patch.object(app, 'read_project', return_value={'video': 'test.mp4', 'subtitles': rows}), \
                 patch.object(app, 'video_duration', return_value=8.0), \
                 patch.object(app, 'deepseek', return_value=(json.dumps(answer), {'total_tokens': 123})) as request:
-            result = app.suggest_segments('0123456789abcdef', 'continuous', 'test-key', lambda text: None)
+            result = app.suggest_segments('0123456789abcdef', {'mode': 'continuous', 'length': 'medium'},
+                                          'test-key', lambda text: None)
         clips = result['clips']
         self.assertEqual(len(clips), 2)
         self.assertEqual(clips[0]['english'], 'Hello there. How are you?')
@@ -64,10 +68,12 @@ class WorkflowTest(unittest.TestCase):
                              [{'start': 0, 'end': 2, 'chinese': ''}]):
                 with patch.object(app, 'deepseek', return_value=(json.dumps({'segments': segments}), {})):
                     with self.assertRaisesRegex(ValueError, '未修改素材列表'):
-                        app.suggest_segments('0123456789abcdef', 'continuous', 'test-key', lambda text: None)
+                        app.suggest_segments('0123456789abcdef', {'mode': 'continuous', 'length': 'medium'},
+                                          'test-key', lambda text: None)
             answer = {'segments': [{'start': 1, 'end': 1, 'chinese': '第二句'}]}
             with patch.object(app, 'deepseek', return_value=(json.dumps(answer), {})):
-                result = app.suggest_segments('0123456789abcdef', 'highlights', 'test-key', lambda text: None)
+                result = app.suggest_segments('0123456789abcdef', {'mode': 'highlights', 'count': 4, 'length': 'medium'},
+                                          'test-key', lambda text: None)
             self.assertEqual(result['clips'][0]['start'], 2)
             self.assertEqual(result['clips'][0]['end'], 3)
 
@@ -83,7 +89,8 @@ class WorkflowTest(unittest.TestCase):
         with patch.object(app, 'read_project', return_value={'video': 'test.mp4', 'subtitles': rows}), \
                 patch.object(app, 'video_duration', return_value=250), \
                 patch.object(app, 'deepseek', side_effect=fake_deepseek) as request:
-            result = app.suggest_segments('0123456789abcdef', 'continuous', 'test-key', lambda text: None)
+            result = app.suggest_segments('0123456789abcdef', {'mode': 'continuous', 'length': 'medium'},
+                                          'test-key', lambda text: None)
         self.assertGreater(request.call_count, 1)
         self.assertEqual(len(result['clips']), len(rows))
         self.assertEqual([clip['english'] for clip in result['clips']], [row['text'] for row in rows])
@@ -271,6 +278,168 @@ class WorkflowTest(unittest.TestCase):
                     clips[1].update(start=2, end=6)
                     continuous = app.compose_video(pid, clips, False, 1, lambda message: None, 'paper', True)
                     self.assertEqual(continuous['seconds'], 8)
+
+    def test_ai_splits_on_complete_sentences_only(self):
+        # 一句话被字幕拆成两行时，AI 只能在整句边界切分。
+        rows = [{'start': 0.0, 'end': 1.0, 'text': 'I wanted to tell you'},
+                {'start': 1.0, 'end': 2.0, 'text': 'something important.'},
+                {'start': 3.0, 'end': 4.0, 'text': 'So I called you.'}]
+        units = app.sentence_units(rows)
+        self.assertEqual([unit['first'] for unit in units], [0, 2])
+        self.assertEqual(units[0]['text'], 'I wanted to tell you something important.')
+        answer = {'segments': [{'start': 0, 'end': 0, 'chinese': '我想告诉你一件重要的事。'},
+                               {'start': 1, 'end': 1, 'chinese': '所以我给你打了电话。'}]}
+        with patch.object(app, 'read_project', return_value={'video': 'test.mp4', 'subtitles': rows}), \
+                patch.object(app, 'video_duration', return_value=5.0), \
+                patch.object(app, 'deepseek', return_value=(json.dumps(answer), {})):
+            result = app.suggest_segments('0123456789abcdef', {'mode': 'highlights', 'count': 2, 'length': 'short'},
+                                          'test-key', lambda text: None)
+        self.assertEqual([clip['english'] for clip in result['clips']],
+                         ['I wanted to tell you something important.', 'So I called you.'])
+        self.assertEqual(result['clips'][0]['start'], 0)
+        self.assertEqual(result['clips'][0]['end'], 2)
+        self.assertEqual(result['requested'], 2)
+
+    def test_ai_count_limit_and_adjacent_mode(self):
+        rows = [{'start': i * 2.0, 'end': i * 2.0 + 1.5, 'text': 'Sentence number {} is here.'.format(i)}
+                for i in range(8)]
+        many = {'segments': [{'start': i, 'end': i, 'chinese': '第{}句'.format(i)} for i in range(8)]}
+        with patch.object(app, 'read_project', return_value={'video': 'test.mp4', 'subtitles': rows}), \
+                patch.object(app, 'video_duration', return_value=16.0), \
+                patch.object(app, 'deepseek', return_value=(json.dumps(many), {})):
+            result = app.suggest_segments('0123456789abcdef', {'mode': 'highlights', 'count': 3, 'length': 'short'},
+                                          'test-key', lambda text: None)
+        self.assertEqual(len(result['clips']), 3)
+
+        scattered = {'segments': [{'start': 0, 'end': 0, 'chinese': '一'},
+                                  {'start': 1, 'end': 2, 'chinese': '二三'},
+                                  {'start': 5, 'end': 5, 'chinese': '六'},
+                                  {'start': 6, 'end': 6, 'chinese': '七'}],
+                     'quality': 4}
+        with patch.object(app, 'read_project', return_value={'video': 'test.mp4', 'subtitles': rows}), \
+                patch.object(app, 'video_duration', return_value=16.0), \
+                patch.object(app, 'deepseek', return_value=(json.dumps(scattered), {})):
+            result = app.suggest_segments('0123456789abcdef', {'mode': 'adjacent', 'count': 3, 'length': 'short'},
+                                          'test-key', lambda text: None)
+        self.assertEqual(len(result['clips']), 2)
+        self.assertEqual(result['clips'][0]['english'], 'Sentence number 0 is here.')
+        self.assertEqual(result['clips'][0]['end'], result['clips'][1]['start'])
+        self.assertEqual(result['clips'][1]['english'],
+                         'Sentence number 1 is here. Sentence number 2 is here.')
+        with self.assertRaises(ValueError):
+            app.suggest_segments('0123456789abcdef', {'mode': 'highlights', 'count': 0, 'length': 'short'},
+                                 'test-key', lambda text: None)
+
+    def test_card_sound_options(self):
+        self.assertIsNone(app.card_sound('none', 5))
+        for bad in ('noise', ''):
+            with self.assertRaises(ValueError):
+                app.card_sound(bad, 5)
+        with self.assertRaises(ValueError):
+            app.card_sound('tick', 0)
+        for name in app.CARD_SOUNDS:
+            if name == 'none':
+                continue
+            with wave.open(io.BytesIO(app.card_sound(name, 4))) as file:
+                self.assertEqual(file.getframerate(), 48000)
+                self.assertEqual(file.getnchannels(), 1)
+                self.assertAlmostEqual(file.getnframes() / 48000, 4, delta=0.02)
+                frames = array('h', file.readframes(file.getnframes()))
+            self.assertGreater(max(abs(value) for value in frames), 1000, name)
+        with wave.open(io.BytesIO(app.card_sound('countdown', 6))) as file:
+            head = array('h', file.readframes(48000 * 2))
+        self.assertLess(max(abs(value) for value in head), 300)
+
+    def test_align_chinese_uses_time_overlap(self):
+        rows = [{'start': 0.0, 'end': 2.0, 'text': 'How was your weekend?'},
+                {'start': 2.0, 'end': 4.0, 'text': 'I had a great time.'}]
+        zh = [{'start': 0.2, 'end': 1.8, 'text': '你周末过得怎么样？'},
+              {'start': 2.2, 'end': 3.9, 'text': '我过得很开心。'}]
+        mapping = app.align_chinese(rows, zh)
+        self.assertEqual(mapping[0], '你周末过得怎么样？')
+        self.assertEqual(mapping[1], '我过得很开心。')
+        with tempfile.TemporaryDirectory() as directory:
+            folder = Path(directory)
+            self.assertEqual(app.parse_chinese_subtitles(folder), [])
+            (folder / 'source.zh-Hans.vtt').write_text(
+                'WEBVTT\n\n00:00:00.200 --> 00:00:02.000\n你周末过得怎么样？\n', encoding='utf-8')
+            self.assertEqual(app.pick_chinese_subtitle_file(folder).name, 'source.zh-Hans.vtt')
+            parsed = app.parse_chinese_subtitles(folder)
+            self.assertEqual(parsed[0]['text'], '你周末过得怎么样？')
+            self.assertAlmostEqual(parsed[0]['start'], 0.2, places=3)
+
+    def test_translate_rows_returns_indexed_chinese(self):
+        answer = {'items': [{'index': 0, 'chinese': '你好。'}, {'index': 3, 'chinese': '再见。'}]}
+        items = [{'index': 0, 'text': 'Hello.'}, {'index': 3, 'text': 'Bye.'}]
+        with patch.object(app, 'deepseek', return_value=(json.dumps(answer), {'total_tokens': 9})) as request:
+            mapping, usage = app.translate_rows(items, 'test-key')
+        self.assertEqual(mapping, {0: '你好。', 3: '再见。'})
+        self.assertEqual(usage['total_tokens'], 9)
+        payload = json.loads(request.call_args.args[0][1]['content'])
+        self.assertEqual([item['index'] for item in payload], [0, 3])
+        self.assertIn('逐条', request.call_args.args[0][0]['content'])
+        short = {'items': [{'index': 0, 'chinese': '你好。'}]}
+        with patch.object(app, 'deepseek', return_value=(json.dumps(short), {})):
+            with self.assertRaisesRegex(ValueError, '不完整'):
+                app.translate_rows(items, 'test-key')
+
+    def test_compose_writes_subtitle_versions(self):
+        with tempfile.TemporaryDirectory(prefix='版本测试_') as directory:
+            root = Path(directory)
+            with patch.object(app, 'ROOT', root), patch.object(app, 'PROJECTS', root / 'projects'), \
+                    patch.object(app, 'OUTPUT', root / 'output'):
+                (root / 'tools').mkdir()
+                source_ffmpeg = self.ffmpeg_binary()
+                with patch.object(app, 'ffmpeg', return_value=str(source_ffmpeg)):
+                    pid = '0123456789abcdef'
+                    folder = app.project_dir(pid)
+                    folder.mkdir(parents=True)
+                    app.run_ffmpeg(['-f', 'lavfi', '-i', 'color=c=navy:s=640x360:r=25:d=5',
+                                    '-f', 'lavfi', '-i', 'sine=frequency=440:duration=5',
+                                    '-c:v', 'libx264', '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-shortest',
+                                    str(folder / 'source.mp4')])
+                    rows = [{'start': .2, 'end': 1.4, 'text': 'How was your weekend?'},
+                            {'start': 1.4, 'end': 2.0, 'text': 'I had a great time.'}]
+                    app.save_project({'id': pid, 'title': '测试素材', 'url': '', 'video': 'source.mp4',
+                                      'subtitles': rows, 'clips': [], 'subZh': [], 'rowZh': {}})
+                    clips = [{'start': .2, 'end': 2.0, 'english': 'How was your weekend? I had a great time.',
+                              'chinese': '你周末过得怎么样？我过得很开心。'}]
+                    with self.assertRaisesRegex(ValueError, 'DeepSeek API Key'):
+                        app.compose_video(pid, clips, False, 1, lambda message: None, 'midnight', False,
+                                          ['plain', 'bilingual'], 'tick')
+                    project = app.read_project(pid)
+                    project['subZh'] = [{'start': .2, 'end': 1.4, 'text': '你周末过得怎么样？'},
+                                        {'start': 1.4, 'end': 2.0, 'text': '我过得很开心。'}]
+                    app.save_project(project)
+                    result = app.compose_video(pid, clips, False, 1, lambda message: None, 'midnight', False,
+                                               ['plain', 'en', 'bilingual'], 'tick')
+                    names = [item['name'] for item in result['files']]
+                    self.assertEqual(names, ['成片_横版.mp4', '成片_横版_英文字幕.mp4', '成片_横版_双语字幕.mp4'])
+                    self.assertEqual(app.read_project(pid)['outputs'][0]['files'], result['files'])
+                    for name, subtitled in zip(names, (False, True, True)):
+                        path = Path(result['folder']) / name
+                        self.assertTrue(path.exists(), name)
+                        probe = subprocess.run([str(source_ffmpeg), '-i', str(path), '-f', 'null', '-'],
+                                               capture_output=True)
+                        self.assertIn(b'Audio:', probe.stderr)
+                        shot = Path(directory) / (name + '.png')
+                        subprocess.run([str(source_ffmpeg), '-y', '-ss', '1.2', '-i', str(path), '-frames:v', '1',
+                                        str(shot)], capture_output=True)
+                        with Image.open(shot) as image:
+                            bottom = image.crop((0, image.height * 2 // 3, image.width, image.height)).convert('L')
+                            bright = sum(bottom.histogram()[201:])
+                        self.assertEqual(bright > 200, subtitled, name)
+                    ass_file = Path(directory) / 'bilingual.ass'
+                    app.write_ass(ass_file, [{'start': 0, 'end': 1.5, 'text': 'See you tomorrow.',
+                                              'chinese': '明天见。'}], True, 1920, 1080)
+                    content = ass_file.read_text(encoding='utf-8')
+                    self.assertIn('See you tomorrow.', content)
+                    self.assertIn('明天见。', content)
+                    self.assertIn('Dialogue: 0,0:00:00.00,0:00:01.50', content)
+                    app.write_ass(ass_file, [{'start': 0, 'end': 1.5, 'text': 'See you tomorrow.',
+                                              'chinese': '明天见。'}], False, 1920, 1080)
+                    self.assertNotIn('明天见。', ass_file.read_text(encoding='utf-8'))
+
 
     def test_subtitle_track_prefers_manual_then_original(self):
         rolling = 'WEBVTT\nLanguage: en\n\n00:00:00.000 --> 00:00:01.000\nHello <00:00:00.500><c>everyone</c>\n'

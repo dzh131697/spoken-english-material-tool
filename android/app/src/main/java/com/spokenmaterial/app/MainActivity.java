@@ -264,7 +264,7 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void saveVideo(String id, String name) {
             try {
-                if (!"成片_横版.mp4".equals(name) && !"成片_竖版.mp4".equals(name)) {
+                if (name == null || !name.matches("成片_(横版|竖版)(_英文字幕|_双语字幕)?\\.mp4")) {
                     throw new IOException("无效的视频名称");
                 }
                 File file = new File(outputDirectory(id), name);
