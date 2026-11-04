@@ -1,7 +1,7 @@
 {
-  "versionCode": 1002,
-  "versionName": "0.2.1002",
-  "apkUrl": "https://github.com/dzh131697/spoken-english-material-tool/releases/download/android-v1002/spoken-material-android.apk",
-  "sha256": "67cfaeecfef317882ac6b6067e5c3fb860ab01c07064430073ca8d00cd1232eb",
+  "versionCode": 1003,
+  "versionName": "0.2.1003",
+  "apkUrl": "https://github.com/dzh131697/spoken-english-material-tool/releases/download/android-v1003/spoken-material-android.apk",
+  "sha256": "6b45e25d8e874a45597a91a418d8734d44cc19dbae23a1c2a0e58755289441e4",
   "notes": "安卓版有新更新，包含界面与功能修正。可选择下载并安装。"
 }
