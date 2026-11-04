@@ -1,5 +1,7 @@
 # 口语素材工作台 · 源码交接包
 
+本仓库保留 Windows 便携版，并新增独立 Android 工程。Android 体验版安装及构建说明见 [android/README.md](android/README.md)。
+
 此包供另一台 Windows 电脑的 Agent 继续开发。普通使用者请使用单独的 Windows 便携版 ZIP。
 
 ## 接手步骤

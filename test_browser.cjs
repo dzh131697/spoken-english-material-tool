@@ -5,7 +5,7 @@ const path = require('node:path');
 const assert = require('node:assert/strict');
 
 const root = __dirname;
-const bundle = path.join(root, 'dist', '启动工具');
+const bundle = process.env.TEST_BUNDLE || path.join(root, 'dist', '启动工具');
 const fixtures = path.join(root, 'qa');
 fs.mkdirSync(fixtures, { recursive: true });
 const profile = fs.mkdtempSync(path.join(fixtures, 'test-profile-'));

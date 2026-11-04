@@ -12,5 +12,9 @@ node_modules/
 .env
 cookies.txt
 deepseek.key
+.android-sdk/
+.android-download/
+android/.gradle/
+android/local.properties
 *.zip
 SHA256.txt
