@@ -11,5 +11,6 @@ node_modules/
 .venv/
 .env
 cookies.txt
+deepseek.key
 *.zip
 SHA256.txt

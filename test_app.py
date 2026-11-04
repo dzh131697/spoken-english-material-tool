@@ -1,6 +1,7 @@
 import importlib.util
 import json
 import math
+import os
 import re
 import subprocess
 import sys
@@ -18,6 +19,79 @@ from PIL import Image
 
 
 class WorkflowTest(unittest.TestCase):
+    def ffmpeg_binary(self):
+        configured = os.environ.get('TEST_FFMPEG')
+        if configured:
+            return Path(configured)
+        return next((Path(__file__).parent.parent / '.build-deps/imageio_ffmpeg/binaries').glob('ffmpeg*.exe'))
+
+    def test_key_is_encrypted_and_restored_without_portable_file(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'profile' / 'deepseek.key'
+            with patch.object(app, 'key_path', return_value=path):
+                self.assertEqual(app.load_key(), '')
+                app.save_key('test-placeholder-only')
+                self.assertNotIn(b'test-placeholder-only', path.read_bytes())
+                self.assertEqual(app.load_key(), 'test-placeholder-only')
+                path.unlink()
+                self.assertEqual(app.load_key(), '')
+
+    def test_ai_segments_cover_video_without_gaps_and_merge_overlap(self):
+        rows = [{'start': 1.0, 'end': 2.5, 'text': 'Hello there.'},
+                {'start': 2.4, 'end': 3.0, 'text': 'How are you?'},
+                {'start': 5.0, 'end': 6.0, 'text': 'I am fine.'}]
+        answer = {'segments': [{'start': i, 'end': i, 'chinese': text} for i, text in enumerate(('你好。', '你好吗？', '我很好。'))]}
+        with patch.object(app, 'read_project', return_value={'video': 'test.mp4', 'subtitles': rows}), \
+                patch.object(app, 'video_duration', return_value=8.0), \
+                patch.object(app, 'deepseek', return_value=(json.dumps(answer), {'total_tokens': 123})) as request:
+            result = app.suggest_segments('0123456789abcdef', 'continuous', 'test-key', lambda text: None)
+        clips = result['clips']
+        self.assertEqual(len(clips), 2)
+        self.assertEqual(clips[0]['english'], 'Hello there. How are you?')
+        self.assertEqual(clips[0]['chinese'], '你好。\n你好吗？')
+        self.assertEqual(clips[0]['start'], 0)
+        self.assertEqual(clips[0]['end'], clips[1]['start'])
+        self.assertEqual(clips[-1]['end'], 8)
+        self.assertEqual(result['tokens'], 123)
+        self.assertNotIn('test.mp4', json.dumps(request.call_args.args[0]))
+
+    def test_ai_rejects_missing_or_unordered_subtitle_ranges(self):
+        rows = [{'start': i * 2, 'end': i * 2 + 1, 'text': 'Sentence {}.'.format(i)} for i in range(3)]
+        with patch.object(app, 'read_project', return_value={'video': 'test.mp4', 'subtitles': rows}), \
+                patch.object(app, 'video_duration', return_value=6.0):
+            for segments in ([{'start': 0, 'end': 0, 'chinese': '一'}, {'start': 2, 'end': 2, 'chinese': '三'}],
+                             [{'start': 1, 'end': 2, 'chinese': '二三'}, {'start': 0, 'end': 0, 'chinese': '一'}],
+                             [{'start': 0, 'end': 2, 'chinese': ''}]):
+                with patch.object(app, 'deepseek', return_value=(json.dumps({'segments': segments}), {})):
+                    with self.assertRaisesRegex(ValueError, '未修改素材列表'):
+                        app.suggest_segments('0123456789abcdef', 'continuous', 'test-key', lambda text: None)
+            answer = {'segments': [{'start': 1, 'end': 1, 'chinese': '第二句'}]}
+            with patch.object(app, 'deepseek', return_value=(json.dumps(answer), {})):
+                result = app.suggest_segments('0123456789abcdef', 'highlights', 'test-key', lambda text: None)
+            self.assertEqual(result['clips'][0]['start'], 2)
+            self.assertEqual(result['clips'][0]['end'], 3)
+
+    def test_ai_continuous_batches_keep_original_order(self):
+        rows = [{'start': i * 2, 'end': i * 2 + 1, 'text': 'Sentence {}.'.format(i)} for i in range(125)]
+
+        def fake_deepseek(messages, key, max_tokens, json_output):
+            items = json.loads(messages[1]['content'])
+            groups = [{'start': item['index'], 'end': item['index'], 'chinese': '第{}句'.format(item['index'])}
+                      for item in items]
+            return json.dumps({'segments': groups}), {'total_tokens': 10}
+
+        with patch.object(app, 'read_project', return_value={'video': 'test.mp4', 'subtitles': rows}), \
+                patch.object(app, 'video_duration', return_value=250), \
+                patch.object(app, 'deepseek', side_effect=fake_deepseek) as request:
+            result = app.suggest_segments('0123456789abcdef', 'continuous', 'test-key', lambda text: None)
+        self.assertGreater(request.call_count, 1)
+        self.assertEqual(len(result['clips']), len(rows))
+        self.assertEqual([clip['english'] for clip in result['clips']], [row['text'] for row in rows])
+        self.assertEqual(result['clips'][0]['start'], 0)
+        self.assertEqual(result['clips'][-1]['end'], 250)
+        for previous, following in zip(result['clips'], result['clips'][1:]):
+            self.assertEqual(previous['end'], following['start'])
+
     def test_srt_vtt_and_invalid_boundaries(self):
         rows = app.parse_subtitles('WEBVTT\n\n00:01.000 --> 00:02.500 align:start\n<c>Hello &amp; goodbye.</c>\n\n00:02.500 --> 00:03.000\nHello &amp; goodbye.\n')
         self.assertEqual(rows, [{'start': 1, 'end': 3, 'text': 'Hello & goodbye.'}])
@@ -52,7 +126,7 @@ class WorkflowTest(unittest.TestCase):
             root = Path(directory)
             with patch.object(app, 'ROOT', root), patch.object(app, 'PROJECTS', root / 'projects'), patch.object(app, 'OUTPUT', root / 'output'):
                 (root / 'tools').mkdir()
-                source_ffmpeg = next((Path(__file__).parent.parent / '.build-deps/imageio_ffmpeg/binaries').glob('ffmpeg*.exe'))
+                source_ffmpeg = self.ffmpeg_binary()
                 # 使用已打包工具路径，避免拷贝大文件。
                 with patch.object(app, 'ffmpeg', return_value=str(source_ffmpeg)):
                     pid = '0123456789abcdef'
@@ -71,6 +145,9 @@ class WorkflowTest(unittest.TestCase):
                     app.make_card('我本来想提这件事，但觉得当时不是时候。', output / 'portrait.png', True)
                     with Image.open(output / 'portrait.png') as image:
                         self.assertEqual(image.size, (1080, 1920))
+                    for theme in app.CARD_THEMES:
+                        image = app.render_card('这是一段题卡。', False, theme)
+                        self.assertEqual(image.getpixel((0, 0)), Image.new('RGB', (1, 1), app.CARD_THEMES[theme]['background']).getpixel((0, 0)))
                     probe = subprocess.run([str(source_ffmpeg), '-i', str(output / '001_原视频.mp4'), '-f', 'null', '-'], capture_output=True)
                     self.assertEqual(probe.returncode, 0)
                     self.assertIn(b'Duration: 00:00:02.40', probe.stderr)
@@ -160,7 +237,7 @@ class WorkflowTest(unittest.TestCase):
             with patch.object(app, 'ROOT', root), patch.object(app, 'PROJECTS', root / 'projects'), \
                     patch.object(app, 'OUTPUT', root / 'output'):
                 (root / 'tools').mkdir()
-                source_ffmpeg = next((Path(__file__).parent.parent / '.build-deps/imageio_ffmpeg/binaries').glob('ffmpeg*.exe'))
+                source_ffmpeg = self.ffmpeg_binary()
                 with patch.object(app, 'ffmpeg', return_value=str(source_ffmpeg)):
                     pid = '0123456789abcdef'
                     folder = app.project_dir(pid)
@@ -177,13 +254,23 @@ class WorkflowTest(unittest.TestCase):
                     self.assertTrue(output.exists())
                     self.assertEqual(output.name, '成片_横版.mp4')
                     probe = subprocess.run([str(source_ffmpeg), '-i', str(output), '-f', 'null', '-'],
-                                           capture_output=True, text=True)
-                    self.assertIn('1920x1080', probe.stderr)
+                                           capture_output=True)
+                    stderr = probe.stderr.decode('utf-8', errors='replace')
+                    self.assertIn('1920x1080', stderr)
                     # 两张题卡各 1 秒 + 1.0 秒 + 1.5 秒 = 4.5 秒
-                    duration = re.search(r'Duration: (\d+):(\d+):([\d.]+)', probe.stderr)
+                    duration = re.search(r'Duration: (\d+):(\d+):([\d.]+)', stderr)
                     seconds = int(duration[1]) * 3600 + int(duration[2]) * 60 + float(duration[3])
                     self.assertAlmostEqual(seconds, 4.5, delta=0.4)
-                    self.assertIn('Audio:', probe.stderr)
+                    self.assertIn('Audio:', stderr)
+                    saved = app.read_project(pid)['outputs']
+                    self.assertEqual(saved[0]['id'], result['id'])
+                    self.assertEqual(saved[0]['name'], output.name)
+                    with self.assertRaisesRegex(ValueError, '未连续覆盖'):
+                        app.compose_video(pid, clips, False, 1, lambda message: None, 'midnight', True)
+                    clips[0].update(start=0, end=2)
+                    clips[1].update(start=2, end=6)
+                    continuous = app.compose_video(pid, clips, False, 1, lambda message: None, 'paper', True)
+                    self.assertEqual(continuous['seconds'], 8)
 
     def test_subtitle_track_prefers_manual_then_original(self):
         rolling = 'WEBVTT\nLanguage: en\n\n00:00:00.000 --> 00:00:01.000\nHello <00:00:00.500><c>everyone</c>\n'
@@ -200,7 +287,8 @@ class WorkflowTest(unittest.TestCase):
             self.assertIsNone(app.pick_subtitle_file(Path(directory) / 'missing'))
 
     def test_http_auth_upload_and_range(self):
-        with tempfile.TemporaryDirectory() as directory, patch.object(app, 'PROJECTS', Path(directory)):
+        with tempfile.TemporaryDirectory() as directory, patch.object(app, 'PROJECTS', Path(directory) / 'projects'), \
+                patch.object(app, 'OUTPUT', Path(directory) / 'outputs'):
             server = app.ThreadingHTTPServer(('127.0.0.1', 0), app.Handler)
             thread = threading.Thread(target=server.serve_forever, daemon=True)
             thread.start()
@@ -218,6 +306,25 @@ class WorkflowTest(unittest.TestCase):
                     self.assertEqual(response.status, 206)
                     self.assertEqual(response.read(), b'2345')
                     self.assertEqual(response.headers['Content-Range'], 'bytes 2-5/10')
+                output_id = '20261104_123456_abcdef'
+                output_dir = app.OUTPUT / output_id
+                output_dir.mkdir(parents=True)
+                (output_dir / '成片_横版.mp4').write_bytes(b'abcdefghij')
+                p['outputs'] = [{'id': output_id, 'name': '成片_横版.mp4', 'count': 1, 'seconds': 3}]
+                app.save_project(p)
+                url = base + '/output-media?id=' + p['id'] + '&output=' + output_id + '&token=' + app.TOKEN
+                with urllib.request.urlopen(urllib.request.Request(url, headers={'Range': 'bytes=3-6'})) as response:
+                    self.assertEqual(response.read(), b'defg')
+                with self.assertRaises(urllib.error.HTTPError):
+                    urllib.request.urlopen(url.replace(app.TOKEN, 'wrong-token'))
+                with self.assertRaises(urllib.error.HTTPError):
+                    urllib.request.urlopen(url.replace(output_id, '20261104_123456_111111'))
+                data = json.dumps({'text': '请试着用英语表达。', 'theme': 'paper', 'portrait': False}).encode('utf-8')
+                req = urllib.request.Request(base + '/api/card-preview', data=data, headers={
+                    'X-App-Token': app.TOKEN, 'Content-Type': 'application/json'})
+                with urllib.request.urlopen(req) as response:
+                    self.assertEqual(response.headers['Content-Type'], 'image/png')
+                    self.assertTrue(response.read().startswith(b'\x89PNG'))
             finally:
                 server.shutdown()
                 server.server_close()

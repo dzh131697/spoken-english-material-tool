@@ -12,12 +12,16 @@ from pathlib import Path
 
 ROOT = Path(__file__).parent
 RELEASE = ROOT / 'Windows便携版' / '口语素材工作台'
+for secret in ('cookies.txt', 'deepseek.key'):
+    if (RELEASE / secret).exists():
+        raise RuntimeError('发行暂存目录存在 {}，请先移出该凭证再打包'.format(secret))
 shutil.copytree(ROOT / 'dist' / '启动工具', RELEASE,
-                ignore=shutil.ignore_patterns('data', '导出素材'), dirs_exist_ok=True)
+                ignore=shutil.ignore_patterns('data', '导出素材', 'cookies.txt', 'deepseek.key'), dirs_exist_ok=True)
 process = subprocess.Popen([str(RELEASE / '启动工具.exe'), '--no-browser'],
                            cwd=RELEASE, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
                            creationflags=0x08000000,
-                           env={**os.environ, 'PATH': os.environ.get('WINDIR', 'C:/Windows') + '/System32', 'PYTHONPATH': ''})
+                           env={**os.environ, 'PATH': os.environ.get('WINDIR', 'C:/Windows') + '/System32',
+                                'PYTHONPATH': '', 'LOCALAPPDATA': str(RELEASE / '__portable_check_profile__')})
 timer = threading.Timer(20, process.kill)
 timer.start()
 try:
@@ -46,6 +50,10 @@ archive = ROOT / '口语素材工作台_Windows便携版_v0.1.zip'
 with zipfile.ZipFile(archive, 'w', compression=zipfile.ZIP_DEFLATED, compresslevel=6) as output:
     for path in sorted(RELEASE.rglob('*')):
         if path.is_file():
+            if any(part in ('data', '导出素材') for part in path.relative_to(RELEASE).parts):
+                continue
+            if path.name.lower() in ('cookies.txt', 'deepseek.key'):
+                raise RuntimeError('发行暂存目录中发现凭证文件，请先移出再打包')
             output.write(path, Path('口语素材工作台') / path.relative_to(RELEASE))
 with zipfile.ZipFile(archive) as output:
     assert output.testzip() is None

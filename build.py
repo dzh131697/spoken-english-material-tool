@@ -9,7 +9,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).parent
 BASE = ROOT.parent
-DEPS = BASE / '.build-deps'
+DEPS = Path(os.environ.get('SPOKEN_TOOL_BUILD_DEPS', BASE / '.build-deps'))
 sys.path.insert(0, str(DEPS))
 os.environ['PYTHONPATH'] = str(DEPS)
 
