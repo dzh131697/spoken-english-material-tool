@@ -1,7 +1,7 @@
 {
-  "versionCode": 2,
-  "versionName": "0.2.0",
-  "apkUrl": "https://github.com/dzh131697/spoken-english-material-tool/releases/download/android-v2/spoken-material-android.apk",
-  "sha256": "ec5827f6f29c6ab834197f653638ea3914e64b88580def9cb3dba553a76da7bf",
-  "notes": "优化手机选字幕、编辑和成片操作，支持自主选择是否更新。"
+  "versionCode": 1002,
+  "versionName": "0.2.1002",
+  "apkUrl": "https://github.com/dzh131697/spoken-english-material-tool/releases/download/android-v1002/spoken-material-android.apk",
+  "sha256": "67cfaeecfef317882ac6b6067e5c3fb860ab01c07064430073ca8d00cd1232eb",
+  "notes": "安卓版有新更新，包含界面与功能修正。可选择下载并安装。"
 }
