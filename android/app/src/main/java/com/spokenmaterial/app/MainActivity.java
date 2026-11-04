@@ -1,6 +1,7 @@
 package com.spokenmaterial.app;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
@@ -8,6 +9,7 @@ import android.security.keystore.KeyGenParameterSpec;
 import android.security.keystore.KeyProperties;
 import android.util.AtomicFile;
 import android.webkit.JavascriptInterface;
+import android.webkit.JsResult;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
@@ -53,12 +55,14 @@ public class MainActivity extends Activity {
     private ValueCallback<Uri[]> fileCallback;
     private File pendingSave;
     private PyObject backend;
+    private AndroidUpdate updater;
     private volatile boolean destroyed;
     private int serverPort;
 
     @Override
     public void onCreate(Bundle state) {
         super.onCreate(state);
+        updater = new AndroidUpdate(this);
         TextView loading = new TextView(this);
         loading.setText("正在准备本地视频组件，请稍候…");
         loading.setTextSize(18);
@@ -132,6 +136,17 @@ public class MainActivity extends Activity {
         });
         webView.setWebChromeClient(new WebChromeClient() {
             @Override
+            public boolean onJsConfirm(WebView view, String url, String message, JsResult result) {
+                new AlertDialog.Builder(MainActivity.this)
+                        .setMessage(message)
+                        .setPositiveButton("确定", (dialog, which) -> result.confirm())
+                        .setNegativeButton("取消", (dialog, which) -> result.cancel())
+                        .setOnCancelListener(dialog -> result.cancel())
+                        .show();
+                return true;
+            }
+
+            @Override
             public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback, FileChooserParams params) {
                 if (fileCallback != null) fileCallback.onReceiveValue(null);
                 fileCallback = callback;
@@ -148,6 +163,7 @@ public class MainActivity extends Activity {
         });
         setContentView(webView);
         webView.loadUrl(url);
+        updater.check(false);
     }
 
     private boolean isLocal(Uri uri) {
@@ -167,6 +183,8 @@ public class MainActivity extends Activity {
                 Uri target = data.getData();
                 new Thread(() -> saveToUri(source, target), "save-output").start();
             }
+        } else if (requestCode == AndroidUpdate.INSTALL_PERMISSION) {
+            updater.onInstallPermissionResult();
         }
     }
 
@@ -223,6 +241,11 @@ public class MainActivity extends Activity {
         @JavascriptInterface
         public void closeApp() {
             runOnUiThread(MainActivity.this::finish);
+        }
+
+        @JavascriptInterface
+        public void checkForUpdates() {
+            updater.check(true);
         }
 
         @JavascriptInterface
@@ -325,6 +348,16 @@ public class MainActivity extends Activity {
             }
             return (SecretKey) store.getKey(KEY_ALIAS, null);
         }
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (webView == null) {
+            super.onBackPressed();
+            return;
+        }
+        webView.evaluateJavascript("typeof window.mobileBack === 'function' ? window.mobileBack() : false",
+                result -> { if (!destroyed && "false".equals(result)) MainActivity.super.onBackPressed(); });
     }
 
     @Override

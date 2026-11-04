@@ -6,7 +6,7 @@ const assert = require('node:assert/strict');
 
 const root = __dirname;
 const bundle = process.env.TEST_BUNDLE || path.join(root, 'dist', '启动工具');
-const fixtures = path.join(root, 'qa');
+const fixtures = process.env.TEST_QA || path.join(root, 'qa');
 fs.mkdirSync(fixtures, { recursive: true });
 const profile = fs.mkdtempSync(path.join(fixtures, 'test-profile-'));
 const video = path.join(fixtures, '口语示例.mp4');

@@ -17,4 +17,6 @@ deepseek.key
 android/.gradle/
 android/local.properties
 *.zip
+*.keystore
+*.jks
 SHA256.txt
