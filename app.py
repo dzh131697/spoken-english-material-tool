@@ -922,6 +922,125 @@ def has_audio(path):
     return b'Audio:' in result.stderr
 
 
+WAVE_RATE = 8000
+WAVE_CACHE = {}
+
+
+def audio_envelope(path, start, end, per_second=50):
+    """解码一小段音频，返回每秒 per_second 个峰值（0–1），用于画波形和找静音。"""
+    duration = max(0.05, end - start)
+    result = subprocess.run([ffmpeg(), '-hide_banner', '-loglevel', 'error', '-nostdin',
+                             '-ss', str(max(0.0, start)), '-t', str(duration), '-i', str(path),
+                             '-vn', '-map', '0:a:0?', '-ac', '1', '-ar', str(WAVE_RATE), '-f', 's16le', '-'],
+                            capture_output=True, creationflags=CREATE_NO_WINDOW)
+    if result.returncode:
+        raise ValueError('无法读取音频：' + result.stderr.decode('utf-8', errors='replace')[-300:])
+    samples = array('h')
+    samples.frombytes(result.stdout[:(len(result.stdout) // 2) * 2])
+    step = max(1, WAVE_RATE // per_second)
+    peaks = []
+    for index in range(0, len(samples), step):
+        chunk = samples[index:index + step]
+        if not chunk:
+            break
+        peaks.append(round(max(max(chunk), -min(chunk)) / 32768, 4))
+    return peaks
+
+
+def cached_envelope(path, start, end, per_second=50):
+    key = (str(path), path.stat().st_mtime_ns, round(start, 2), round(end, 2), per_second)
+    with LOCK:
+        hit = WAVE_CACHE.get(key)
+    if hit is not None:
+        return hit
+    peaks = audio_envelope(path, start, end, per_second)
+    with LOCK:
+        if len(WAVE_CACHE) >= 24:
+            WAVE_CACHE.pop(next(iter(WAVE_CACHE)))
+        WAVE_CACHE[key] = peaks
+    return peaks
+
+
+def speech_threshold(peaks):
+    """用低分位当噪声底、高分位当语音峰值，取偏保守的门限。"""
+    if not peaks:
+        return .02
+    ordered = sorted(peaks)
+    noise = ordered[len(ordered) // 10]
+    loud = ordered[min(len(ordered) - 1, int(len(ordered) * .95))]
+    return round(max(.012, noise + (loud - noise) * .18), 4)
+
+
+def speech_edges(peaks, threshold):
+    """返回 (语音起点序号, 语音收尾序号)。"""
+    onsets, offsets = [], []
+    inside = False
+    for index, value in enumerate(peaks):
+        if not inside and value >= threshold:
+            onsets.append(index)
+            inside = True
+        elif inside and value < threshold:
+            offsets.append(index)
+            inside = False
+    return onsets, offsets
+
+
+def waveform(pid, start, end, per_second=50):
+    """给编辑器返回一段音频的包络，用来画波形并判断切点是否落在语音中间。"""
+    p = read_project(pid)
+    source = project_dir(pid) / p['video']
+    if not has_audio(source):
+        raise ValueError('这个视频没有音轨，无法显示波形，请手动填写时间或用播放位置设置')
+    duration = video_duration(source)
+    try:
+        start, end = float(start), float(end)
+    except (TypeError, ValueError):
+        raise ValueError('时间格式不正确') from None
+    start = max(0.0, min(start, duration - .1))
+    end = max(start + .2, min(end, duration))
+    if end - start > 60:
+        raise ValueError('一次最多显示 60 秒波形')
+    peaks = cached_envelope(source, start, end, per_second)
+    return {'from': round(start, 3), 'to': round(end, 3), 'rate': per_second,
+            'peaks': peaks, 'threshold': speech_threshold(peaks)}
+
+
+def snap_clip(pid, start, end):
+    """把两个切点吸到最近的语音起点/收尾。纯本地音频分析，不调用 AI。"""
+    p = read_project(pid)
+    source = project_dir(pid) / p['video']
+    if not has_audio(source):
+        raise ValueError('这个视频没有音轨，无法自动贴合，请手动拖动或用播放位置设置')
+    duration = video_duration(source)
+    try:
+        start, end = float(start), float(end)
+    except (TypeError, ValueError):
+        raise ValueError('时间格式不正确') from None
+    if not 0 <= start < end <= duration + .01:
+        raise ValueError('请设置有效的起止时间')
+    rate = 100
+    window_from = max(0.0, start - 1.0)
+    window_to = min(duration, end + 1.0)
+    if window_to - window_from > 60:
+        raise ValueError('单段太长，无法自动贴合，请手动调整')
+    peaks = cached_envelope(source, window_from, window_to, rate)
+    threshold = speech_threshold(peaks)
+    onsets, offsets = speech_edges(peaks, threshold)
+
+    def nearest(times, value):
+        candidates = [moment for moment in times if abs(moment - value) <= .8]
+        return min(candidates, key=lambda moment: abs(moment - value)) if candidates else None
+
+    new_start = nearest([window_from + index / rate - .06 for index in onsets], start)
+    new_end = nearest([window_from + index / rate + .06 for index in offsets], end)
+    new_start = start if new_start is None else max(0.0, new_start)
+    new_end = end if new_end is None else min(duration, new_end)
+    if new_end - new_start < .2:
+        raise ValueError('贴合后的片段太短，请手动调整')
+    return {'start': round(new_start, 3), 'end': round(new_end, 3),
+            'changed': abs(new_start - start) > .005 or abs(new_end - end) > .005}
+
+
 OUTPUT_VERSIONS = {'plain': ('无字幕', ''), 'en': ('英文字幕', '_英文字幕'),
                    'bilingual': ('双语字幕', '_双语字幕')}
 OUTPUT_FILE = re.compile(r'成片_(竖版|横版)(_英文字幕|_双语字幕)?\.mp4')
@@ -1333,6 +1452,10 @@ class Handler(BaseHTTPRequestHandler):
                     body['id'], body['clips'], body.get('portrait', False), body.get('card', 5), progress,
                     body.get('theme', 'midnight'), body.get('continuous', False),
                     body.get('versions') or ['plain'], body.get('sound', 'none'), key)))
+            elif self.path == '/api/waveform':
+                self.reply(waveform(body['id'], body.get('from', 0), body.get('to', 1)))
+            elif self.path == '/api/snap':
+                self.reply(snap_clip(body['id'], body.get('start', 0), body.get('end', 1)))
             elif self.path == '/api/card-sound':
                 data = card_sound(str(body.get('sound', 'none')), body.get('seconds', 5))
                 if data is None:

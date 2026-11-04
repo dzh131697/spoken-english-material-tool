@@ -6,6 +6,7 @@
 :root{color-scheme:dark;--bg:#10161e;--panel:#19222e;--border:#2b3848;--muted:#9baabc;--accent:#99e2c4}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:#eef3fa;font:14px/1.6 "Segoe UI","Microsoft YaHei",sans-serif}button,input,textarea,select{font:inherit}button{cursor:pointer;border:1px solid var(--border);background:#243243;color:#eff6ff;border-radius:8px;padding:8px 14px}button:hover{border-color:var(--accent)}button:disabled{opacity:.4;cursor:wait}.primary{background:var(--accent);color:#122c24;border:0;font-weight:650}.quiet{background:transparent;color:var(--muted)}input,textarea,select{background:#111a25;color:#eef3fa;border:1px solid var(--border);border-radius:7px;padding:9px 11px;min-width:0}input:focus,textarea:focus{outline:1px solid var(--accent)}textarea{resize:vertical;width:100%}header{display:flex;align-items:center;justify-content:space-between;padding:20px 30px;border-bottom:1px solid var(--border)}h1{font-size:21px;letter-spacing:1px;margin:0}h2{font-size:16px;margin:0 0 14px}small,.muted{color:var(--muted)}.brand{display:flex;align-items:center;gap:13px}.mark{background:var(--accent);color:#11271f;padding:5px 11px;border-radius:9px;font-size:21px;font-weight:bold}.row{display:flex;gap:9px;align-items:center}.grow{flex:1}main{max-width:1600px;margin:auto;padding:22px 30px}.panel{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px}.import{display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:18px}.import input{flex:1;min-width:220px}.workspace{display:grid;grid-template-columns:minmax(380px,1.1fr) minmax(380px,1fr);gap:18px}.left{display:flex;flex-direction:column;gap:18px}video{display:block;width:100%;max-height:410px;background:#090e14;border-radius:8px}.video-empty{padding:55px 20px;text-align:center;color:var(--muted);border:1px dashed var(--border);border-radius:8px}.sectionhead{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:12px}.sectionhead h2{margin:0}.subs{height:520px;overflow:auto}.sub{display:flex;gap:13px;padding:11px 10px;border-bottom:1px solid #273241;cursor:pointer;border-left:3px solid transparent;user-select:none}.sub:hover{background:#253343}.sub.selected{background:#233e3d;border-left-color:var(--accent)}.sub.current{box-shadow:inset 0 0 0 1px #7d978f}.sub time{color:#9edec9;font-size:12px;white-space:nowrap;padding-top:2px}.sub span{white-space:pre-wrap}.label{display:block;color:var(--muted);font-size:12px;margin:12px 0 5px}.timing input{width:115px}.clips{margin-top:18px}.clip{display:flex;align-items:flex-start;gap:14px;padding:15px 0;border-top:1px solid var(--border)}.number{background:#263b3e;color:var(--accent);padding:4px 9px;border-radius:5px;font-size:12px}.cliptext{flex:1;white-space:pre-wrap}.cliptext p{margin:0 0 4px}.cliptext small{display:block}.status{min-height:32px;margin:0 0 12px;color:var(--accent);white-space:pre-wrap}.status.error{color:#ffb0a3}.badge{font-size:12px;color:var(--accent);border:1px solid #36564e;border-radius:20px;padding:2px 9px}.footer{color:var(--muted);font-size:12px;margin:20px 0}.hidden{display:none!important}dialog{background:var(--panel);color:#eef3fa;border:1px solid var(--border);border-radius:12px;max-width:550px;width:90%;padding:25px}dialog::backdrop{background:#0009}.wide{width:100%}.hint{font-size:12px;color:var(--muted);margin:8px 0}#cardPreview{width:100%;border-radius:8px;margin-top:12px}@media(max-width:950px){.workspace{grid-template-columns:1fr}main{padding:16px}.subs{height:360px}header{padding:16px}.import{align-items:stretch}}
 .wrap{flex-wrap:wrap}.sectionhead.wrap{align-items:flex-start}.modes{display:flex;flex-wrap:wrap;gap:10px;margin:12px 0}.modes label{padding:8px 12px;border:1px solid var(--border);border-radius:6px;cursor:pointer}.modes label:has(input:checked){border-color:var(--accent);color:var(--accent)}.ai-dialog{max-width:850px;max-height:88vh;overflow:auto}.ai-results{max-height:42vh;overflow:auto;margin:12px 0}.ai-row{display:flex;gap:12px;padding:12px 0;border-top:1px solid var(--border)}.ai-row input{align-self:flex-start;margin-top:7px}.ai-row p{margin:3px 0;white-space:pre-wrap}.output-row{display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:13px 0;border-top:1px solid var(--border)}.output-row .details{flex:1;min-width:160px}.output-row small{display:block}.seek-controls label{white-space:nowrap}#outputVideo{margin-top:14px}#cardPreview{display:block;width:100%;margin:12px 0;border-radius:4px}.ai-options{gap:14px;margin:0 0 2px}.ai-options label{display:flex;align-items:center;gap:6px}.ai-options input[type=number]{width:66px}.tag{font-style:normal;font-size:11px;color:#f3b96d;border:1px solid #6b5433;border-radius:4px;padding:1px 5px;margin-left:7px;white-space:nowrap}.output-row .version{padding:7px 9px}.versions{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.versions label{display:flex;align-items:center;gap:6px;white-space:nowrap}
 .android #mobileComposeSettings .row>div.versions{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:center;gap:6px 16px;padding:2px 0}.android #mobileComposeSettings .row>div.versions>span{flex:1 1 100%;margin:6px 0 0}.android #mobileComposeSettings .versions label{flex-direction:row;align-items:center!important;gap:8px;min-height:34px;font-size:13px;color:#52665a}.android #mobileComposeSettings .versions input{width:auto!important;min-height:0}
+.wave-panel{margin-top:10px}.wave{display:block;width:100%;height:104px;background:#0c1218;border-radius:8px;cursor:ew-resize;touch-action:none;margin-bottom:6px}.wave-state{font-size:12px;color:var(--muted);margin:0 0 6px}.wave-state.warn{color:#f3b96d}.nudge{display:grid;gap:6px;margin-top:8px}.nudge-row{display:flex;gap:6px;align-items:center}.nudge-row span{flex:0 0 30px;color:var(--muted);font-size:12px}.nudge-row button{flex:1;min-width:0;padding:6px 0;font-size:12px}
 h1{letter-spacing:0}@media(max-width:650px){.sectionhead,.seek-controls{flex-wrap:wrap}.seek-controls button{flex:1 1 150px}.timing{flex-wrap:wrap}.timing input{width:100px}header{gap:12px;flex-wrap:wrap}header .row{flex-wrap:wrap}}
 .mobile-only{display:none}
 body.android{color-scheme:light;--bg:#f7f9f7;--panel:#fff;--border:#dce6df;--muted:#6e7f76;--accent:#236d50;background:var(--bg);color:#20312b;font-size:14px}
@@ -25,7 +26,8 @@ body.android{color-scheme:light;--bg:#f7f9f7;--panel:#fff;--border:#dce6df;--mut
 .android #mobileComposeSettings{margin-top:24px}.android #mobileComposeSettings h3{font-size:15px;margin:0 0 12px}.android #mobileComposeSettings .row{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);align-items:end;gap:10px}.android #mobileComposeSettings .row>label{display:flex;flex-direction:column;align-items:stretch!important;gap:5px;min-width:0}.android #mobileComposeSettings .row>label:first-child{grid-column:1/-1}.android #mobileComposeSettings .row>label input{width:100%!important}.android #mobileComposeSettings button{width:100%;min-width:0}.android #mobileComposeSettings .hint{display:flex;align-items:center;gap:6px;margin-top:14px}
 .android #mobileVideoTools{margin-top:8px}.android #mobileVideoTools button{border:0;padding:4px 0;background:transparent;color:#236d50}
 .android .output-row{border-color:#e0e9e3}.android .output-row button{flex:1 1 130px}.android #outputVideo{margin:0 0 14px;aspect-ratio:16/9;object-fit:contain}.android #storageHint{display:none}
-.android dialog{background:#fff;color:#20312b;border:0;border-radius:8px;max-height:85vh;overflow:auto;padding:20px}.android dialog .row{flex-wrap:wrap}.android dialog button{min-height:40px}.android dialog .modes label{border-color:#d6e2d9}.android dialog .modes label:has(input:checked){color:#236d50;border-color:#236d50}.android .ai-row{border-color:#e0e9e3}.android .tag{color:#8a5a12;border-color:#e6d3ae;background:#fdf7ec}.android .output-row .version{min-height:40px;padding:0 8px}.android .ai-results{max-height:35vh}
+.android dialog{background:#fff;color:#20312b;border:0;border-radius:8px;max-height:85vh;overflow:auto;padding:20px}.android dialog .row{flex-wrap:wrap}.android dialog button{min-height:40px}.android dialog .modes label{border-color:#d6e2d9}.android dialog .modes label:has(input:checked){color:#236d50;border-color:#236d50}.android .ai-row{border-color:#e0e9e3}.android .tag{color:#8a5a12;border-color:#e6d3ae;background:#fdf7ec}.android .output-row .version{min-height:40px;padding:0 8px}
+.android .wave{height:96px;background:#eef3ef;border-radius:6px}.android .wave-state{color:#6e7f76}.android .wave-state.warn{color:#8a5a12}.android #editorSection .nudge-row span{flex:0 0 26px}.android #editorSection .nudge-row button{min-height:38px;padding:0;font-size:13px}.android #editorSection .wave-panel{margin-top:12px}.android .ai-results{max-height:35vh}
 .android #mobileSourceDialog .import{display:flex;flex-direction:column;align-items:stretch;margin:0;gap:10px}.android #mobileSourceDialog .import input,.android #mobileSourceDialog .import select{width:100%}.android #mobileSourceDialog .import .muted{text-align:center}
 .android #mobileSettingsDialog .row{display:flex;flex-direction:column;align-items:stretch}.android #mobileSettingsDialog .row button{width:100%}
 .android .mobile-action{display:none;position:fixed;z-index:4;left:50%;bottom:calc(62px + env(safe-area-inset-bottom));transform:translateX(-50%);width:min(100%,640px);min-height:65px;padding:10px 18px;background:#fffffff5;border-top:1px solid #e0e9e3;align-items:center;gap:10px}.android .mobile-action.mobile-visible{display:flex}.android .mobile-action>div{flex:1;min-width:0;font-size:12px;color:#6e7f76}.android .mobile-action strong{display:block;color:#20312b;font-size:13px}.android .mobile-action button{min-width:110px}
@@ -39,6 +41,9 @@ body.android{color-scheme:light;--bg:#f7f9f7;--panel:#fff;--border:#dce6df;--mut
 <section id="videoSection" class="panel mobile-screen"><div class="sectionhead"><h2 id="title">01 / 视频预览</h2><button id="mobileSource" class="mobile-only quiet">切换素材</button><button id="loadSub">导入 SRT / VTT</button></div><div id="empty" class="video-empty">导入一个视频，开始选择口语素材<br><small>支持已有英文字幕；本版不包含语音转写</small></div><video id="video" controls class="hidden"></video><div class="hint">若本地视频只有声音或无法预览，请先转成 H.264 + AAC 编码的 MP4。</div></section>
 <section id="editorSection" class="panel mobile-screen"><div class="sectionhead"><h2>03 / 编辑选段</h2><span id="editLabel" class="badge">新选段</span></div>
 <div class="row timing"><label>开始 / 秒 <input id="start" type="number" min="0" step="0.01" value="0"></label><label>结束 / 秒 <input id="end" type="number" min="0" step="0.01" value="0"></label><button id="preview">试听选段</button></div>
+<div id="wavePanel" class="wave-panel"><p id="cutState" class="wave-state">选一句字幕后显示波形</p><canvas id="waveA" class="wave hidden"></canvas><canvas id="waveB" class="wave hidden"></canvas></div>
+<div class="nudge"><div class="nudge-row"><span>开始</span><button data-nudge="start:-0.1">−0.10</button><button data-nudge="start:-0.05">−0.05</button><button data-nudge="start:0.05">+0.05</button><button data-nudge="start:0.1">+0.10</button></div><div class="nudge-row"><span>结束</span><button data-nudge="end:-0.1">−0.10</button><button data-nudge="end:-0.05">−0.05</button><button data-nudge="end:0.05">+0.05</button><button data-nudge="end:0.1">+0.10</button></div></div>
+<div class="row wrap" style="margin-top:8px"><button id="shiftLeft" class="quiet" title="整段左移 0.10 秒">⇤ 整体 −0.10</button><button id="shiftRight" class="quiet" title="整段右移 0.10 秒">整体 +0.10 ⇥</button><button id="snapSpeech">自动贴合语音</button><button id="listenHead" class="quiet" title="从开始前 0.4 秒播到开始后 0.4 秒">听开头</button><button id="listenTail" class="quiet" title="从结束前 0.4 秒播到结束后 0.4 秒">听结尾</button><button id="undoTimes" class="quiet">撤销</button></div>
 <div class="row seek-controls" style="margin-top:9px"><button id="setStart" class="quiet">用播放位置设为开始</button><button id="setEnd" class="quiet">用播放位置设为结束</button><label class="muted"><input id="loop" type="checkbox"> 循环</label></div>
 <label class="label" for="english">英文原句 · 可修正自动字幕</label><textarea id="english" rows="3" placeholder="在右侧点击字幕，Shift + 点击选择连续多句"></textarea>
 <div class="sectionhead" style="margin-top:12px"><label class="label" for="chinese">中文题目 · 可直接手动填写</label><button id="translate">DeepSeek 翻译</button></div><textarea id="chinese" rows="3" placeholder="这里的中文将生成题卡图片"></textarea>
@@ -100,7 +105,161 @@ function renderVersionOptions(){for(let id of ['verEn','verBi']){$(id).closest('
 function load(p){project=p;selected=[];anchor=null;editIndex=-1;stopAt=null;aiDraft=null;$('fullCoverage').checked=Boolean(p.continuous);$('outputVideo').pause();$('outputVideo').removeAttribute('src');$('outputVideo').classList.add('hidden');$('outputNotice').classList.add('hidden');$('video').pause();$('video').src='/media?id='+p.id+'&token='+encodeURIComponent(token);$('video').classList.remove('hidden');$('empty').classList.add('hidden');$('title').textContent=p.title;$('title').title=p.title;clearEditor();renderSubs();renderClips();renderOutputs();status(p.subtitles.length?(isAndroid?'字幕已载入，可选择一句或连续多句。':'字幕已载入。点击选择，Shift + 点击选择连续多句。'):'视频已载入，但没有英文字幕。请导入 SRT / VTT。');if(isAndroid){if($('mobileSourceDialog').open)$('mobileSourceDialog').close();showMobilePage('source')}}
 function fmt(t){return Math.floor(t/60).toString().padStart(2,'0')+':'+(t%60).toFixed(2).padStart(5,'0')}
 function renderSubs(){let q=$('search').value.toLowerCase();$('subCount').textContent=(project?.subtitles.length||0)+' 条';$('subs').innerHTML=project?project.subtitles.map((s,i)=>({s,i})).filter(({s})=>s.text.toLowerCase().includes(q)).map(({s,i})=>`<div class="sub ${selected.includes(i)?'selected':''}" data-index="${i}" ${isAndroid?`role="button" tabindex="0" aria-pressed="${selected.includes(i)}"`:''}><time>${fmt(s.start)}</time><span>${escapeHTML(s.text)}</span></div>`).join(''):'';if(!$('subs').children.length)$('subs').innerHTML='<p class="muted">没有字幕。可导入英文 SRT / VTT 文件。</p>';if(isAndroid)renderMobileSelection()}
-function clearEditor(){editIndex=-1;selected=[];anchor=null;mobileWaiting=false;mobileDirty=false;$('start').value=0;$('end').value=0;$('english').value='';$('chinese').value='';$('editLabel').textContent='新选段';$('add').textContent='加入素材列表';stopAt=null;renderSubs();if(isAndroid)$('mobileSave').textContent=$('add').textContent}
+function clearEditor(){editIndex=-1;selected=[];anchor=null;mobileWaiting=false;mobileDirty=false;$('start').value=0;$('end').value=0;$('english').value='';$('chinese').value='';$('editLabel').textContent='新选段';$('add').textContent='加入素材列表';stopAt=null;renderSubs();resetWave('选一句字幕后显示波形');if(isAndroid)$('mobileSave').textContent=$('add').textContent}
+
+let waveA=null,waveB=null,waveToken=0,waveTimer=null,timeHistory=[],drag=null;
+function clampTime(value,low,high){return Math.min(high,Math.max(low,value))}
+function times(){return [Number($('start').value)||0,Number($('end').value)||0]}
+function pushTimes(){let values=times();timeHistory.push(values);if(timeHistory.length>40)timeHistory.shift()}
+function applyTimes(start,end){$('start').value=Math.max(0,start).toFixed(3);$('end').value=(Math.max(0,start)+0.2>end?Math.max(0,start)+0.2:end).toFixed(3);if(isAndroid)mobileDirty=true;updateCutState();drawWave();scheduleWaveReload()}
+function resetWave(text){waveA=null;waveB=null;timeHistory=[];drag=null;$('waveA').classList.add('hidden');$('waveB').classList.add('hidden');$('cutState').textContent=text||'';$('cutState').classList.remove('warn')}
+function waveWindows(start,end){return end-start<=8?[{from:Math.max(0,start-2),to:end+2,mode:'both'}]:[{from:Math.max(0,start-2),to:start+2,mode:'start'},{from:end-2,to:end+2,mode:'end'}]}
+async function loadWave(){
+  if(!project){resetWave('选一句字幕后显示波形');return}
+  let [start,end]=times();
+  if(!(end>start)){resetWave('设置起止时间后显示波形');return}
+  let windows=waveWindows(start,end),token=++waveToken;
+  $('cutState').textContent='正在读取波形…';$('cutState').classList.remove('warn');
+  try{
+    let data=await Promise.all(windows.map(w=>api('/api/waveform',{id:project.id,from:w.from,to:w.to})));
+    if(token!==waveToken)return;
+    waveA={...data[0],mode:windows[0].mode};
+    waveB=windows[1]?{...data[1],mode:'end'}:null;
+    $('waveA').classList.remove('hidden');$('waveB').classList.toggle('hidden',!waveB);
+    updateCutState();drawWave();
+  }catch(error){
+    if(token!==waveToken)return;
+    resetWave(error.message);
+  }
+}
+function scheduleWaveReload(){
+  clearTimeout(waveTimer);
+  waveTimer=setTimeout(()=>{
+    if(!project)return;
+    let [start,end]=times();
+    if(!(end>start))return;
+    let windows=waveWindows(start,end);
+    let same=waveA&&waveA.mode===windows[0].mode&&Math.abs(waveA.from-windows[0].from)<0.25&&Math.abs(waveA.to-windows[0].to)<0.25&&((!windows[1]&&!waveB)||(windows[1]&&waveB&&Math.abs(waveB.to-windows[1].to)<0.25));
+    if(!same)loadWave();
+  },700);
+}
+function waveColors(){
+  let android=document.body.classList.contains('android');
+  return android
+    ?{inside:'#236d50',outside:'#c8d6cc',grid:'rgba(32,49,43,.10)',cue:'rgba(35,109,80,.10)',text:'#6e7f76',start:'#236d50',end:'#a4691a',label:'#ffffff'}
+    :{inside:'#99e2c4',outside:'#33445a',grid:'rgba(238,243,250,.08)',cue:'rgba(155,170,188,.12)',text:'#6b7787',start:'#99e2c4',end:'#f3b96d',label:'#10161e'};
+}
+function drawWave(){drawStrip($('waveA'),waveA);if(waveB)drawStrip($('waveB'),waveB)}
+function drawStrip(canvas,data){
+  if(!data||!canvas.clientWidth)return;
+  let ratio=window.devicePixelRatio||1,width=canvas.clientWidth,height=canvas.clientHeight;
+  canvas.width=Math.round(width*ratio);canvas.height=Math.round(height*ratio);
+  let ctx=canvas.getContext('2d');ctx.setTransform(ratio,0,0,ratio,0,0);ctx.clearRect(0,0,width,height);
+  let colors=waveColors(),[start,end]=times(),toX=time=>((time-data.from)/(data.to-data.from))*width;
+  if(project)for(let row of project.subtitles){
+    let left=Math.max(row.start,data.from),right=Math.min(row.end,data.to);
+    if(right>left){ctx.fillStyle=colors.cue;ctx.fillRect(toX(left),0,toX(right)-toX(left),height)}
+  }
+  let middle=height/2,half=height/2-10,count=data.peaks.length||1,step=Math.max(2,Math.floor(width/count));
+  for(let x=0;x<width;x+=step){
+    let index=Math.min(count-1,Math.floor(x/width*count));
+    let amplitude=Math.pow(data.peaks[index]||0,.7)*half;
+    let time=data.from+(x/width)*(data.to-data.from);
+    ctx.fillStyle=time>=start&&time<=end?colors.inside:colors.outside;
+    ctx.fillRect(x,middle-amplitude,step-1,Math.max(1,amplitude*2));
+  }
+  if(data.mode!=='end')drawHandle(ctx,toX(start),colors.start,'开始 '+start.toFixed(2),width,height,colors);
+  if(data.mode!=='start')drawHandle(ctx,toX(end),colors.end,'结束 '+end.toFixed(2),width,height,colors);
+  ctx.strokeStyle=colors.grid;ctx.lineWidth=1;
+  for(let time=Math.ceil(data.from*2)/2;time<=data.to;time+=.5){let x=toX(time);ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,height);ctx.stroke()}
+  ctx.font='10px "Consolas",monospace';ctx.fillStyle=colors.text;
+  ctx.textAlign='left';ctx.fillText(data.from.toFixed(1)+'s',4,11);
+  ctx.textAlign='right';ctx.fillText(data.to.toFixed(1)+'s',width-4,11);ctx.textAlign='left';
+}
+function drawHandle(ctx,x,color,text,width,height,colors){
+  ctx.fillStyle=color;ctx.fillRect(x-1.5,10,3,height-10);
+  ctx.beginPath();ctx.moveTo(x-6,10);ctx.lineTo(x+6,10);ctx.lineTo(x,20);ctx.closePath();ctx.fill();
+  ctx.font='600 11px "Consolas",monospace';
+  let box=ctx.measureText(text).width+10,left=Math.min(Math.max(2,x-box/2),width-box-2);
+  ctx.fillRect(left,height-19,box,16);ctx.fillStyle=colors.label;ctx.fillText(text,left+5,height-7);
+}
+function riskAt(time){
+  for(let data of [waveA,waveB]){
+    if(!data||time<data.from||time>data.to)continue;
+    let index=Math.round((time-data.from)/(data.to-data.from)*(data.peaks.length-1));
+    return (data.peaks[index]||0)>data.threshold;
+  }
+  return false;
+}
+function updateCutState(){
+  if(!waveA)return;
+  let [start,end]=times(),risky=[];
+  if(riskAt(start))risky.push('开头');
+  if(riskAt(end))risky.push('结尾');
+  let box=$('cutState');
+  if(risky.length){box.textContent=risky.join('和')+'切在语音中间，点「自动贴合语音」或拖动竖线';box.classList.add('warn')}
+  else{box.textContent='切点落在静音处 · 拖动竖线或点 ±0.05 微调';box.classList.remove('warn')}
+}
+function shiftTimes(delta){let [start,end]=times(),length=end-start,next=Math.max(0,start+delta);pushTimes();applyTimes(next,next+length)}
+function listen(which){
+  needProject();
+  let [start,end]=times(),video=$('video');
+  if(!(end>start))throw Error('请先设置有效的起止时间');
+  let from=which==='head'?Math.max(0,start-0.4):Math.max(0,end-0.4);
+  let to=which==='head'?start+0.4:end+0.4;
+  stopAt=to;video.currentTime=from;video.play().catch(()=>{});
+  status((which==='head'?'听开头：':'听结尾：')+fmt(from)+' → '+fmt(to)+(which==='head'?'（前 0.4 秒是上一句的尾巴）':'（后 0.4 秒是下一句的开头）'));
+}
+function bindWave(canvas){
+  canvas.addEventListener('pointerdown',event=>{
+    let data=canvas===$('waveA')?waveA:waveB;
+    if(!data)return;
+    let rect=canvas.getBoundingClientRect();
+    let time=data.from+((event.clientX-rect.left)/rect.width)*(data.to-data.from);
+    let [start,end]=times();
+    let target=data.mode==='both'?(Math.abs(time-start)<=Math.abs(time-end)?'start':'end'):data.mode;
+    drag={canvas,data,target};
+    canvas.setPointerCapture(event.pointerId);
+    pushTimes();moveDrag(time);
+    event.preventDefault();
+  });
+  canvas.addEventListener('pointermove',event=>{
+    if(!drag||drag.canvas!==canvas)return;
+    let rect=canvas.getBoundingClientRect();
+    moveDrag(drag.data.from+((event.clientX-rect.left)/rect.width)*(drag.data.to-drag.data.from));
+  });
+  canvas.addEventListener('pointerup',()=>{drag=null;scheduleWaveReload()});
+  canvas.addEventListener('pointercancel',()=>{drag=null});
+}
+function moveDrag(time){
+  if(!drag)return;
+  let [start,end]=times();
+  if(drag.target==='start')applyTimes(clampTime(time,drag.data.from,end-0.2),end);
+  else applyTimes(start,clampTime(time,start+0.2,drag.data.to));
+}
+document.querySelectorAll('[data-nudge]').forEach(button=>button.onclick=()=>{
+  if(!project)return status('请先导入视频',true);
+  let [side,delta]=button.dataset.nudge.split(':'),[start,end]=times();
+  pushTimes();
+  if(side==='start')applyTimes(clampTime(start+Number(delta),0,end-0.2),end);
+  else applyTimes(start,Math.max(start+0.2,end+Number(delta)));
+});
+$('shiftLeft').onclick=()=>shiftTimes(-0.1);
+$('shiftRight').onclick=()=>shiftTimes(0.1);
+$('undoTimes').onclick=()=>{let previous=timeHistory.pop();if(!previous)return status('没有可撤销的调整');applyTimes(previous[0],previous[1])};
+$('listenHead').onclick=()=>action(async()=>listen('head'));
+$('listenTail').onclick=()=>action(async()=>listen('tail'));
+$('snapSpeech').onclick=()=>action(async()=>{
+  needProject();
+  let [start,end]=times();
+  if(!(end>start))throw Error('请先设置有效的起止时间');
+  let result=await api('/api/snap',{id:project.id,start,end});
+  pushTimes();applyTimes(result.start,result.end);
+  status(result.changed?'已贴合到语音边界：'+fmt(result.start)+' → '+fmt(result.end):'切点已经在语音边界附近，没有改动。');
+});
+for(let id of ['start','end'])$(id).addEventListener('change',()=>{updateCutState();scheduleWaveReload()});
+window.addEventListener('resize',()=>drawWave());
+bindWave($('waveA'));bindWave($('waveB'));
 function getClip(){let start=Number($('start').value),end=Number($('end').value);if(!Number.isFinite(start)||!Number.isFinite(end)||start<0||end<=start)throw Error('请设置有效的起止时间');if(end-start>600)throw Error('单段最多 10 分钟');let duration=$('video').duration;if(Number.isFinite(duration)&&end>duration+.1)throw Error('结束时间超出视频长度');let english=$('english').value.trim(),chinese=$('chinese').value.trim();return{start,end,english,chinese}}
 async function save(clips=project.clips){let continuous=$('fullCoverage').checked;await api('/api/save',{id:project.id,clips,continuous});project.clips=clips;project.continuous=continuous}
 function renderClips(){$('clipCount').textContent=(project?.clips.length||0)+' 段';if(isAndroid)$('mobileClipCount').textContent='素材 '+(project?.clips.length||0);$('clips').innerHTML=project?.clips.length?project.clips.map((c,i)=>{let actions=`<button data-edit="${i}">编辑</button><button class="quiet" data-delete="${i}">移除</button>`;return `<div class="clip"><span class="number">${String(i+1).padStart(3,'0')}</span><div class="cliptext"><p>${escapeHTML(c.chinese||'（尚未填写中文）')}</p><small>${escapeHTML(c.english)}</small><small>${fmt(c.start)} → ${fmt(c.end)}</small></div>${isAndroid?`<div class="clip-actions">${actions}</div>`:actions}</div>`}).join(''):'<p class="muted">还没有选段。编辑后点击“加入素材列表”。</p>'}
@@ -113,7 +272,7 @@ $('loadSub').onclick=()=>{if(!project)return status('请先导入视频',true);i
 $('projects').onchange=e=>{if(!e.target.value)return;if(!mayDiscardMobileDraft()){e.target.value=project?.id||'';return}action(async()=>load(await api('/api/project?id='+e.target.value)))};
 $('search').oninput=renderSubs;
 $('reparse').onclick=()=>{if(!mayDiscardMobileDraft())return;action(async()=>{needProject();load(await api('/api/reparse',{id:project.id}));status('已按原始字幕文件重新解析，共 '+project.subtitles.length+' 条。')})};
-$('subs').onclick=e=>{if(busy)return;let row=e.target.closest('[data-index]');if(!row||!mayDiscardMobileDraft())return;mobileDirty=false;let i=Number(row.dataset.index);if(isAndroid&&mobileRange){if(!mobileWaiting){anchor=i;selected=[i];mobileWaiting=true}else{selected=Array.from({length:Math.abs(i-anchor)+1},(_,n)=>Math.min(i,anchor)+n);mobileWaiting=false}}else if(e.shiftKey&&anchor!==null){selected=Array.from({length:Math.abs(i-anchor)+1},(_,n)=>Math.min(i,anchor)+n)}else{anchor=i;selected=[i]}let rows=selected.map(i=>project.subtitles[i]);$('start').value=rows[0].start.toFixed(3);$('end').value=Math.max(...rows.map(x=>x.end)).toFixed(3);let text='';for(let r of rows){if(text.endsWith(r.text))continue;let words=r.text.split(' '),previous=text.split(' '),overlap=0;for(let n=1;n<=Math.min(words.length,previous.length);n++){if(previous.slice(-n).join(' ')===words.slice(0,n).join(' '))overlap=n}let tail=words.slice(overlap).join(' ');if(tail)text+=(text?' ':'')+tail}$('english').value=text;$('chinese').value='';editIndex=-1;$('editLabel').textContent=selected.length+' 条字幕';$('add').textContent='加入素材列表';if(isAndroid)$('mobileSave').textContent=$('add').textContent;stopAt=null;$('video').currentTime=Number($('start').value);renderSubs()};
+$('subs').onclick=e=>{if(busy)return;let row=e.target.closest('[data-index]');if(!row||!mayDiscardMobileDraft())return;mobileDirty=false;let i=Number(row.dataset.index);if(isAndroid&&mobileRange){if(!mobileWaiting){anchor=i;selected=[i];mobileWaiting=true}else{selected=Array.from({length:Math.abs(i-anchor)+1},(_,n)=>Math.min(i,anchor)+n);mobileWaiting=false}}else if(e.shiftKey&&anchor!==null){selected=Array.from({length:Math.abs(i-anchor)+1},(_,n)=>Math.min(i,anchor)+n)}else{anchor=i;selected=[i]}let rows=selected.map(i=>project.subtitles[i]);$('start').value=rows[0].start.toFixed(3);$('end').value=Math.max(...rows.map(x=>x.end)).toFixed(3);let text='';for(let r of rows){if(text.endsWith(r.text))continue;let words=r.text.split(' '),previous=text.split(' '),overlap=0;for(let n=1;n<=Math.min(words.length,previous.length);n++){if(previous.slice(-n).join(' ')===words.slice(0,n).join(' '))overlap=n}let tail=words.slice(overlap).join(' ');if(tail)text+=(text?' ':'')+tail}$('english').value=text;$('chinese').value='';editIndex=-1;$('editLabel').textContent=selected.length+' 条字幕';$('add').textContent='加入素材列表';if(isAndroid)$('mobileSave').textContent=$('add').textContent;stopAt=null;$('video').currentTime=Number($('start').value);renderSubs();loadWave()};
 $('preview').onclick=()=>action(async()=>{needProject();let c=getClip();stopAt=c.end;$('video').currentTime=c.start;await $('video').play()});
 $('video').ontimeupdate=()=>{let v=$('video');if(stopAt!==null&&v.currentTime>=stopAt){if($('loop').checked){v.currentTime=Number($('start').value);v.play().catch(()=>{})}else{v.pause();stopAt=null}}for(let row of $('subs').querySelectorAll('[data-index]')){let s=project.subtitles[Number(row.dataset.index)];row.classList.toggle('current',v.currentTime>=s.start&&v.currentTime<s.end)}};
 $('video').onerror=()=>{if(project)status('浏览器无法解码此视频。可更换 H.264 MP4；已有选段仍可尝试导出。',true)};
@@ -121,7 +280,7 @@ $('setStart').onclick=()=>{$('start').value=$('video').currentTime.toFixed(3);if
 $('translate').onclick=()=>{if(isAndroid&&$('chinese').value.trim()&&!confirm('翻译会替换当前中文，是否继续？'))return;action(async()=>{let english=$('english').value.trim();if(!english)throw Error('请先选择或填写英文');let r=await job('/api/translate',{english});$('chinese').value=r.chinese;if(isAndroid)mobileDirty=true;status('翻译完成，请检查中文。'+(r.usage.total_tokens?' 本次用量：'+r.usage.total_tokens+' Token。':''))})};
 $('add').onclick=()=>action(async()=>{needProject();let c=getClip();if(!c.english)throw Error('请填写英文原句');let updating=editIndex>=0,clips=project.clips.slice();if(updating)clips[editIndex]=c;else clips.push(c);await save(clips);renderClips();clearEditor();status('选段已保存。中文为空的选段可以稍后编辑补充。');if(isAndroid)showMobilePage(updating?'clips':'source')});
 $('new').onclick=()=>{if(mayDiscardMobileDraft())clearEditor()};
-$('clips').onclick=e=>{if(busy||!project)return;if(e.target.dataset.edit!==undefined){if(!mayDiscardMobileDraft())return;let i=Number(e.target.dataset.edit),c=project.clips[i];editIndex=i;selected=[];anchor=null;mobileWaiting=false;mobileDirty=false;for(let k of ['start','end','english','chinese'])$(k).value=c[k];$('editLabel').textContent='编辑第 '+(i+1)+' 段';$('add').textContent='保存修改';renderSubs();if(isAndroid){$('mobileSave').textContent=$('add').textContent;showMobilePage('edit')}else $('english').scrollIntoView({behavior:'smooth',block:'center'})}if(e.target.dataset.delete!==undefined){if(!mayDiscardMobileDraft())return;let i=Number(e.target.dataset.delete);if(confirm('移除第 '+(i+1)+' 个选段？'))action(async()=>{let clips=project.clips.slice();clips.splice(i,1);await save(clips);clearEditor();renderClips()})}};
+$('clips').onclick=e=>{if(busy||!project)return;if(e.target.dataset.edit!==undefined){if(!mayDiscardMobileDraft())return;let i=Number(e.target.dataset.edit),c=project.clips[i];editIndex=i;selected=[];anchor=null;mobileWaiting=false;mobileDirty=false;for(let k of ['start','end','english','chinese'])$(k).value=c[k];$('editLabel').textContent='编辑第 '+(i+1)+' 段';$('add').textContent='保存修改';renderSubs();loadWave();if(isAndroid){$('mobileSave').textContent=$('add').textContent;showMobilePage('edit')}else $('english').scrollIntoView({behavior:'smooth',block:'center'})}if(e.target.dataset.delete!==undefined){if(!mayDiscardMobileDraft())return;let i=Number(e.target.dataset.delete);if(confirm('移除第 '+(i+1)+' 个选段？'))action(async()=>{let clips=project.clips.slice();clips.splice(i,1);await save(clips);clearEditor();renderClips()})}};
 $('export').onclick=()=>action(async()=>{needProject();if(editIndex>=0)throw Error('请先保存正在编辑的修改');let r=await job('/api/export',{id:project.id,clips:project.clips,portrait:$('ratio').value==='portrait',theme:$('theme').value});status('已导出 '+r.count+' 段素材。'+(isAndroid?'请选择位置保存素材包。':'\n'+r.folder));if(isAndroid)window.AndroidHost.saveBatch(r.folder)});
 $('trySound').onclick=()=>action(async()=>{let sound=$('cardSound').value,seconds=Number($('cardSeconds').value)||5;if(sound==='none')throw Error('当前选择的是无声，换成其他提示音再试听');let response=await fetch('/api/card-sound',{method:'POST',headers:{'X-App-Token':token,'Content-Type':'application/json'},body:JSON.stringify({sound,seconds})});if(!response.ok){let d=await response.json();throw Error(d.error||'无法生成提示音')}if(soundURL)URL.revokeObjectURL(soundURL);soundURL=URL.createObjectURL(await response.blob());soundAudio=new Audio(soundURL);await soundAudio.play();status('正在试听 '+seconds+' 秒的题卡提示音：'+$('cardSound').selectedOptions[0].text+'。')});
 $('compose').onclick=()=>action(async()=>{needProject();if(editIndex>=0)throw Error('请先保存正在编辑的修改');if(!project.clips.length)throw Error('素材列表还是空的');let card=Number($('cardSeconds').value)||5;let versions=[...document.querySelectorAll('input[data-version-out]')].filter(x=>x.checked).map(x=>x.dataset.versionOut);if(!versions.length)throw Error('请至少勾选一种输出格式：无字幕 / 英文字幕 / 双语');$('outputNotice').classList.remove('hidden');$('outputNotice').textContent='准备合成';if(isAndroid)showMobilePage('outputs');else $('outputSection').scrollIntoView({behavior:'smooth',block:'start'});try{let r=await job('/api/compose',{id:project.id,clips:project.clips,portrait:$('ratio').value==='portrait',card,theme:$('theme').value,continuous:$('fullCoverage').checked,versions,sound:$('cardSound').value},message=>$('outputNotice').textContent=message);project.outputs=project.outputs||[];project.outputs.unshift(r);renderOutputs();$('outputNotice').textContent='合成完成';status('成片已生成（'+(r.files||[{label:'成片'}]).map(f=>f.label).join('、')+'），共 '+r.count+' 题、约 '+r.seconds+' 秒。'+(isAndroid?' 可在下方预览或保存到手机。':'\n'+r.folder))}catch(e){$('outputNotice').textContent='合成失败：'+e.message;throw e}});
@@ -161,6 +320,7 @@ function showMobilePage(page){
   for(let [id,visible] of [['videoSection',page==='source'||page==='edit'],['subtitleSection',page==='source'],['editorSection',page==='edit'],['clipsSection',page==='clips'],['outputSection',page==='outputs']])$(id).classList.toggle('mobile-visible',visible);
   $('mobileSelectionAction').classList.toggle('mobile-visible',page==='source');$('mobileEditorAction').classList.toggle('mobile-visible',page==='edit');
   document.querySelectorAll('#mobileNav button').forEach(button=>button.classList.toggle('active',button.dataset.mobileScreen===page));
+  if(page==='edit'){drawWave();if(!waveA)loadWave()}
   if(page!=='source'&&page!=='edit')$('video').pause();if(page!=='outputs')$('outputVideo').pause();window.scrollTo(0,0);
 }
 function setupMobile(){

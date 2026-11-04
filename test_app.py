@@ -383,6 +383,51 @@ class WorkflowTest(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, '不完整'):
                 app.translate_rows(items, 'test-key')
 
+    def test_waveform_and_snap_follow_silence(self):
+        with tempfile.TemporaryDirectory(prefix='波形测试_') as directory:
+            root = Path(directory)
+            with patch.object(app, 'ROOT', root), patch.object(app, 'PROJECTS', root / 'projects'), \
+                    patch.object(app, 'OUTPUT', root / 'output'):
+                (root / 'tools').mkdir()
+                ffmpeg_binary = self.ffmpeg_binary()
+                with patch.object(app, 'ffmpeg', return_value=str(ffmpeg_binary)):
+                    pid = '0123456789abcdef'
+                    folder = app.project_dir(pid)
+                    folder.mkdir(parents=True)
+                    app.run_ffmpeg([
+                        '-f', 'lavfi', '-i', 'color=c=navy:s=320x180:r=25:d=7',
+                        '-f', 'lavfi', '-i', 'anullsrc=r=48000:cl=mono:d=1',
+                        '-f', 'lavfi', '-i', 'sine=f=440:d=2',
+                        '-f', 'lavfi', '-i', 'anullsrc=r=48000:cl=mono:d=1',
+                        '-f', 'lavfi', '-i', 'sine=f=440:d=2',
+                        '-f', 'lavfi', '-i', 'anullsrc=r=48000:cl=mono:d=1',
+                        '-filter_complex', '[1:a][2:a][3:a][4:a][5:a]concat=n=5:v=0:a=1[a]',
+                        '-map', '0:v', '-map', '[a]', '-c:v', 'libx264', '-pix_fmt', 'yuv420p',
+                        '-c:a', 'aac', '-shortest', str(folder / 'source.mp4')])
+                    app.save_project({'id': pid, 'title': '波形', 'url': '', 'video': 'source.mp4',
+                                      'subtitles': [], 'clips': []})
+                    data = app.waveform(pid, .8, 3.2)
+                    self.assertAlmostEqual(data['from'], .8, places=2)
+                    self.assertGreater(len(data['peaks']), 100)
+                    self.assertLess(max(data['peaks'][:8]), .05)
+                    self.assertGreater(max(data['peaks'][50:70]), .05)
+                    self.assertGreater(data['threshold'], .01)
+                    result = app.snap_clip(pid, 1.5, 5.5)
+                    self.assertAlmostEqual(result['start'], .94, delta=.08)
+                    self.assertAlmostEqual(result['end'], 6.06, delta=.08)
+                    self.assertTrue(result['changed'])
+                    with self.assertRaisesRegex(ValueError, '有效的起止时间'):
+                        app.snap_clip(pid, 5, 2)
+
+                    silent = folder / 'silent.mp4'
+                    app.run_ffmpeg(['-f', 'lavfi', '-i', 'color=c=navy:s=320x180:r=25:d=2',
+                                    '-c:v', 'libx264', '-pix_fmt', 'yuv420p', str(silent)])
+                    project = app.read_project(pid)
+                    project['video'] = 'silent.mp4'
+                    app.save_project(project)
+                    with self.assertRaisesRegex(ValueError, '没有音轨'):
+                        app.waveform(pid, 0, 1)
+
     def test_compose_writes_subtitle_versions(self):
         with tempfile.TemporaryDirectory(prefix='版本测试_') as directory:
             root = Path(directory)
