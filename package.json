@@ -1,0 +1,7 @@
+{
+  "name": "spoken-english-material-tool",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {"test:browser": "node test_browser.cjs"},
+  "devDependencies": {"playwright": "^1.56.0"}
+}

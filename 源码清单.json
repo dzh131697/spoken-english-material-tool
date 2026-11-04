@@ -1,0 +1,97 @@
+[
+  {
+    "file": "app.py",
+    "bytes": 20528,
+    "sha256": "733604ca4e71c47e7baf0d7d990162927221297736db53b06139a5b580837b2e"
+  },
+  {
+    "file": "build.py",
+    "bytes": 2977,
+    "sha256": "388470fc38dbd1810b34ddb1ee7425a28c55003aa10e57655ee4f94bfee624da"
+  },
+  {
+    "file": "package_release.py",
+    "bytes": 2713,
+    "sha256": "5096324425fca6eb179f1d09f8458c41ad479c71187624183656673a52896d06"
+  },
+  {
+    "file": "package_source.py",
+    "bytes": 2162,
+    "sha256": "db30428c04ae5deff3aff91d4dcd28cc6aa93d0b1f295428aac2204f95c16836"
+  },
+  {
+    "file": "test_app.py",
+    "bytes": 5876,
+    "sha256": "991f7f9ee94736f73a3f532d0c0798c8b1f3ac1513cceb5f91c19c30daca30b2"
+  },
+  {
+    "file": "test_browser.cjs",
+    "bytes": 4349,
+    "sha256": "fad211c23c74e191ea46d514802de30b8dc9d5b2210381c265c48ae69c54fb19"
+  },
+  {
+    "file": "web/index.html",
+    "bytes": 18933,
+    "sha256": "5d9dcde86de991f0b3427f3fe60f7d0642f17abad572cefe58dcfb03271068da"
+  },
+  {
+    "file": "requirements-dev.txt",
+    "bytes": 94,
+    "sha256": "203f197ca956f96921b60f20e2a717bd0e847abc4e041fee3aae59e098768872"
+  },
+  {
+    "file": "package.json",
+    "bytes": 190,
+    "sha256": "e8d4383f3befa7d94b60055f1ee0d173608393e3884c5a83abe5ca3a26cc8e95"
+  },
+  {
+    "file": "setup-dev.ps1",
+    "bytes": 1140,
+    "sha256": "97e028bd796532e1c2b101d6478187f6031d0b327afad422ded5fc0a1f9dd073"
+  },
+  {
+    "file": ".gitignore",
+    "bytes": 124,
+    "sha256": "a4d2c4ca80814de0cbf4d6103ed61ce8fd7b5c67bde9c5f7f38383d0b39b70f7"
+  },
+  {
+    "file": "AGENTS.md",
+    "bytes": 1549,
+    "sha256": "5206d25de3ae071bc2a9028c77d998a7f2c8497ec6cc702557ca5b71755f378e"
+  },
+  {
+    "file": "README.md",
+    "bytes": 2654,
+    "sha256": "436fd7bcb31ebcdbd86f0263e43f09281c9282aec46c3c4e52ba696121cd6a8f"
+  },
+  {
+    "file": "使用说明.md",
+    "bytes": 4252,
+    "sha256": "6ce3b3a2010a6f7864afb2ece6570dc706be1eedfec8846e5adc05e49631fb0b"
+  },
+  {
+    "file": "开发说明.md",
+    "bytes": 2287,
+    "sha256": "d5d241ef6ff0bf65e14fbfbcd626f00327573e103d6bf7fd3ffd99e63e2c5bce"
+  },
+  {
+    "file": "第三方说明.md",
+    "bytes": 1160,
+    "sha256": "110f48a2f618c24b5c68bdf82c4ca73467790eaa470b932c3363a12b82f925cc"
+  },
+  {
+    "file": "交接说明.md",
+    "bytes": 4631,
+    "sha256": "8b27752a475adb03d6f9aba41eadb397fdfbdabc69c95650a12a9921b40dc9da"
+  },
+  {
+    "file": "接手提示词.md",
+    "bytes": 2307,
+    "sha256": "f65b21b6353816e9d8d75af674b6c7a27f2b3b3e9b7c2d7d24cb1af257f4db67"
+  },
+  {
+    "file": "提示词/翻译提示词.md",
+    "bytes": 772,
+    "sha256": "557f2c565db6613a89ccf74309a525476171a8bebf717b21802c5e353eaa95f7"
+  }
+]

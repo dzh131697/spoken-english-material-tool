@@ -1,0 +1,15 @@
+__pycache__/
+*.pyc
+build/
+dist/
+Windows便携版/
+tools/
+data/
+导出素材/
+qa/
+node_modules/
+.venv/
+.env
+cookies.txt
+*.zip
+SHA256.txt
