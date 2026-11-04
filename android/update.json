@@ -3,5 +3,5 @@
   "versionName": "0.2.1004",
   "apkUrl": "https://github.com/dzh131697/spoken-english-material-tool/releases/download/android-v1004/spoken-material-android.apk",
   "sha256": "b84bb11b7213134841a2bbf3feff110ea80584322ec89202bd74b08282be814a",
-  "notes": "安卓版有新更新，包含界面与功能修正。可选择下载并安装。"
+  "notes": "编辑选段新增音频波形：可直接拖动切点、±0.05/±0.10 微调、整体平移、一键贴合语音，并可听开头/结尾确认有没有切掉半个词。桌面版同步。可选择下载并安装。"
 }
