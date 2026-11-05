@@ -118,9 +118,11 @@ public class MainActivity extends Activity {
         if (!directory.isDirectory() && !directory.mkdirs()) {
             throw new IOException("无法创建网页目录");
         }
-        try (InputStream input = getAssets().open("index.html");
-             OutputStream output = new FileOutputStream(new File(directory, "index.html"))) {
-            copy(input, output);
+        for (String name : new String[]{"index.html", "publish.js", "publish.css"}) {
+            try (InputStream input = getAssets().open(name);
+                 OutputStream output = new FileOutputStream(new File(directory, name))) {
+                copy(input, output);
+            }
         }
     }
 
@@ -276,6 +278,21 @@ public class MainActivity extends Activity {
         }
 
         @JavascriptInterface
+        public void savePublicationFile(String id, String name) {
+            try {
+                if (!"封面_横版.png".equals(name) && !"封面_竖版.png".equals(name)
+                        && !"封面_3比4.png".equals(name) && !"发布文案.txt".equals(name)) {
+                    throw new IOException("无效发布文件");
+                }
+                File file = new File(outputDirectory(id), name);
+                if (!file.isFile()) throw new IOException("文件不存在");
+                requestSave(file, name.endsWith(".png") ? "image/png" : "text/plain", name);
+            } catch (Exception error) {
+                toast("请先保存这条成片的封面和文案");
+            }
+        }
+
+        @JavascriptInterface
         public void saveBatch(String path) {
             new Thread(() -> {
                 try {
@@ -292,13 +309,18 @@ public class MainActivity extends Activity {
                             if (!file.isFile()) continue;
                             String name = file.getName();
                             if (!name.matches("\\d{3,}_(中文题卡\\.png|原视频\\.mp4|中英文本\\.txt)")
-                                    && !"素材清单.json".equals(name)) continue;
+                                    && !"素材清单.json".equals(name)
+                                    && !name.matches("成片_(横版|竖版)(_英文字幕|_双语字幕)?\\.mp4")
+                                    && !"封面_横版.png".equals(name) && !"封面_竖版.png".equals(name)
+                                    && !"封面_3比4.png".equals(name)
+                                    && !"发布文案.txt".equals(name) && !"发布资料.json".equals(name)) continue;
                             zip.putNextEntry(new ZipEntry(name));
                             try (InputStream input = new FileInputStream(file)) { copy(input, zip); }
                             zip.closeEntry();
                         }
                     }
-                    requestSave(archive, "application/zip", "口语素材_" + directory.getName() + ".zip");
+                    String label = new File(directory, "发布资料.json").isFile() ? "发布资料_" : "口语素材_";
+                    requestSave(archive, "application/zip", label + directory.getName() + ".zip");
                 } catch (Exception error) {
                     toast("素材包保存失败，请检查存储空间");
                 }

@@ -25,19 +25,46 @@ async function openPage(browser, android, width = 390) {
     if (isAndroid) {
       window.AndroidHost = {
         saveVideo: (id, name) => window.saved.push({ id, name }),
+        savePublicationFile: (id, name) => window.saved.push({ publication: id, name }),
         saveBatch: folder => window.saved.push({ folder }),
         closeApp: () => window.saved.push({ closed: true }),
         checkForUpdates: () => window.saved.push({ checked: true }),
       };
     }
   }, android);
-  const state = { saves: [], failNextSave: false, suggestCalls: 0 };
+  const state = { saves: [], failNextSave: false, suggestCalls: 0, publicationSaves: {}, frames: [], generations: [] };
   await context.route('**/*', async route => {
     const request = route.request();
     const url = new URL(request.url());
     if (url.pathname === '/') return route.fulfill({ contentType: 'text/html', body: html });
+    if (url.pathname === '/publish.js' || url.pathname === '/publish.css') return route.fulfill({
+      contentType: url.pathname.endsWith('.js') ? 'text/javascript' : 'text/css',
+      body: fs.readFileSync('web' + url.pathname, 'utf8'),
+    });
     if (url.pathname === '/api/projects') return route.fulfill({ json: { projects: [], hasKey: false } });
     if (url.pathname === '/media') return route.fulfill({ status: 204 });
+    if (url.pathname === '/api/waveform') {
+      const body = request.postDataJSON();
+      return route.fulfill({ json: { from: body.from, to: body.to, peaks: [0,.2,.8,.4,0], threshold: .3 } });
+    }
+    if (url.pathname === '/publish-source' || url.pathname === '/output-media') return route.fulfill({ status: 204 });
+    if (url.pathname === '/api/publish-frame') {
+      const body = request.postDataJSON(); state.frames.push(body);
+      return route.fulfill({ contentType: 'image/svg+xml', headers: { 'X-Frame-Time': String(body.mode === 'random' ? 1.25 : body.time) },
+        body: '<svg xmlns="http://www.w3.org/2000/svg" width="960" height="540"><rect width="960" height="540" fill="#426b82"/><circle cx="710" cy="240" r="125" fill="#d5ad8b"/><rect x="580" y="360" width="250" height="180" fill="#233e4d"/></svg>' });
+    }
+    if (url.pathname === '/api/publish-save') {
+      const body = request.postDataJSON();
+      const publication = { ...body.publication, images: Object.keys(body.cover_images), updated: 1 };
+      const output = { ...sample.outputs[0], id: body.output, publication };
+      state.publicationSaves[body.output] = { body, output };
+      return route.fulfill({ json: output });
+    }
+    if (url.pathname === '/api/publish-generate') {
+      state.generations.push(request.postDataJSON());
+      return route.fulfill({ json: { job: 'publication' } });
+    }
+    if (url.pathname === '/api/publish-folder') return route.fulfill({ json: { folder: '/private/导出素材/' + request.postDataJSON().output } });
     if (url.pathname === '/api/save') {
       if (state.failNextSave) {
         state.failNextSave = false;
@@ -62,6 +89,7 @@ async function openPage(browser, android, width = 390) {
           { start: 2.1, end: 5.5, english: 'I had a great time.', chinese: '我过得很开心。' },
         ],
       };
+      if (url.searchParams.get('id') === 'publication') result = { fields: { title: '模拟生成的标题' }, usage: { total_tokens: 30 } };
       return route.fulfill({ json: { state: 'done', message: '完成', result } });
     }
     return route.fulfill({ status: 404, json: { error: 'unexpected request' } });
@@ -90,6 +118,7 @@ async function openPage(browser, android, width = 390) {
       assert.equal(await page.locator('#start').inputValue(), '0.500');
       assert.equal(await page.locator('#end').inputValue(), '4.500');
       await page.locator('#mobileEditSelection').click();
+      await page.locator('#waveA').waitFor({ state: 'visible' });
       assert.equal(await page.locator('#video').isVisible(), true);
       await page.locator('#preview').click();
       assert.equal(await page.evaluate(() => window.played), 1);
@@ -113,6 +142,7 @@ async function openPage(browser, android, width = 390) {
 
       await page.locator('#suggest').click();
       assert.equal(state.suggestCalls, 0);
+      await page.locator('input[name="aiMode"][value="continuous"]').check();
       await page.locator('#generateSegments').click();
       await page.locator('.ai-row').first().waitFor();
       assert.equal(state.suggestCalls, 1);
@@ -120,6 +150,10 @@ async function openPage(browser, android, width = 390) {
       await page.locator('#replaceSegments').click();
       await page.locator('#clipsSection').waitFor({ state: 'visible' });
       assert.equal(await page.locator('#fullCoverage').isChecked(), true);
+      await page.locator('#cardTip').fill('现在轮到你啦');
+      await page.locator('#cardTip').blur();
+      await page.waitForFunction(() => !busy);
+      assert.equal(state.saves.at(-1).card_tip, '现在轮到你啦');
       await page.locator('#export').click();
       await page.waitForFunction(() => window.saved.some(item => item.folder));
       await page.locator('#compose').click();
@@ -132,6 +166,66 @@ async function openPage(browser, android, width = 390) {
       await page.locator('#mobileSettings').click();
       await page.locator('#mobileCheckUpdates').click();
       assert.deepEqual(await page.evaluate(() => window.saved.find(item => item.checked)), { checked: true });
+      await page.evaluate(() => project.outputs.push({ ...project.outputs[0], id: '20261105_111111_abcdef' }));
+      await page.locator('[data-publish-output]').first().click();
+      await page.waitForFunction(() => !busy && publishingFrame !== null);
+      assert.equal(state.generations.length, 0);
+      await page.locator('#coverFrameMode').selectOption('random');
+      await page.waitForFunction(() => !busy);
+      assert.equal(state.frames.at(-1).mode, 'random');
+      await page.locator('#publishTitle').fill('第一条视频标题');
+      await page.locator('#publishPlatform').selectOption('xiaohongshu');
+      assert.equal(await page.locator('#publishTitle').inputValue(), '');
+      await page.locator('#publishTitle').fill('小红书标题');
+      await page.locator('#publishPlatform').selectOption('bilibili');
+      assert.equal(await page.locator('#publishTitle').inputValue(), '第一条视频标题');
+      await page.locator('#coverTitle').fill('这句话英语怎么说');
+      fs.mkdirSync('qa', { recursive: true });
+      for (const style of ['viewfinder', 'magazine', 'note', 'pop', 'minimal']) {
+        await page.locator(`[data-cover-style="${style}"]`).click();
+        assert.equal(await page.evaluate(() => coverLayoutValid), true);
+        if (width === 390) fs.writeFileSync(`qa/封面_${style}.png`, Buffer.from(await page.evaluate(() => document.querySelector('#coverCanvas').toDataURL().split(',')[1]), 'base64'));
+      }
+      await page.locator('#coverShowTitle').uncheck();
+      assert.equal(await page.evaluate(() => activeCover().show_title), false);
+      await page.locator('#coverShowTitle').check();
+      await page.locator('#coverRatio').selectOption('portrait34');
+      await page.waitForFunction(() => !busy);
+      assert.deepEqual(await page.evaluate(() => [document.querySelector('#coverCanvas').width, document.querySelector('#coverCanvas').height]), [1080, 1440]);
+      await page.locator('#savePublication').click();
+      await page.locator('#publishSaved').filter({ hasText: '已保存' }).waitFor();
+      const firstID = '20261104_123456_abcdef';
+      assert.equal(state.publicationSaves[firstID].body.publication.platforms.bilibili.title, '第一条视频标题');
+      assert.equal(state.publicationSaves[firstID].body.publication.platforms.xiaohongshu.title, '小红书标题');
+      assert.deepEqual(Object.keys(state.publicationSaves[firstID].body.cover_images).sort(), ['landscape', 'portrait34']);
+      page.once('dialog', dialog => dialog.accept());
+      await page.locator('[data-generate-publication="title"]').click();
+      await page.locator('#publishTitle').filter({ visible: true }).waitFor();
+      await page.waitForFunction(() => document.querySelector('#publishTitle').value === '模拟生成的标题' && !busy);
+      assert.equal(state.generations[0].output, firstID);
+      await page.locator('#savePublication').click();
+      await page.waitForFunction(() => !busy && !publishingDirty);
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+      await page.locator('#coverCanvas').scrollIntoViewIfNeeded();
+      await page.screenshot({ path: `qa/发布准备_${width}.png` });
+      await page.locator('#publishBack').click();
+      await page.locator('[data-edit-publication="20261105_111111_abcdef"]').click();
+      await page.waitForFunction(() => !busy && publishingFrame !== null);
+      assert.equal(await page.locator('#coverFrameMode').inputValue(), 'manual');
+      assert.equal(await page.locator('#publishTitle').inputValue(), '');
+      await page.locator('#publishTitle').fill('第二条视频标题');
+      page.once('dialog', dialog => dialog.dismiss());
+      await page.locator('#publishBack').click();
+      assert.equal(await page.locator('#publishEditor').isVisible(), true);
+      await page.locator('#savePublication').click();
+      await page.waitForFunction(() => !busy && !publishingDirty);
+      assert.equal(state.publicationSaves[firstID].output.publication.platforms.bilibili.title, '模拟生成的标题');
+      assert.equal(state.publicationSaves['20261105_111111_abcdef'].output.publication.platforms.bilibili.title, '第二条视频标题');
+      await page.locator('#downloadCover').click();
+      await page.waitForFunction(() => window.saved.some(item => item.publication));
+      assert.deepEqual(await page.evaluate(() => window.saved.find(item => item.publication)), { publication: '20261105_111111_abcdef', name: '封面_横版.png' });
+      await page.locator('#downloadPublication').click();
+      await page.waitForFunction(() => window.saved.some(item => item.folder?.endsWith('20261105_111111_abcdef')));
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
       assert.deepEqual(errors, []);
       await context.close();
@@ -145,6 +239,20 @@ async function openPage(browser, android, width = 390) {
     await desktop.page.locator('.sub').nth(0).click();
     await desktop.page.locator('.sub').nth(1).click({ modifiers: ['Shift'] });
     assert.equal(await desktop.page.locator('#english').inputValue(), 'How was your weekend? I had a great time.');
+    await desktop.page.locator('#publishingTab').click();
+    await desktop.page.locator('[data-edit-publication]').click();
+    await desktop.page.waitForFunction(() => !busy && publishingFrame !== null);
+    assert.equal(await desktop.page.locator('#productionPage').isVisible(), false);
+    await desktop.page.locator('#publishPlatform').selectOption('xiaohongshu');
+    await desktop.page.locator('#publishTitle').fill('字'.repeat(21));
+    await desktop.page.locator('#savePublication').click();
+    await desktop.page.locator('#status').filter({ hasText: '超出字数限制' }).waitFor();
+    assert.equal(Object.keys(desktop.state.publicationSaves).length, 0);
+    await desktop.page.locator('#publishTitle').fill('桌面端发布标题');
+    await desktop.page.locator('#savePublication').click();
+    await desktop.page.waitForFunction(() => !busy && !publishingDirty);
+    assert.equal(await desktop.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    await desktop.page.screenshot({ path: 'qa/发布准备_桌面.png', fullPage: true });
     assert.deepEqual(desktop.errors, []);
     await desktop.context.close();
     console.log('Android touch workflow and Windows selection: PASS (mocked browser interfaces)');

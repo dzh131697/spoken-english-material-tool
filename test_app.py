@@ -1,4 +1,5 @@
 import importlib.util
+import base64
 import io
 import json
 import math
@@ -10,6 +11,7 @@ import tempfile
 import threading
 import types
 import unittest
+import zipfile
 import urllib.error
 import urllib.request
 import wave
@@ -276,6 +278,11 @@ class WorkflowTest(unittest.TestCase):
                     saved = app.read_project(pid)['outputs']
                     self.assertEqual(saved[0]['id'], result['id'])
                     self.assertEqual(saved[0]['name'], output.name)
+                    self.assertEqual(saved[0]['clips'], clips)
+                    self.assertEqual(saved[0]['card_tip'], app.DEFAULT_CARD_TIP)
+                    frame, frame_time = app.cover_frame(pid, result['id'], 'random')
+                    self.assertTrue(any(c['start'] <= frame_time < c['end'] for c in clips))
+                    self.assertEqual(Image.open(io.BytesIO(frame)).size, (1920, 1080))
                     with self.assertRaisesRegex(ValueError, '未连续覆盖'):
                         app.compose_video(pid, clips, False, 1, lambda message: None, 'midnight', True)
                     clips[0].update(start=0, end=2)
@@ -504,6 +511,11 @@ class WorkflowTest(unittest.TestCase):
                     names = [item['name'] for item in result['files']]
                     self.assertEqual(names, ['成片_横版.mp4', '成片_横版_英文字幕.mp4', '成片_横版_双语字幕.mp4'])
                     self.assertEqual(app.read_project(pid)['outputs'][0]['files'], result['files'])
+                    app.package_publication(pid, result['id'])
+                    with zipfile.ZipFile(Path(result['folder']) / '发布包.zip') as archive:
+                        self.assertEqual(set(archive.namelist()), set(names))
+                    for name in names:
+                        self.assertEqual(app.find_output({'outputs': [{'id': result['id'], 'name': name}]}, result['id'])['name'], name)
                     for name, subtitled in zip(names, (False, True, True)):
                         path = Path(result['folder']) / name
                         self.assertTrue(path.exists(), name)
@@ -543,6 +555,76 @@ class WorkflowTest(unittest.TestCase):
             self.assertEqual(app.pick_subtitle_file(folder).name, 'source.en.vtt')
             self.assertIsNone(app.pick_subtitle_file(Path(directory) / 'missing'))
 
+    def test_publication_isolated_outputs_and_length_limits(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(app, 'PROJECTS', Path(directory) / 'projects'), \
+                patch.object(app, 'OUTPUT', Path(directory) / 'outputs'):
+            pid = '0123456789abcdef'
+            ids = ['20261105_100000_abcdef', '20261105_100001_abcdef']
+            clips = [{'start': 1, 'end': 2, 'english': 'Saved snapshot', 'chinese': '已合成的内容'}]
+            outputs = [{'id': oid, 'name': '成片_横版.mp4', 'clips': clips, 'source_video': 'source.mp4'} for oid in ids]
+            app.save_project({'id': pid, 'title': '来源', 'video': 'source.mp4', 'clips': [{'english': 'Changed current list'}], 'outputs': outputs})
+            for oid in ids:
+                folder = app.OUTPUT / oid
+                folder.mkdir(parents=True)
+                (folder / '成片_横版.mp4').write_bytes(b'video-test')
+                (folder / 'cookies.txt').write_text('test-only-placeholder', encoding='utf-8')
+            source = {'url': '', 'title': '参考标题', 'description': '参考简介'}
+            draft = {'platform': 'bilibili', 'source': source,
+                     'platforms': {'bilibili': {'title': '这句话你会说吗', 'description': '先看中文再听原声', 'tags': ['英语', '口语']},
+                                   'xiaohongshu': {'title': '另一平台标题', 'description': '', 'tags': []}},
+                     'covers': {'landscape': {'style': 'viewfinder', 'title': '试着说出来', 'frame_time': 1.5}}}
+            buffer = io.BytesIO()
+            Image.new('RGB', (1920, 1080), '#234567').save(buffer, format='PNG')
+            image = base64.b64encode(buffer.getvalue()).decode('ascii')
+            saved = app.save_publication(pid, ids[0], draft, {'landscape': image})
+            self.assertEqual(saved['publication']['images'], ['landscape'])
+            self.assertNotIn('publication', app.read_project(pid)['outputs'][1])
+            with patch.object(app, 'deepseek', return_value=(json.dumps({'title': '仅生成标题'}), {'total_tokens': 10})) as mocked:
+                generated = app.generate_publication(pid, ids[0], 'bilibili', 'title', source, 'mock-key')
+            payload = json.loads(mocked.call_args.args[0][1]['content'])
+            self.assertEqual(payload['clips'][0]['english'], 'Saved snapshot')
+            self.assertNotIn('Changed current list', mocked.call_args.args[0][1]['content'])
+            self.assertEqual(generated['fields'], {'title': '仅生成标题'})
+            self.assertEqual(app.read_project(pid)['outputs'][0]['publication']['platforms']['bilibili']['title'], '这句话你会说吗')
+            app.package_publication(pid, ids[0])
+            with zipfile.ZipFile(app.OUTPUT / ids[0] / '发布包.zip') as archive:
+                self.assertEqual(set(archive.namelist()), {'成片_横版.mp4', '封面_横版.png', '发布文案.txt', '发布资料.json'})
+            self.assertEqual(app.card_tip('  '), '试试用英文讲出来吧')
+            self.assertEqual(app.card_tip('现在轮到你啦'), '现在轮到你啦')
+            with self.assertRaisesRegex(ValueError, '24'):
+                app.card_tip('中' * 25)
+            with self.assertRaisesRegex(ValueError, '标题最多'):
+                app.validate_publish_fields({'title': '中' * 21}, 'xiaohongshu')
+            with self.assertRaises(ValueError):
+                app.save_publication(pid, '../escape', draft)
+            draft['covers']['portrait'] = {'style': 'viewfinder', 'title': '竖版', 'frame_time': 1.5}
+            with self.assertRaisesRegex(ValueError, '尺寸'):
+                app.save_publication(pid, ids[1], draft, {'portrait': image})
+            self.assertNotIn('publication', app.read_project(pid)['outputs'][1])
+
+    def test_publication_youtube_metadata_without_video_download(self):
+        seen = {}
+        class FakeDL:
+            def __init__(self, options):
+                seen['options'] = options
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                pass
+            def extract_info(self, url, download):
+                seen['download'] = download
+                return {'title': 'Original title', 'description': 'Original description'}
+        fake = types.SimpleNamespace(YoutubeDL=FakeDL, utils=types.SimpleNamespace(DownloadError=RuntimeError))
+        with tempfile.TemporaryDirectory() as directory, patch.object(app, 'COOKIES', Path(directory) / 'cookies.txt'), \
+                patch.dict(sys.modules, {'yt_dlp': fake}):
+            result = app.read_youtube_source('https://www.youtube.com/watch?v=example')
+            self.assertEqual(result['description'], 'Original description')
+            self.assertFalse(seen['download'])
+            self.assertNotIn('nocheckcertificate', seen['options'])
+            self.assertNotIn('cookiefile', seen['options'])
+            with self.assertRaisesRegex(ValueError, 'YouTube'):
+                app.read_youtube_source('https://example.com/private')
+
     def test_http_auth_upload_and_range(self):
         with tempfile.TemporaryDirectory() as directory, patch.object(app, 'PROJECTS', Path(directory) / 'projects'), \
                 patch.object(app, 'OUTPUT', Path(directory) / 'outputs'):
@@ -576,6 +658,30 @@ class WorkflowTest(unittest.TestCase):
                     urllib.request.urlopen(url.replace(app.TOKEN, 'wrong-token'))
                 with self.assertRaises(urllib.error.HTTPError):
                     urllib.request.urlopen(url.replace(output_id, '20261104_123456_111111'))
+                with urllib.request.urlopen(base + '/publish.js') as response:
+                    self.assertIn(b'openPublishOutput', response.read())
+                source_url = base + '/publish-source?id=' + p['id'] + '&output=' + output_id + '&token=' + app.TOKEN
+                with urllib.request.urlopen(urllib.request.Request(source_url, headers={'Range': 'bytes=3-6'})) as response:
+                    self.assertEqual(response.read(), b'defg')
+                buffer = io.BytesIO()
+                Image.new('RGB', (1920, 1080), '#234567').save(buffer, format='PNG')
+                publication = {'platform': 'bilibili', 'platforms': {'bilibili': {'title': 'HTTP 发布测试'}},
+                               'source': {}, 'covers': {'landscape': {'style': 'minimal', 'title': '封面测试'}}}
+                data = json.dumps({'id': p['id'], 'output': output_id, 'publication': publication,
+                                   'cover_images': {'landscape': base64.b64encode(buffer.getvalue()).decode('ascii')}}).encode('utf-8')
+                req = urllib.request.Request(base + '/api/publish-save', data=data, headers={
+                    'X-App-Token': app.TOKEN, 'Content-Type': 'application/json'})
+                with urllib.request.urlopen(req) as response:
+                    self.assertEqual(json.load(response)['publication']['platforms']['bilibili']['title'], 'HTTP 发布测试')
+                asset_url = base + '/publish-asset?id=' + p['id'] + '&output=' + output_id + '&name=' + urllib.parse.quote('封面_横版.png') + '&token=' + app.TOKEN
+                with urllib.request.urlopen(asset_url) as response:
+                    self.assertEqual(response.headers['Content-Type'], 'image/png')
+                    self.assertTrue(response.read().startswith(b'\x89PNG'))
+                with self.assertRaises(urllib.error.HTTPError) as denied:
+                    urllib.request.urlopen(asset_url.replace(app.TOKEN, 'wrong-token'))
+                self.assertEqual(denied.exception.code, 403)
+                with self.assertRaises(urllib.error.HTTPError):
+                    urllib.request.urlopen(asset_url.replace(urllib.parse.quote('封面_横版.png'), '../cookies.txt'))
                 data = json.dumps({'text': '请试着用英语表达。', 'theme': 'paper', 'portrait': False}).encode('utf-8')
                 req = urllib.request.Request(base + '/api/card-preview', data=data, headers={
                     'X-App-Token': app.TOKEN, 'Content-Type': 'application/json'})
