@@ -1,70 +1,243 @@
 <!doctype html>
 <html lang="zh-CN">
+<head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>语法素材库 · 口语素材工作台</title>
 <style>
-:root{font-family:"Segoe UI","Microsoft YaHei",sans-serif;color:#203c34;background:#f3f6f2;font-size:14px}*{box-sizing:border-box}body{margin:0}header{padding:22px 30px;background:#fff;border-bottom:1px solid #dbe5dd;display:flex;justify-content:space-between;align-items:center;gap:20px}h1{font-size:23px;margin:0 0 6px}h2{font-size:17px;margin:0 0 15px}p{line-height:1.65}button,input,select,textarea{font:inherit}button{background:white;border:1px solid #b9cdc0;border-radius:7px;padding:9px 13px;color:#254c3c;cursor:pointer}button:hover{background:#eaf3eb}button.primary{background:#28644d;color:white;border-color:#28644d}button:disabled{opacity:.5;cursor:wait}input:not([type=checkbox]),select,textarea{padding:9px;border:1px solid #cbd9ce;border-radius:6px;background:white;color:#203c34;max-width:100%}input[type=checkbox]{accent-color:#28644d}textarea{width:100%;resize:vertical}label{line-height:1.7}.muted{color:#677e70;font-size:13px}.row{display:flex;align-items:center;gap:9px;flex-wrap:wrap}.grow{flex:1;min-width:200px}.panel{background:white;border:1px solid #dbe5dd;border-radius:12px;padding:18px}main{padding:22px 30px;max-width:1700px;margin:auto}.toolbar{margin-bottom:15px}.status{padding:12px 15px;white-space:pre-wrap;background:#e7efe8;border-radius:8px;margin:12px 0;max-height:220px;overflow:auto}.error{color:#9c352f;background:#ffefeb}.layout{display:grid;grid-template-columns:230px minmax(300px,1fr) minmax(330px,1fr);gap:16px;align-items:start}.filters label{display:block;margin-bottom:13px}.filters input,.filters select{width:100%}.results{max-height:650px;overflow:auto}.result{padding:14px 4px;border-bottom:1px solid #e0e9e1}.result p{margin:8px 0}.result.active{background:#edf5ef}.tag{display:inline-block;padding:3px 7px;border-radius:5px;background:#eaf1eb;font-size:12px;margin:2px}.preview{position:sticky;top:15px}.preview video{width:100%;max-height:320px;background:#17251e;border-radius:8px}.preview label{display:block;margin-top:12px}.preview input:not([type=checkbox]){width:100%}.times{display:grid;grid-template-columns:1fr 1fr;gap:10px}.sources{max-height:260px;overflow:auto;margin:12px 0}.source{display:flex;gap:9px;padding:10px 0;border-bottom:1px solid #e2eae3;align-items:flex-start}.source span{flex:1}.source small{display:block;color:#687e71;margin-top:4px}.basket{margin-top:18px}.basket-item{display:flex;align-items:center;gap:8px;border-top:1px solid #e1e9e2;padding:10px 0}.basket-item span{flex:1}.hidden{display:none!important}dialog{border:1px solid #cbd9ce;border-radius:14px;padding:24px;max-width:520px;width:90%}dialog::backdrop{background:#172d2466}dialog input{width:100%;margin-bottom:12px}a{color:#28644d}@media(max-width:1100px){.layout{grid-template-columns:190px 1fr}.preview{grid-column:1/-1;position:static}.preview video{max-height:400px}}@media(max-width:650px){main,header{padding:15px}.layout{grid-template-columns:1fr}.preview{grid-column:auto}header{flex-wrap:wrap}}
+:root{font-family:"Segoe UI","Microsoft YaHei",sans-serif;color:#233b33;background:#f5f7f5;font-size:14px;--green:#25674e;--green-dark:#194b38;--muted:#738079;--line:#e2e8e3;--soft:#edf4ef}
+*{box-sizing:border-box}body{margin:0}button,input,select,textarea{font:inherit}button,a,input,select,textarea{-webkit-tap-highlight-color:transparent}button{cursor:pointer;border:1px solid var(--line);border-radius:9px;padding:10px 15px;background:#fff;color:#344c41;display:inline-flex;gap:7px;align-items:center;justify-content:center;line-height:1.4;transition:background .15s,border-color .15s}button:hover{background:#f1f5f1;border-color:#bdcfc2}button:focus-visible,a:focus-visible{outline:3px solid #96c6ab;outline-offset:3px}button.primary{background:var(--green);border-color:var(--green);color:white}button.primary:hover{background:var(--green-dark)}button:disabled{opacity:.42;cursor:default}.text-button{border-color:transparent;background:transparent;padding:7px 9px;color:var(--green)}input:not([type=checkbox]),select,textarea{border:1px solid #dbe3dc;background:#fff;border-radius:8px;padding:11px 12px;color:#233b33;max-width:100%;outline:none}input:focus,select:focus,textarea:focus{border-color:#6b9d80;box-shadow:0 0 0 3px #25674e0c}input::placeholder,textarea::placeholder{color:#9aa59e}input[type=checkbox]{accent-color:var(--green);width:16px;height:16px;flex:none}textarea{width:100%;resize:vertical;line-height:1.7}h1,h2,h3,p{margin:0}h1{font-size:27px;letter-spacing:-.8px;line-height:1.4;font-weight:650}h2{font-size:17px;font-weight:650}h3{font-size:15px}p{line-height:1.8}.muted{font-size:12px;color:var(--muted);line-height:1.7}.row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.grow{flex:1;min-width:0}.icon{width:18px;height:18px;flex:none;fill:none;stroke:currentColor;stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round}.hidden,[hidden]{display:none!important}.panel{background:white;border:1px solid var(--line);border-radius:14px}.section-top{display:flex;gap:12px;justify-content:space-between;align-items:center;margin-bottom:17px}.eyebrow{font-size:11px;letter-spacing:1.3px;color:var(--green);font-weight:650;margin-bottom:7px}.badge{display:inline-flex;align-items:center;gap:5px;padding:4px 9px;border-radius:5px;background:var(--soft);color:var(--green);font-size:11px;white-space:nowrap}.badge.pending{color:#94753d;background:#f7f2e7}.badge.failed{color:#a3463d;background:#fbede9}
+.app-header{height:74px;padding:0 36px;background:white;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;gap:20px}.brand{display:flex;align-items:center;gap:12px}.brand-mark{font-family:Georgia,serif;background:var(--green);color:white;width:38px;height:38px;border-radius:11px;display:grid;place-items:center;font-size:22px}.brand-name{font-size:15px;font-weight:650}.brand small{display:block;font-size:11px;color:var(--muted);margin-top:3px}.header-actions{display:flex;align-items:center;gap:14px}.key-dot{width:6px;height:6px;border-radius:50%;background:#b1b9b2;display:inline-block;margin-right:6px}.key-dot.ready{background:#438361}.header-actions button{font-size:12px}
+.shell{max-width:1460px;margin:auto;padding:25px 36px 30px}.workflow{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;padding:7px;background:#ebefeb;border-radius:13px;margin-bottom:27px}.step{justify-content:flex-start;text-align:left;padding:13px 19px;border-color:transparent;background:transparent;border-radius:9px;gap:12px}.step:hover{background:#ffffff70;border-color:transparent}.step.active{background:white;box-shadow:0 2px 7px #1c352109;border-color:#e3eae3}.step-number{width:29px;height:29px;border:1px solid #cfd9d0;border-radius:50%;display:grid;place-items:center;color:#839087;font-size:12px}.step.active .step-number{background:var(--green);color:white;border-color:var(--green)}.step strong{display:block;font-size:13px;font-weight:600}.step small{display:block;font-size:11px;color:#8b958d;margin-top:3px}.step.active strong{color:var(--green)}.step-arrow{margin-left:auto;color:#a2afa4;font-size:18px}.page-heading{display:flex;align-items:flex-end;justify-content:space-between;gap:20px;margin-bottom:21px}.page-heading p{color:var(--muted);font-size:13px;margin-top:6px}.page-heading .summary{color:var(--muted);font-size:12px;white-space:nowrap}.page-heading .summary strong{font-size:22px;color:var(--green);font-weight:550;margin:0 5px}.status{display:flex;align-items:flex-start;gap:10px;padding:12px 16px;background:#e9f2ec;border:1px solid #d5e5da;border-radius:9px;color:var(--green);font-size:12px;margin-bottom:18px;white-space:pre-wrap;line-height:1.7;max-height:160px;overflow:auto}.status.error{color:#a44338;background:#fff1ec;border-color:#f0d9d0}.status:empty{display:none}.status.working:before{content:"";width:13px;height:13px;border:2px solid #b0cdb9;border-top-color:var(--green);border-radius:50%;flex:none;margin-top:3px;animation:spin .8s linear infinite}@keyframes spin{to{transform:rotate(360deg)}}
+.import-layout{display:grid;grid-template-columns:330px minmax(0,1fr);gap:20px;align-items:start}.import-card{padding:25px}.import-art{width:62px;height:62px;background:#eef4ec;color:#547b53;border-radius:17px;display:grid;place-items:center;margin:3px 0 19px;transform:rotate(-5deg)}.import-art .icon{width:32px;height:32px}.import-card h2{margin-bottom:9px}.import-card>p{font-size:12px;color:var(--muted);margin-bottom:19px}.folder-picker{border:1px dashed #b8cdbc;background:#fafcf9;border-radius:10px;padding:16px;text-align:center}.folder-picker button{width:100%;background:white}.folder-picker p{font-size:11px;color:#8c9a8f;margin:10px 0 0}.path-field{margin-top:14px;font-size:11px;color:var(--muted)}.path-field summary{cursor:pointer}.path-field input{width:100%;font-size:12px;margin-top:10px}.folder-value{font-size:12px;word-break:break-all;color:var(--green);padding:12px 0}.import-card #import{width:100%;margin-top:4px}.import-help{margin-top:20px;padding-top:18px;border-top:1px solid var(--line)}.import-help summary{font-size:12px;color:#6e8072;cursor:pointer}.import-help p{font-size:11px;color:var(--muted);margin-top:10px;line-height:1.9}.sources-card{overflow:hidden}.sources-heading{padding:22px 23px 17px;border-bottom:1px solid var(--line)}.sources-heading .section-top{margin:0}.sources-toolbar{padding:10px 16px;background:#fbfcfa;display:flex;gap:5px;align-items:center;border-bottom:1px solid var(--line)}.sources-toolbar button{font-size:11px}.selection-count{margin-left:auto;font-size:11px;color:var(--muted)}.sources{max-height:400px;overflow:auto;min-height:245px}.source{display:flex;gap:13px;padding:17px 23px;border-bottom:1px solid #eff2ee;align-items:center;cursor:pointer}.source:hover{background:#fafcf9}.source-icon{width:35px;height:39px;background:#f1f5ef;border:1px solid #e4eadf;border-radius:7px;display:grid;place-items:center;color:#8a9b7f}.source-title{display:block;font-weight:550;font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.source small{display:block;font-size:11px;color:#93a095;margin-top:5px}.source .source-error{color:#ad6d51;white-space:normal}.analysis-footer{padding:17px 23px;background:#fafcf9;border-top:1px solid var(--line)}.analysis-footer .row{justify-content:space-between}.analysis-footer p{font-size:11px;color:#829085;margin-top:11px}.empty-state{text-align:center;padding:55px 20px;color:var(--muted)}.empty-state .icon{width:36px;height:36px;color:#a5b99f;margin-bottom:14px}.empty-state h3{color:#657e65;margin-bottom:7px;font-weight:550}.empty-state p{font-size:12px}.step-footer{display:flex;justify-content:flex-end;margin-top:20px}.step-footer button{font-size:12px}
+.find-heading{margin-bottom:18px}.filter-bar{padding:17px 20px;margin-bottom:18px}.search-line{display:flex;gap:10px;align-items:center}.search-box{position:relative;flex:1}.search-box .icon{position:absolute;left:12px;top:12px;color:#8c9b8f}.search-box input{padding-left:39px;width:100%;background:#f9fbf8;border-color:#e6ece3}.filter-line{display:flex;align-items:center;gap:12px;margin-top:12px;flex-wrap:wrap}.filter-line label{display:flex;align-items:center;gap:8px;font-size:11px;color:var(--muted)}.filter-line select,.filter-line input{padding:7px 9px;font-size:12px;max-width:210px}.filter-line .reset{margin-left:auto;font-size:11px}.browse-layout{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,.94fr);gap:19px;align-items:start}.results-panel{overflow:hidden}.results-header{padding:18px 21px 13px;display:flex;justify-content:space-between;align-items:center}.results-header h2{font-size:14px}.results-header span{font-size:11px;color:var(--muted)}.results{height:480px;overflow:auto;padding:0 11px 8px}.result{border:1px solid transparent;border-radius:10px;padding:17px 17px 13px;margin-bottom:5px;position:relative;cursor:pointer;outline:none}.result:not(:last-child):after{content:"";position:absolute;bottom:-4px;left:17px;right:17px;height:1px;background:#edf1eb}.result:hover{background:#fafcf8}.result:focus-visible{border-color:#88b197}.result.active{background:#f0f6ed;border-color:#c8dcc3}.result.active:after{display:none}.result-top{display:flex;align-items:flex-start;gap:16px}.result-number{color:#a9b4a5;font-size:11px;padding-top:5px;font-variant-numeric:tabular-nums}.result-english{font-size:17px;color:#2f4538;line-height:1.6;font-weight:550;letter-spacing:-.2px}.result-chinese{font-size:12px;color:#849080;margin-top:5px}.result .tags{margin-top:12px}.tag{display:inline-block;padding:3px 7px;font-size:10px;color:#5f7956;background:#eaf0e5;border-radius:4px;margin:0 5px 4px 0}.tag.pattern{background:#f3f0e5;color:#8d805c}.result-bottom{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-top:10px;font-size:10px;color:#9aa592}.result-bottom span:first-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.result-open{color:var(--green);white-space:nowrap;display:flex;gap:4px;align-items:center}.result-open .icon{width:13px;height:13px}.chosen-mark{font-size:10px;color:#54805e}.paging{display:flex;align-items:center;justify-content:space-between;padding:11px 21px;border-top:1px solid var(--line)}.paging button{font-size:11px;padding:6px 10px}.paging span{font-size:11px;color:#8c988d}.preview{overflow:hidden}.preview-header{padding:18px 20px 13px;display:flex;align-items:center;justify-content:space-between}.preview-header h2{font-size:14px}.preview-header span{font-size:10px;color:#8b978b}.video-wrap{margin:0 16px;position:relative;aspect-ratio:16/9;background:#1e3026;border-radius:9px;overflow:hidden}.video-wrap video{width:100%;height:100%;object-fit:contain;display:block}.video-empty{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;color:#afc0ae;gap:14px;font-size:12px;background:radial-gradient(ellipse at top,#344a37,#213026)}.video-empty .icon{width:37px;height:37px;opacity:.7}.preview-source{padding:11px 20px 0;font-size:10px;color:#8e9b8e;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.preview-copy{padding:15px 20px}.preview-copy #english{font-size:18px;line-height:1.65;letter-spacing:-.2px}.preview-copy #chinese{font-size:13px;color:#7e8b79;background:#fafcf8;border:1px solid #ebf0e7;padding:10px 12px;margin-top:11px;min-height:62px}.cut-summary{padding:0 20px 14px;display:flex;align-items:center;justify-content:space-between;gap:10px}.cut-summary .time-pill{font-size:11px;color:#7b8b74;display:flex;gap:5px;align-items:center}.cut-summary button{font-size:11px;padding:7px 11px}.adjustments{margin:0 20px 15px;border-top:1px solid var(--line);padding-top:13px}.adjustments summary{font-size:11px;color:#71876b;cursor:pointer;user-select:none}.adjustment-content{padding-top:14px;display:grid;gap:12px}.adjustment-content label{font-size:11px;color:#7b8b74;display:block}.adjustment-content input,.adjustment-content textarea{width:100%;font-size:12px;margin-top:6px;padding:8px 10px}.times{display:grid;grid-template-columns:1fr 1fr;gap:12px}.times .text-button{padding:3px 0;font-size:10px}.preview-actions{padding:14px 20px;background:#fafcf8;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:10px}.preview-actions button{font-size:12px}.preview-actions #add{flex:1}.preview-placeholder{padding:20px;text-align:center;font-size:12px;color:#98a391}.selection-bar{margin-top:19px;padding:16px 21px;display:flex;align-items:center;gap:15px;background:#e9f0e5;border:1px solid #dce7d5;border-radius:11px}.selection-bar .selection-icon{width:35px;height:35px;background:#fff;border-radius:9px;color:#728e61;display:grid;place-items:center}.selection-bar strong{font-size:13px;font-weight:550}.selection-bar p{font-size:11px;color:#85937a;margin-top:3px}.selection-bar button{margin-left:auto;font-size:12px}.selection-bar .number{color:var(--green);font-weight:700}
+.arrange-layout{display:grid;grid-template-columns:minmax(0,1fr) 310px;gap:20px;align-items:start}.basket-heading{padding:21px 23px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between}.basket-heading button{font-size:11px}.basket-heading h2{font-size:14px}.basket-item{display:flex;align-items:center;gap:16px;padding:21px 23px;border-bottom:1px solid #edf1eb}.basket-number{background:#eff4eb;border-radius:8px;width:33px;height:36px;display:grid;place-items:center;font-size:12px;color:#7e9273;flex:none}.basket-item p{font-size:15px;line-height:1.65;font-weight:550}.basket-item .basket-zh{font-size:12px;font-weight:400;color:#7b8a73;margin-top:4px}.basket-item small{font-size:10px;color:#98a28e;display:block;margin-top:9px}.basket-tools{display:flex;gap:4px;flex:none}.basket-tools button{padding:6px 8px;background:transparent;border-color:transparent;font-size:11px}.basket-tools button:hover{background:#edf2e8}.basket-tools .icon{width:15px;height:15px}.add-more{width:100%;padding:17px;border:0;background:#fbfcf9;color:#7e9472;border-radius:0 0 14px 14px;font-size:12px}.topic-card{padding:24px;position:sticky;top:20px}.topic-card h2{margin-bottom:8px}.topic-card>p{font-size:12px;color:var(--muted)}.topic-card label{display:block;font-size:12px;color:#5d7358;margin:22px 0 8px}.topic-card input{width:100%;font-size:12px}.topic-stats{display:flex;justify-content:space-between;padding:18px 0;margin:4px 0 14px;border-bottom:1px solid var(--line);color:#83917c;font-size:12px}.topic-stats strong{color:#344d38;font-weight:550}.topic-card #createTopic{width:100%;font-size:12px}.topic-card .output-hint{font-size:11px;margin-top:14px;color:#97a18e}.topic-card a{color:var(--green)}
+dialog{border:1px solid #dae5da;border-radius:16px;padding:28px;width:480px;max-width:calc(100% - 30px);box-shadow:0 20px 80px #183c2420}dialog::backdrop{background:#1c35265c;backdrop-filter:blur(3px)}dialog h2{font-size:20px}dialog>p{font-size:12px;color:var(--muted);margin:13px 0 22px}dialog label{display:block;font-size:12px;margin-bottom:8px}dialog input{width:100%;margin-bottom:20px}dialog .row{justify-content:flex-end}dialog .close-dialog{border:0;background:#f2f5ef;border-radius:50%;width:29px;height:29px;padding:0;font-size:18px;color:#7d8e76}dialog #keyMessage{margin:14px 0 0;white-space:pre-wrap;color:#9c5540}.dialog-key-note{font-size:11px!important;color:#92a08b!important;margin:15px 0 20px!important}
+body[data-step=browse] .shell{padding-top:18px}body[data-step=browse] .workflow{margin-bottom:18px}body[data-step=browse] .step{padding-top:9px;padding-bottom:9px}body[data-step=browse] .step small{display:none}body[data-step=browse] .find-heading .eyebrow{display:none}
+@media(min-width:851px){.preview{display:flex;flex-direction:column;height:var(--browse-height,600px);min-height:360px;max-height:760px;position:sticky;top:18px}.preview-header,.preview-source{flex:none}.video-wrap{flex:none;aspect-ratio:auto;height:clamp(130px,18vh,200px)}#editor{display:flex;flex-direction:column;flex:1;min-height:0}.preview-details{overflow:auto;min-height:0;flex:1}.preview-actions{flex:none}.results{height:calc(var(--browse-height,600px) - 88px);min-height:260px;max-height:660px}.preview-copy #chinese{min-height:45px}.preview-copy{padding-top:12px;padding-bottom:12px}}
+@media(max-width:1100px){.shell{padding:22px}.app-header{padding:0 22px}.import-layout{grid-template-columns:290px minmax(0,1fr)}.browse-layout{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.step{padding:12px}.step small{font-size:10px}.arrange-layout{grid-template-columns:minmax(0,1fr) 270px}.basket-item{gap:10px;padding:18px 16px}.basket-tools{flex-wrap:wrap;max-width:85px}.filter-line .reset{margin-left:0}.source{padding:16px}.header-actions{gap:8px}}
+@media(min-width:851px){.adjustments{flex:none;max-height:230px;overflow:auto}}
+@media(min-width:851px){.preview{min-height:390px}.preview-header button{font-size:11px;padding:6px 10px}.preview-header button .icon{width:13px;height:13px}}
+@media(min-width:851px) and (max-height:900px){.app-header{height:60px}body[data-step=browse] .shell{padding-top:12px}body[data-step=browse] .workflow{margin-bottom:12px}body[data-step=browse] .step{padding-top:6px;padding-bottom:6px}.find-heading p{display:none}.page-heading{margin-bottom:15px}.filter-bar{padding-top:12px;padding-bottom:12px;margin-bottom:14px}}
+@media(min-width:851px) and (max-height:900px){.preview-source,.cut-summary{display:none}.preview-copy{padding:10px 18px}.preview-copy #english{font-size:15px;line-height:1.6}.preview-copy #chinese{height:38px;min-height:38px;margin-top:8px;padding:7px 10px}.preview-actions{padding:10px 16px}.preview-header{padding:12px 16px}.preview-header #previewBadge{display:none}}
+@media(min-width:1100px) and (max-height:900px){.filter-bar{display:grid;grid-template-columns:minmax(200px,1fr) auto auto auto auto auto;gap:12px;align-items:center}.search-line,.filter-line{display:contents}.search-box{order:0}.filter-line label{order:1}.search-line>button{order:2}.filter-line .reset{order:3;margin:0}.filter-line label select{max-width:145px}.filter-line label input{width:145px}}
+@media(max-width:850px){.import-layout,.browse-layout,.arrange-layout{grid-template-columns:1fr}.step small{display:none}.import-card{padding:20px}.import-art{display:none}.import-card>p{margin-bottom:14px}.folder-picker{display:flex;gap:15px;align-items:center}.folder-picker button{width:auto}.folder-picker p{margin:0}.import-help{margin-top:14px;padding-top:12px}.preview{grid-row:1}.results{height:400px}.topic-card{position:static}.page-heading .summary{display:none}.basket-tools{max-width:none}.header-actions #keyStatus{display:none}}
+@media(max-width:550px){.shell{padding:18px 12px}.app-header{padding:0 14px;height:67px}.brand-name{font-size:13px}.brand small{font-size:10px}.brand-mark{width:32px;height:32px;font-size:19px}.header-actions button{font-size:10px;padding:8px}.header-actions #back{display:none}.step{padding:9px 7px;gap:6px}.step strong{font-size:11px}.step-number{width:23px;height:23px;font-size:10px}.step-arrow{display:none}.workflow{margin-bottom:22px;gap:2px;padding:5px}h1{font-size:23px}.page-heading p{font-size:12px}.page-heading{align-items:flex-start}.filter-line{gap:10px}.filter-line label{flex:1;min-width:120px}.filter-line input,.filter-line select{width:100%;max-width:none}.filter-line label:last-of-type{flex-basis:100%}.search-line{gap:7px}.search-line button{padding:10px 12px}.filter-bar{padding:14px}.selection-bar{gap:10px;padding:13px}.selection-bar .selection-icon{display:none}.selection-bar button{font-size:11px;padding:10px}.basket-item{flex-wrap:wrap}.basket-tools{margin-left:40px}.folder-picker{display:block}.folder-picker p{margin-top:10px}.folder-picker button{width:100%}.sources-heading{padding:18px}.analysis-footer{padding:16px}.source .badge{font-size:10px;padding:4px 6px}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
-<header><div><h1>语法素材库</h1><span class="muted">从真实表达中，挑选下一期的主题。</span></div><div class="row"><span id="keyStatus" class="muted"></span><button id="settings">API Key 设置</button><button id="back">返回素材制作</button></div></header>
-<main>
-<section class="panel toolbar">
-  <h2>导入与分析</h2>
-  <div class="row"><input id="folder" class="grow" aria-label="视频文件夹路径" placeholder="视频文件夹完整路径，例如 D:\EnglishVlogs"><button id="pickFolder">选择文件夹</button><button id="import" class="primary">导入文件夹</button></div>
-  <p class="muted">递归匹配同名 .en.srt / .en.vtt（含 en-orig 等英文变体）或无语言后缀字幕。仅保存本地路径，不复制原视频；请保留原文件位置。文件变化后重新导入会重建该视频的分析结果。</p>
-  <details><summary id="sourceSummary">素材列表</summary><div class="row" style="margin-top:12px"><button id="selectAll">全选待分析</button><button id="selectNone">取消全选</button><button id="refresh">刷新列表</button></div><div id="sources" class="sources"></div></details>
-  <div class="row"><button id="analyze" class="primary">分析所选字幕 / 继续未完成</button><span class="muted">仅主动分析时向 DeepSeek 发送英文字幕，不发送视频、音频或文件路径。会产生 API 用量。</span></div>
-</section>
-<div id="status" class="status" role="status">导入视频和字幕后，勾选素材并开始分析。已完成批次自动缓存。</div>
-<div class="layout">
-  <aside class="panel filters"><h2>查找例句</h2><label>英文 / 中文<input id="query" placeholder="搜索原句或释义"></label><label>语法<select id="grammar"><option value="">全部语法</option></select></label><label>句型<input id="pattern" placeholder="例如 Have you ever"></label><label>来源视频<select id="sourceFilter"><option value="">全部来源</option></select></label><button id="search" class="primary">查找</button><p id="count" class="muted"></p><div class="row"><button id="prev">上一页</button><button id="next">下一页</button></div></aside>
-  <section class="panel"><h2>例句与出处</h2><div id="results" class="results"><p class="muted">还没有分析结果。</p></div></section>
-  <section class="panel preview"><h2>预览与调整</h2><video id="video" controls preload="metadata"></video><p id="previewTitle" class="muted">点击例句查看对应视频片段。</p><div id="editor" class="hidden"><p id="english"></p><div class="times"><label>开始 / 秒<input id="start" type="number" min="0" step="0.01"></label><label>结束 / 秒<input id="end" type="number" min="0" step="0.01"></label></div><div class="row" style="margin-top:12px"><button id="preview">播放选段</button><button id="setStart">此刻设为开始</button><button id="setEnd">此刻设为结束</button></div><label>中文释义<textarea id="chinese" rows="3"></textarea></label><label>语法标签（逗号分隔，使用左侧语法分类）<input id="editGrammar"></label><label>句型标签（每行一个）<textarea id="editPatterns" rows="2"></textarea></label><div class="row" style="margin-top:14px"><button id="save">保存调整</button><button id="add" class="primary">保存并加入本期</button></div></div></section>
-</div>
-<section class="panel basket"><div class="row"><h2 class="grow">本期素材 · <span id="basketCount">0</span> 段</h2><button id="clearBasket">清空本期选择</button></div><div id="basket"></div><div class="row"><input id="topicTitle" class="grow" aria-label="本期主题名称" placeholder="本期主题，例如：Have you ever 的五种真实表达"><button id="createTopic" class="primary">生成专题项目并进入制作</button></div><p class="muted">按列表顺序仅提取所选片段，生成独立专题视频；进入制作后可继续调整题卡、导出散件或合成。原视频保持完整。</p><div id="topicReady"></div></section>
+</head>
+<body>
+<svg aria-hidden="true" width="0" height="0" style="position:absolute"><defs>
+<symbol id="i-folder" viewBox="0 0 24 24"><path d="M3 7V5a2 2 0 0 1 2-2h5l3 3h6a2 2 0 0 1 2 2v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7Z"/><path d="M3 9h18"/></symbol>
+<symbol id="i-video" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="m10 9 5 3-5 3V9Z"/></symbol>
+<symbol id="i-search" viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 5 5"/></symbol>
+<symbol id="i-play" viewBox="0 0 24 24"><path d="m9 5 11 7-11 7V5Z"/></symbol>
+<symbol id="i-list" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M3 6h1M3 12h1M3 18h1"/></symbol>
+<symbol id="i-arrow" viewBox="0 0 24 24"><path d="M4 12h16m-6-6 6 6-6 6"/></symbol>
+<symbol id="i-up" viewBox="0 0 24 24"><path d="M12 20V4m-6 6 6-6 6 6"/></symbol>
+<symbol id="i-down" viewBox="0 0 24 24"><path d="M12 4v16m-6-6 6 6 6-6"/></symbol>
+<symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M9 7V4h6v3M6 7l1 13h10l1-13M10 11v5M14 11v5"/></symbol>
+<symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></symbol>
+</defs></svg>
+<header class="app-header">
+  <div class="brand"><span class="brand-mark">Aa</span><div><div class="brand-name">口语素材工作台</div><small>语法素材库 · 电脑端</small></div></div>
+  <div class="header-actions"><span id="keyStatus" class="muted"></span><button id="settings">API Key 设置</button><button id="back" class="text-button">返回素材制作 ↗</button></div>
+</header>
+<main class="shell">
+  <nav class="workflow" aria-label="素材库制作步骤">
+    <button class="step active" data-step="import" aria-current="step"><span class="step-number">1</span><span><strong>导入与分析</strong><small>把视频字幕整理成素材库</small></span><span class="step-arrow">›</span></button>
+    <button class="step" data-step="browse"><span class="step-number">2</span><span><strong>挑选例句</strong><small>按语法与句型找到好表达</small></span><span class="step-arrow">›</span></button>
+    <button class="step" data-step="arrange"><span class="step-number">3</span><span><strong>本期编排 <span id="navBasketCount"></span></strong><small>排好顺序，开始制作专题</small></span></button>
+  </nav>
+  <div id="status" class="status" role="status" aria-live="polite"></div>
+
+  <section id="step-import" aria-labelledby="importTitle">
+    <div class="page-heading"><div><div class="eyebrow">STEP 01 / BUILD YOUR LIBRARY</div><h1 id="importTitle">先把好素材，收进来。</h1><p>选择已下载的视频文件夹，分析字幕，建立可以反复使用的例句库。</p></div><div class="summary">素材库已有 <strong id="sourceTotal">0</strong> 个视频</div></div>
+    <div class="import-layout">
+      <section class="panel import-card">
+        <div class="import-art"><svg class="icon"><use href="#i-folder"/></svg></div><h2>添加本地素材</h2><p>将视频和英文字幕放在同一文件夹，工具会自动匹配。</p>
+        <div class="folder-picker"><button id="pickFolder"><svg class="icon"><use href="#i-folder"/></svg>选择文件夹</button><p>支持子文件夹，一次导入多个视频</p></div>
+        <p id="folderValue" class="folder-value hidden"></p>
+        <details class="path-field" id="pathDetails"><summary>手动填写路径</summary><input id="folder" aria-label="视频文件夹路径" placeholder="例如 D:\EnglishVlogs"></details>
+        <button id="import" class="primary" disabled>导入素材</button>
+        <details class="import-help"><summary>字幕如何命名？</summary><p>例如 video.mp4 搭配 video.en.srt 或 video.en.vtt，也支持 video.srt、en-orig 和 en-US 等英文后缀。明确标为其他语言的字幕不会作为英文导入。<br>视频保留在原位置，请不要移动或删除。重复导入时，有变化的视频会重新建立分类。</p></details>
+      </section>
+      <section class="panel sources-card">
+        <div class="sources-heading"><div class="section-top"><h2>待整理的素材</h2><span id="sourceSummary" class="muted">尚未导入</span></div></div>
+        <div class="sources-toolbar"><button id="selectAll" class="text-button">选择待分析</button><button id="selectNone" class="text-button">取消选择</button><button id="refresh" class="text-button">刷新</button><span id="selectedSourceCount" class="selection-count">已选 0 个</span></div>
+        <div id="sources" class="sources"></div>
+        <div class="analysis-footer"><div class="row"><span id="analysisHint" class="muted grow">导入后，勾选要分析的视频。</span><button id="analyze" class="primary" disabled>分析字幕</button></div><p>只向 DeepSeek 发送英文字幕，按 API 用量计费。已完成批次会自动跳过，可随时继续未完成的分析。</p></div>
+      </section>
+    </div>
+    <div class="step-footer"><button id="goBrowse">进入例句库 <svg class="icon"><use href="#i-arrow"/></svg></button></div>
+  </section>
+
+  <section id="step-browse" class="hidden" aria-labelledby="browseTitle">
+    <div class="page-heading find-heading"><div><div class="eyebrow">STEP 02 / FIND YOUR EXPRESSIONS</div><h1 id="browseTitle">为这一期，找到好表达。</h1><p>先筛选主题，再试听真实语境。喜欢的例句，加入本期素材。</p></div><button id="manageSources" class="text-button"><svg class="icon"><use href="#i-folder"/></svg>管理素材</button></div>
+    <section class="panel filter-bar" aria-label="例句筛选">
+      <div class="search-line"><div class="search-box"><svg class="icon"><use href="#i-search"/></svg><input id="query" aria-label="搜索英文或中文" placeholder="搜索英文表达或中文含义…"></div><button id="search" class="primary">查找例句</button></div>
+      <div class="filter-line"><label>语法<select id="grammar"><option value="">全部语法</option></select></label><label>来源<select id="sourceFilter"><option value="">全部视频</option></select></label><label>句型<input id="pattern" placeholder="例如 Have you ever"></label><button id="resetFilters" class="text-button reset">重置筛选</button></div>
+    </section>
+    <div class="browse-layout">
+      <section class="panel results-panel"><div class="results-header"><h2>例句库</h2><span id="count">共 0 条</span></div><div id="results" class="results"></div><div class="paging"><button id="prev">← 上一页</button><span id="pageNumber">第 1 页</span><button id="next">下一页 →</button></div></section>
+      <section class="panel preview" aria-label="当前例句预览">
+        <div class="preview-header"><h2>片段预览</h2><div class="row"><span id="previewBadge">先听，再挑选</span><button id="preview" disabled><svg class="icon"><use href="#i-play"/></svg>试听这段</button></div></div>
+        <div class="video-wrap"><video id="video" controls preload="metadata"></video><div id="videoEmpty" class="video-empty"><svg class="icon"><use href="#i-play"/></svg><span>选择左侧例句，试听原视频表达</span></div></div>
+        <p id="previewTitle" class="preview-source">例句会保留对应视频的出处与时间。</p>
+        <div id="previewPlaceholder" class="preview-placeholder">点击一条例句，即可预览和加入本期。</div>
+        <div id="editor" class="hidden">
+          <div class="preview-details"><div class="preview-copy"><p id="english"></p><label for="chinese" class="hidden">中文释义</label><textarea id="chinese" rows="2" aria-label="中文释义"></textarea></div>
+          <div class="cut-summary"><span id="cutSummary" class="time-pill"></span></div>
+          </div><details class="adjustments" id="adjustments"><summary>调整切点与分类</summary><div class="adjustment-content"><div class="times"><label>开始 / 秒<input id="start" type="number" min="0" step="0.01"><button id="setStart" class="text-button">用当前播放位置</button></label><label>结束 / 秒<input id="end" type="number" min="0" step="0.01"><button id="setEnd" class="text-button">用当前播放位置</button></label></div><label>语法标签 · 用逗号分隔<input id="editGrammar" placeholder="例如 现在完成时，疑问句"></label><label>句型标签 · 每行一个<textarea id="editPatterns" rows="2"></textarea></label></div></details>
+          <div class="preview-actions"><button id="save">保存修改</button><button id="add" class="primary">＋ 加入本期素材</button></div>
+        </div>
+      </section>
+    </div>
+    <div class="selection-bar"><span class="selection-icon"><svg class="icon"><use href="#i-list"/></svg></span><div><strong>本期已选 <span id="basketCount" class="number">0</span> 段</strong><p>挑选完成后，去编排播放顺序。</p></div><button id="goArrange" class="primary">查看本期编排 <svg class="icon"><use href="#i-arrow"/></svg></button></div>
+  </section>
+
+  <section id="step-arrange" class="hidden" aria-labelledby="arrangeTitle">
+    <div class="page-heading"><div><div class="eyebrow">STEP 03 / PUT IT TOGETHER</div><h1 id="arrangeTitle">把好表达，编成这一期。</h1><p>调整例句顺序，起一个主题名，接着制作题卡与成片。</p></div><button id="continuePicking" class="text-button">← 继续挑选例句</button></div>
+    <div class="arrange-layout">
+      <section class="panel"><div class="basket-heading"><h2>播放顺序 <span id="arrangeCount" class="muted"></span></h2><button id="clearBasket" class="text-button">清空本期</button></div><div id="basket"></div><button id="addMore" class="add-more">＋ 继续添加例句</button></section>
+      <aside class="panel topic-card"><div class="eyebrow">YOUR NEXT VIDEO</div><h2>准备好这一期</h2><p>所选片段会按左侧顺序组成专题。</p><label for="topicTitle">本期主题</label><input id="topicTitle" placeholder="例如：现在完成时的真实表达"><div class="topic-stats"><span>原视频片段</span><strong id="topicDuration">0 段 · 0 秒</strong></div><button id="createTopic" class="primary" disabled>进入题卡与成片制作 <svg class="icon"><use href="#i-arrow"/></svg></button><p class="output-hint">下一步可编辑中文题卡、设置停留时间，导出素材或合成成片。</p><div id="topicReady"></div></aside>
+    </div>
+  </section>
 </main>
-<dialog id="settingsDialog"><h2>DeepSeek API Key 设置</h2><p>与素材制作页共用密钥。使用 Windows 当前账户加密保存，复制工具文件夹不会带走密钥。</p><label for="key">API Key</label><input id="key" type="password" autocomplete="off" placeholder="输入新的 API Key"><div class="row"><button id="saveKey" class="primary">保存密钥</button><button id="clearKey">删除密钥</button><button id="closeSettings">关闭</button></div><p id="keyMessage" role="status" class="muted"></p></dialog>
+<dialog id="settingsDialog" aria-labelledby="settingsTitle"><div class="section-top"><h2 id="settingsTitle">连接 DeepSeek</h2><button id="closeSettings" class="close-dialog" aria-label="关闭设置">×</button></div><p>设置一次，即可在字幕分类、翻译和素材制作中共用。</p><label for="key">API Key</label><input id="key" type="password" autocomplete="off" placeholder="输入你的 DeepSeek API Key"><p class="dialog-key-note">密钥使用当前 Windows 账户加密保存，仅保留在本机。</p><div class="row"><button id="clearKey" class="text-button">删除已保存密钥</button><button id="saveKey" class="primary">保存密钥</button></div><p id="keyMessage" role="status"></p></dialog>
 <script>
 const $=id=>document.getElementById(id);
 const token=new URLSearchParams(location.search).get('token');
 const escapeHTML=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-let sources=[],items=[],current=null,offset=0,total=0,busy=false,dirty=false,stopAt=null;
+const icon=name=>`<svg class="icon" aria-hidden="true"><use href="#i-${name}"/></svg>`;
+let sources=[],items=[],current=null,offset=0,total=0,busy=false,dirty=false,stopAt=null,hasKey=false,activeStep='import';
 let basket=[];
 try{basket=JSON.parse(localStorage.getItem('grammarBasket')||'[]');if(!Array.isArray(basket))basket=[]}catch{}
-function status(text,error=false){$('status').textContent=text;$('status').classList.toggle('error',error)}
-async function api(path,body){const response=await fetch(path,{method:body===undefined?'GET':'POST',headers:{'X-App-Token':token,'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});const data=await response.json();if(!response.ok||data.error)throw Error(data.error||'请求失败');return data}
-async function action(fn){if(busy)return;busy=true;document.querySelectorAll('button,input,select,textarea').forEach(x=>x.disabled=true);try{await fn()}catch(error){status(error.message,true);if($('settingsDialog').open)$('keyMessage').textContent=error.message}finally{busy=false;document.querySelectorAll('button,input,select,textarea').forEach(x=>x.disabled=false);updatePaging()}}
-async function pollJob(id){for(;;){const data=await api('/api/job?id='+encodeURIComponent(id));status(data.message);if(data.state==='error'){sessionStorage.removeItem('grammarJob');throw Error(data.message)}if(data.state==='done'){sessionStorage.removeItem('grammarJob');return data.result}await new Promise(resolve=>setTimeout(resolve,800))}}
+
+function fitBrowse(){
+  requestAnimationFrame(()=>{
+    if(activeStep!=='browse')return;
+    const top=document.querySelector('.browse-layout').getBoundingClientRect().top+window.scrollY;
+    $('step-browse').style.setProperty('--browse-height',Math.max(390,window.innerHeight-top-120)+'px');
+  });
+}
+function status(text,error=false){$('status').textContent=text;$('status').classList.toggle('error',error);fitBrowse()}
+async function api(path,body){
+  const response=await fetch(path,{method:body===undefined?'GET':'POST',headers:{'X-App-Token':token,'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});
+  const data=await response.json();
+  if(!response.ok||data.error)throw Error(data.error||'请求失败');
+  return data;
+}
+function updateControls(){
+  $('prev').disabled=busy||offset===0;
+  $('next').disabled=busy||offset+80>=total;
+  $('import').disabled=busy||!$('folder').value.trim();
+  $('analyze').disabled=busy||!document.querySelector('[data-source]:checked');
+  $('createTopic').disabled=busy||!basket.length;
+  $('save').disabled=busy||!dirty;
+  $('preview').disabled=busy||!current;
+  $('add').disabled=busy||!current||(basket.some(item=>item.id===current.id)&&!dirty);
+  updateAddButton();
+  document.querySelectorAll('[data-move]').forEach(button=>{
+    const target=Number(button.dataset.move)+Number(button.dataset.direction);
+    button.disabled=busy||target<0||target>=basket.length;
+  });
+}
+async function action(fn){
+  if(busy)return;
+  busy=true;
+  document.querySelectorAll('button,input,select,textarea').forEach(x=>x.disabled=true);
+  $('status').classList.add('working');
+  try{await fn()}catch(error){
+    status(error.message,true);
+    if($('settingsDialog').open)$('keyMessage').textContent=error.message;
+  }finally{
+    busy=false;
+    $('status').classList.remove('working');
+    document.querySelectorAll('button,input,select,textarea').forEach(x=>x.disabled=false);
+    updateControls();
+  }
+}
+async function pollJob(id){
+  for(;;){
+    const data=await api('/api/job?id='+encodeURIComponent(id));
+    status(data.message);
+    if(data.state==='error'){sessionStorage.removeItem('grammarJob');throw Error(data.message)}
+    if(data.state==='done'){sessionStorage.removeItem('grammarJob');return data.result}
+    await new Promise(resolve=>setTimeout(resolve,800));
+  }
+}
 async function job(path,body){const {job:id}=await api(path,body);sessionStorage.setItem('grammarJob',id);return pollJob(id)}
 function home(pid=''){location.href='/?token='+encodeURIComponent(token)+(pid?'&project='+encodeURIComponent(pid):'')}
 function mayLeave(){return !dirty||confirm('当前例句的修改尚未保存，是否放弃？')}
-async function refreshSources(){
-  const checked=new Set([...document.querySelectorAll('[data-source]:checked')].map(x=>x.dataset.source));
-  const data=await api('/api/library/sources');sources=data.sources;
-  $('keyStatus').textContent=data.keyError||(data.hasKey?'密钥已保存':'尚未设置 API Key');
-  const selectedGrammar=$('grammar').value,selectedSource=$('sourceFilter').value;
-  $('grammar').innerHTML='<option value="">全部语法</option>'+data.grammar.map(x=>`<option>${escapeHTML(x)}</option>`).join('');$('grammar').value=selectedGrammar;
-  $('sourceFilter').innerHTML='<option value="">全部来源</option>'+sources.map(x=>`<option value="${x.id}">${escapeHTML(x.title)}</option>`).join('');$('sourceFilter').value=selectedSource;
-  $('sourceSummary').textContent=`素材列表 · ${sources.length} 个视频 · ${sources.filter(x=>x.done===x.batches).length} 个已完成`;
-  $('sources').innerHTML=sources.map(x=>`<label class="source"><input type="checkbox" data-source="${x.id}" ${checked.has(x.id)?'checked':''}><span>${escapeHTML(x.title)}<small>${x.done}/${x.batches} 批 · ${x.sentences} 条例句${x.available?'':' · 原视频已移动或删除'}${x.error?' · '+escapeHTML(x.error):''}</small></span></label>`).join('')||'<p class="muted">尚未导入素材。</p>';
+function showStep(step){
+  if(step!==activeStep)$('video').pause();
+  activeStep=step;
+  document.body.dataset.step=step;
+  for(const name of ['import','browse','arrange'])$('step-'+name).classList.toggle('hidden',name!==step);
+  document.querySelectorAll('[data-step]').forEach(button=>{
+    const selected=button.dataset.step===step;
+    button.classList.toggle('active',selected);
+    if(selected)button.setAttribute('aria-current','step');else button.removeAttribute('aria-current');
+  });
+  window.scrollTo({top:0,behavior:'instant'});
+  fitBrowse();
 }
-function updatePaging(){$('prev').disabled=busy||offset===0;$('next').disabled=busy||offset+80>=total}
+function updateSourceSelection(){
+  const count=document.querySelectorAll('[data-source]:checked').length;
+  $('selectedSourceCount').textContent=`已选 ${count} 个`;
+  $('analyze').textContent=count?`分析所选 ${count} 个视频`:'分析字幕';
+  $('analysisHint').textContent=!sources.length?'先添加视频与字幕。':count?(hasKey?'分析后，即可按语法与句型挑选。':'首次分析前，请先设置 API Key。'):'勾选要分析的视频，已完成的会自动跳过。';
+  updateControls();
+}
+async function refreshSources(selectPending=false){
+  const checked=new Set([...document.querySelectorAll('[data-source]:checked')].map(x=>x.dataset.source));
+  const data=await api('/api/library/sources');sources=data.sources;hasKey=data.hasKey;
+  $('keyStatus').innerHTML=`<span class="key-dot ${hasKey?'ready':''}"></span>${escapeHTML(data.keyError||(hasKey?'密钥已保存':'未设置 API Key'))}`;
+  const selectedGrammar=$('grammar').value,selectedSource=$('sourceFilter').value;
+  $('grammar').innerHTML='<option value="">全部语法</option>'+data.grammar.map(x=>`<option>${escapeHTML(x)}</option>`).join('');
+  $('grammar').value=selectedGrammar;
+  $('sourceFilter').innerHTML='<option value="">全部视频</option>'+sources.map(x=>`<option value="${escapeHTML(x.id)}">${escapeHTML(x.title)}</option>`).join('');
+  $('sourceFilter').value=selectedSource;
+  $('sourceTotal').textContent=sources.length;
+  $('sourceSummary').textContent=`${sources.length} 个视频 · ${sources.filter(x=>x.done===x.batches).length} 个已完成`;
+  $('sources').innerHTML=sources.map(source=>{
+    const done=source.done===source.batches;
+    const selected=checked.has(source.id)||(selectPending&&!done);
+    return `<label class="source"><input type="checkbox" data-source="${escapeHTML(source.id)}" ${selected?'checked':''}><span class="source-icon">${icon('video')}</span><span class="grow"><span class="source-title">${escapeHTML(source.title)}</span><small>${source.sentences} 条例句 · ${source.done}/${source.batches} 批完成${source.available?'':' · 原视频已移动或删除'}</small>${source.error?`<small class="source-error">${escapeHTML(source.error)}</small>`:''}</span><span class="badge ${source.error?'failed':done?'':'pending'}">${source.error?'待重试':done?'已入库':'待分析'}</span></label>`;
+  }).join('')||`<div class="empty-state">${icon('video')}<h3>从第一个视频开始</h3><p>选择左侧文件夹并导入，视频会出现在这里。</p></div>`;
+  updateSourceSelection();
+}
+function time(value){const seconds=Math.max(0,Number(value)||0);return Math.floor(seconds/60)+':'+Math.floor(seconds%60).toString().padStart(2,'0')}
 async function search(){
   const params=new URLSearchParams({q:$('query').value.trim(),grammar:$('grammar').value,pattern:$('pattern').value.trim(),source:$('sourceFilter').value,offset});
   const data=await api('/api/library/search?'+params);items=data.items;total=data.total;
-  $('count').textContent=`共 ${total} 条${total?' · 第 '+(offset/80+1)+' 页':''}`;
-  $('results').innerHTML=items.map(x=>`<article class="result ${current?.id===x.id?'active':''}"><button data-preview="${x.id}">预览 / 编辑</button><p>${escapeHTML(x.english)}</p><p class="muted">${escapeHTML(x.chinese)}</p><div>${[...x.grammar,...x.patterns].map(tag=>`<span class="tag">${escapeHTML(tag)}</span>`).join('')}</div><small class="muted">${escapeHTML(x.title)} · ${x.start.toFixed(2)}–${x.end.toFixed(2)} 秒</small></article>`).join('')||'<p class="muted">没有匹配例句，可先分析字幕或调整筛选条件。</p>';
-  updatePaging();
+  $('count').textContent=`共 ${total} 条例句`;
+  $('pageNumber').textContent=total?`${Math.floor(offset/80)+1} / ${Math.ceil(total/80)}`:'暂无结果';
+  $('results').innerHTML=items.map((item,index)=>{
+    const chosen=basket.some(x=>x.id===item.id);
+    return `<article class="result ${current?.id===item.id?'active':''}" data-preview="${item.id}" role="button" tabindex="0" aria-label="预览：${escapeHTML(item.english)}" aria-pressed="${current?.id===item.id}"><div class="result-top"><span class="result-number">${String(offset+index+1).padStart(2,'0')}</span><div class="grow"><p class="result-english">${escapeHTML(item.english)}</p><p class="result-chinese">${escapeHTML(item.chinese)}</p><div class="tags">${item.grammar.map(tag=>`<span class="tag">${escapeHTML(tag)}</span>`).join('')}${item.patterns.map(tag=>`<span class="tag pattern">${escapeHTML(tag)}</span>`).join('')}</div><div class="result-bottom"><span>${escapeHTML(item.title)} · ${time(item.start)}–${time(item.end)}</span><span class="${chosen?'chosen-mark':'result-open'}">${chosen?'✓ 已加入本期':icon('play')+' 试听片段'}</span></div></div></div></article>`;
+  }).join('')||`<div class="empty-state">${icon('search')}<h3>${sources.length?'还没有匹配的例句':'素材库还是空的'}</h3><p>${sources.some(x=>x.done)?'换个词试试，或重置筛选。':'先到「导入与分析」整理字幕，再来挑选。'}</p></div>`;
+  updateControls();
 }
+function updateCutSummary(){
+  const start=Number($('start').value),end=Number($('end').value);
+  $('cutSummary').innerHTML=icon('clock')+`${time(start)} — ${time(end)} · ${Math.max(0,end-start).toFixed(1)} 秒`;
+}
+function updateAddButton(){const added=current&&basket.some(item=>item.id===current.id);$('add').textContent=added?(dirty?'保存并更新本期':'✓ 已加入本期'):'＋ 加入本期素材';$('previewBadge').textContent=added?'本期已选':'先听，再挑选'}
 function showSentence(item){
-  if(!mayLeave())return;dirty=false;current=item;stopAt=null;$('video').pause();
+  if(!item||!mayLeave())return;
+  dirty=false;current=item;stopAt=null;$('video').pause();
   const url='/library-media?id='+encodeURIComponent(item.source_id)+'&token='+encodeURIComponent(token);
   const seek=()=>{$('video').currentTime=item.start};
-  if($('video').getAttribute('src')!==url){$('video').src=url;$('video').onloadedmetadata=seek}else seek();
+  if($('video').getAttribute('src')!==url){$('video').onloadedmetadata=seek;$('video').src=url}else seek();
+  $('videoEmpty').classList.add('hidden');$('previewPlaceholder').classList.add('hidden');
   $('previewTitle').textContent=item.title;$('english').textContent=item.english;
   for(const key of ['start','end','chinese'])$(key).value=item[key];
   $('editGrammar').value=item.grammar.join('，');$('editPatterns').value=item.patterns.join('\n');
-  $('editor').classList.remove('hidden');document.querySelectorAll('[data-preview]').forEach(button=>button.closest('article').classList.toggle('active',Number(button.dataset.preview)===item.id));
+  $('adjustments').open=false;$('editor').classList.remove('hidden');
+  document.querySelectorAll('[data-preview]').forEach(card=>{const selected=Number(card.dataset.preview)===item.id;card.classList.toggle('active',selected);card.setAttribute('aria-pressed',selected)});
+  updateCutSummary();updateControls();
 }
 function tags(text){return text.split(/[,，\n]/).map(x=>x.trim()).filter(Boolean)}
 async function saveCurrent(){
@@ -72,55 +245,101 @@ async function saveCurrent(){
   const draft={...current,start:Number($('start').value),end:Number($('end').value),chinese:$('chinese').value.trim(),grammar:tags($('editGrammar').value),patterns:$('editPatterns').value.split('\n').map(x=>x.trim()).filter(Boolean)};
   const duration=$('video').duration;
   if(Number.isFinite(duration)&&draft.end>duration+.1)throw Error('结束时间超过视频时长');
-  await api('/api/library/update',draft);current=draft;dirty=false;
-  basket=basket.map(x=>x.id===draft.id?draft:x);renderBasket();await search();return draft;
+  if(dirty){await api('/api/library/update',draft);current=draft;dirty=false}
+  basket=basket.map(item=>item.id===draft.id?draft:item);
+  renderBasket();await search();return draft;
 }
 function renderBasket(){
-  localStorage.setItem('grammarBasket',JSON.stringify(basket));$('basketCount').textContent=basket.length;
-  $('basket').innerHTML=basket.map((x,index)=>`<div class="basket-item"><b>${index+1}</b><span>${escapeHTML(x.english)}<br><small class="muted">${escapeHTML(x.title)}</small></span><button data-move="${index}" data-step="-1" aria-label="上移">↑</button><button data-move="${index}" data-step="1" aria-label="下移">↓</button><button data-remove="${index}">移除</button></div>`).join('');
+  localStorage.setItem('grammarBasket',JSON.stringify(basket));
+  $('basketCount').textContent=basket.length;$('navBasketCount').textContent=basket.length?`(${basket.length})`:'';$('arrangeCount').textContent=`· ${basket.length} 段`;
+  const duration=basket.reduce((sum,item)=>sum+Math.max(0,item.end-item.start),0);
+  $('topicDuration').textContent=`${basket.length} 段 · ${Math.round(duration)} 秒`;
+  $('basket').innerHTML=basket.map((item,index)=>`<div class="basket-item"><span class="basket-number">${String(index+1).padStart(2,'0')}</span><div class="grow"><p>${escapeHTML(item.english)}</p><p class="basket-zh">${escapeHTML(item.chinese)}</p><small>${escapeHTML(item.title)} · ${time(item.start)}–${time(item.end)} · ${(item.end-item.start).toFixed(1)} 秒</small></div><div class="basket-tools"><button data-edit-basket="${index}" aria-label="预览第 ${index+1} 段">${icon('play')}</button><button data-move="${index}" data-direction="-1" aria-label="上移第 ${index+1} 段">${icon('up')}</button><button data-move="${index}" data-direction="1" aria-label="下移第 ${index+1} 段">${icon('down')}</button><button data-remove="${index}" aria-label="移除第 ${index+1} 段">${icon('trash')}</button></div></div>`).join('')||`<div class="empty-state">${icon('list')}<h3>这一期，还差几句好表达</h3><p>去例句库试听，把喜欢的片段加入本期。</p></div>`;
+  updateControls();
 }
 function ready(project){$('topicReady').innerHTML=`<p>专题项目已生成：<a href="/?token=${encodeURIComponent(token)}&project=${encodeURIComponent(project.id)}">${escapeHTML(project.title)} · 进入素材制作</a></p>`}
-$('settings').onclick=()=>{$('keyMessage').textContent='';$('settingsDialog').showModal()};
-$('closeSettings').onclick=()=>$('settingsDialog').close();
-$('saveKey').onclick=()=>action(async()=>{await api('/api/key',{key:$('key').value});$('key').value='';await refreshSources();$('settingsDialog').close();status('密钥已加密保存在当前 Windows 账户。')});
+function openSettings(message=''){$('keyMessage').textContent=message;$('settingsDialog').showModal()}
+function setFolder(value){$('folder').value=value;$('folderValue').textContent=value;$('folderValue').classList.toggle('hidden',!value);updateControls()}
+document.querySelectorAll('[data-step]').forEach(button=>button.onclick=()=>showStep(button.dataset.step));
+$('goBrowse').onclick=()=>showStep('browse');$('manageSources').onclick=()=>showStep('import');$('goArrange').onclick=()=>showStep('arrange');
+for(const id of ['continuePicking','addMore'])$(id).onclick=()=>showStep('browse');
+$('settings').onclick=()=>openSettings();$('closeSettings').onclick=()=>$('settingsDialog').close();
+$('saveKey').onclick=()=>action(async()=>{await api('/api/key',{key:$('key').value});$('key').value='';await refreshSources();$('settingsDialog').close();status('API Key 已加密保存，可以开始分析字幕。')});
 $('clearKey').onclick=()=>action(async()=>{await api('/api/key-clear',{});$('key').value='';await refreshSources();$('keyMessage').textContent='已删除本机保存的密钥。'});
 $('back').onclick=()=>{if(mayLeave()){dirty=false;home()}};
-$('pickFolder').onclick=()=>action(async()=>{const result=await job('/api/library/folder',{});if(result.folder)$('folder').value=result.folder;status(result.folder?'已选择文件夹，点击导入开始匹配视频与字幕。':'已取消选择。')});
+$('pickFolder').onclick=()=>action(async()=>{const result=await job('/api/library/folder',{});if(result.folder){setFolder(result.folder);status('已选择文件夹，点击「导入素材」完成添加。')}else status('')});
+$('folder').oninput=()=>setFolder($('folder').value);
 $('import').onclick=()=>action(async()=>{
   if(!mayLeave())return;
-  if(!confirm('重新导入会更新有变化的视频字幕，并清除这些视频的旧分类。继续？'))return;
-  const result=await job('/api/library/import',{folder:$('folder').value.trim()});
-  await refreshSources();await search();status(`已导入 / 更新 ${result.added} 个，跳过 ${result.skipped} 个。`+(result.missing.length?'\n缺少匹配英文字幕：\n'+result.missing.join('\n'):'')+(result.errors.length?'\n导入失败：\n'+result.errors.map(x=>x.name+'：'+x.error).join('\n'):''));
-  current=null;dirty=false;$('editor').classList.add('hidden');$('video').pause();
+  const folder=$('folder').value.trim();
+  if(sources.some(source=>source.video?.toLowerCase().startsWith(folder.toLowerCase()+'\\'))&&!confirm('将重新检查这个文件夹。有变化的视频会清除旧分类并重新分析，是否继续？'))return;
+  const result=await job('/api/library/import',{folder});
+  await refreshSources(true);await search();
+  status(`已添加 / 更新 ${result.added} 个视频，跳过 ${result.skipped} 个未变化的视频。`+(result.missing.length?'\n以下视频缺少英文字幕：\n'+result.missing.join('\n'):'')+(result.errors.length?'\n导入失败：\n'+result.errors.map(x=>x.name+'：'+x.error).join('\n'):''),Boolean(result.errors.length));
+  current=null;dirty=false;$('editor').classList.add('hidden');$('video').pause();$('video').removeAttribute('src');$('video').load();$('videoEmpty').classList.remove('hidden');$('previewPlaceholder').classList.remove('hidden');
 });
-$('selectAll').onclick=()=>{document.querySelectorAll('[data-source]').forEach(box=>{const source=sources.find(x=>x.id===box.dataset.source);box.checked=source.done<source.batches})};
-$('selectNone').onclick=()=>document.querySelectorAll('[data-source]').forEach(box=>box.checked=false);
+$('sources').onchange=updateSourceSelection;
+$('selectAll').onclick=()=>{document.querySelectorAll('[data-source]').forEach(box=>box.checked=sources.find(x=>x.id===box.dataset.source).done<sources.find(x=>x.id===box.dataset.source).batches);updateSourceSelection()};
+$('selectNone').onclick=()=>{document.querySelectorAll('[data-source]').forEach(box=>box.checked=false);updateSourceSelection()};
 $('refresh').onclick=()=>action(refreshSources);
-$('analyze').onclick=()=>action(async()=>{
-  const ids=[...document.querySelectorAll('[data-source]:checked')].map(x=>x.dataset.source);
-  if(!ids.length)throw Error('请展开素材列表，勾选需要分析的视频');
-  if(!confirm('将所选视频的英文字幕发送给 DeepSeek 分类并生成中文释义，会产生 API 用量。继续？'))return;
-  try{const result=await job('/api/library/analyze',{ids});status('字幕分析结束，本次使用 '+result.tokens+' Token。'+(result.errors.length?'\n以下素材未完成，可点击继续重试：\n'+result.errors.map(x=>x.title+'：'+x.error).join('\n'):'全部所选素材已完成。'),Boolean(result.errors.length))}finally{await refreshSources();await search()}
-});
+$('analyze').onclick=()=>{
+  if(!hasKey){openSettings('先保存 API Key，然后点击「分析字幕」。');return}
+  action(async()=>{
+    const ids=[...document.querySelectorAll('[data-source]:checked')].map(x=>x.dataset.source);
+    if(!ids.length)throw Error('请勾选需要分析的视频');
+    try{
+      const result=await job('/api/library/analyze',{ids});
+      status('字幕分析完成，本次使用 '+result.tokens+' Token。'+(result.errors.length?'\n以下素材未完成，可继续重试：\n'+result.errors.map(x=>x.title+'：'+x.error).join('\n'):'现在可以按语法与句型挑选例句。'),Boolean(result.errors.length));
+      if(!result.errors.length)showStep('browse');
+    }finally{await refreshSources();await search()}
+  });
+};
 $('search').onclick=()=>action(async()=>{offset=0;await search()});
 for(const id of ['query','pattern'])$(id).onkeydown=event=>{if(event.key==='Enter')$('search').click()};
 for(const id of ['grammar','sourceFilter'])$(id).onchange=()=>$('search').click();
+$('resetFilters').onclick=()=>{for(const id of ['query','pattern','grammar','sourceFilter'])$(id).value='';$('search').click()};
 $('prev').onclick=()=>action(async()=>{offset=Math.max(0,offset-80);await search()});
 $('next').onclick=()=>action(async()=>{offset+=80;await search()});
-$('results').onclick=event=>{const button=event.target.closest('[data-preview]');if(button)showSentence(items.find(x=>x.id===Number(button.dataset.preview)))};
-for(const id of ['start','end','chinese','editGrammar','editPatterns'])$(id).oninput=()=>dirty=true;
-$('setStart').onclick=()=>{$('start').value=$('video').currentTime.toFixed(3);dirty=true};
-$('setEnd').onclick=()=>{$('end').value=$('video').currentTime.toFixed(3);dirty=true};
-$('preview').onclick=()=>{const start=Number($('start').value),end=Number($('end').value);if(!(start>=0&&end>start)){status('请设置正确的起止时间。',true);return}stopAt=end;$('video').currentTime=start;$('video').play().catch(()=>status('视频无法播放，请确认编码为 H.264 + AAC 的 MP4。',true))};
+$('results').onclick=event=>{const card=event.target.closest('[data-preview]');if(card&&!busy)showSentence(items.find(x=>x.id===Number(card.dataset.preview)))};
+$('results').onkeydown=event=>{if((event.key==='Enter'||event.key===' ')&&event.target.matches('[data-preview]')){event.preventDefault();event.target.click()}};
+for(const id of ['start','end','chinese','editGrammar','editPatterns'])$(id).oninput=()=>{dirty=true;updateCutSummary();updateControls()};
+$('setStart').onclick=()=>{$('start').value=$('video').currentTime.toFixed(3);dirty=true;updateCutSummary();updateControls()};
+$('setEnd').onclick=()=>{$('end').value=$('video').currentTime.toFixed(3);dirty=true;updateCutSummary();updateControls()};
+$('preview').onclick=()=>{
+  const start=Number($('start').value),end=Number($('end').value);
+  if(!(start>=0&&end>start)){status('请设置正确的起止时间。',true);$('adjustments').open=true;return}
+  stopAt=end;$('video').currentTime=start;
+  $('video').play().catch(()=>status('视频无法播放，请确认编码为 H.264 + AAC 的 MP4。',true));
+};
 $('video').ontimeupdate=()=>{if(stopAt!==null&&$('video').currentTime>=stopAt){$('video').pause();stopAt=null}};
-$('video').onerror=()=>status('无法预览视频，请检查原文件是否存在，以及浏览器是否支持它的编码。',true);
-$('save').onclick=()=>action(async()=>{await saveCurrent();status('例句调整已保存。')});
-$('add').onclick=()=>action(async()=>{const draft=await saveCurrent();if(!basket.some(x=>x.id===draft.id))basket.push(draft);renderBasket();status('已加入本期素材，可在下方调整顺序。')});
-$('basket').onclick=event=>{const remove=event.target.closest('[data-remove]'),move=event.target.closest('[data-move]');if(remove)basket.splice(Number(remove.dataset.remove),1);if(move){const index=Number(move.dataset.move),target=index+Number(move.dataset.step);if(target>=0&&target<basket.length)[basket[index],basket[target]]=[basket[target],basket[index]]}renderBasket()};
-$('clearBasket').onclick=()=>{if(confirm('清空本期选择？素材库和原视频会保留。')){basket=[];renderBasket()}};
-$('createTopic').onclick=()=>action(async()=>{if(dirty)throw Error('请先保存当前例句调整');if(!basket.length)throw Error('请先加入本期素材');const project=await job('/api/library/topic',{ids:basket.map(x=>x.id),title:$('topicTitle').value});ready(project);home(project.id)});
+$('video').onerror=()=>{if($('video').getAttribute('src'))status('无法预览视频，请检查原文件是否存在，以及浏览器是否支持它的编码。',true)};
+$('save').onclick=()=>action(async()=>{await saveCurrent();status('例句修改已保存。')});
+$('add').onclick=()=>action(async()=>{const draft=await saveCurrent();if(!basket.some(x=>x.id===draft.id))basket.push(draft);renderBasket();await search();status('已加入本期素材。可继续挑选，或进入「本期编排」。')});
+$('basket').onclick=event=>{
+  if(busy)return;
+  const remove=event.target.closest('[data-remove]'),move=event.target.closest('[data-move]'),edit=event.target.closest('[data-edit-basket]');
+  if(edit){const item=basket[Number(edit.dataset.editBasket)];if(!mayLeave())return;dirty=false;showStep('browse');showSentence(item);return}
+  if(remove)basket.splice(Number(remove.dataset.remove),1);
+  if(move){const index=Number(move.dataset.move),target=index+Number(move.dataset.direction);if(target>=0&&target<basket.length){const item=basket.splice(index,1)[0];basket.splice(target,0,item)}}
+  renderBasket();action(search);
+};
+$('clearBasket').onclick=()=>{if(confirm('清空本期选择？素材库中的例句会保留。')){basket=[];renderBasket();action(search)}};
+$('createTopic').onclick=()=>action(async()=>{
+  if(dirty){showStep('browse');throw Error('请先保存当前例句的修改，再进入制作。')}
+  if(!basket.length)throw Error('请先加入本期素材');
+  status('正在准备所选视频片段，请稍候…');
+  const project=await job('/api/library/topic',{ids:basket.map(x=>x.id),title:$('topicTitle').value});
+  ready(project);home(project.id);
+});
 window.addEventListener('beforeunload',event=>{if(dirty){event.preventDefault();event.returnValue=''}});
+window.addEventListener('resize',fitBrowse);
 renderBasket();
-action(async()=>{await refreshSources();await search();const pending=sessionStorage.getItem('grammarJob');if(pending){try{const result=await pollJob(pending);if(result?.id)ready(result);else status('上次任务已完成。')}finally{await refreshSources();await search()}}});
+action(async()=>{
+  await refreshSources();await search();
+  showStep(total?'browse':'import');
+  const pending=sessionStorage.getItem('grammarJob');
+  if(pending){try{const result=await pollJob(pending);if(result?.id){ready(result);showStep('arrange')}else status('上次任务已完成。')}finally{await refreshSources();await search()}}
+});
 </script>
+</body>
 </html>
