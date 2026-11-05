@@ -22,7 +22,7 @@ from array import array
 import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -270,13 +270,13 @@ def has_video_filter(name):
     return FILTER_CACHE[name]
 
 
-def job_start(fn):
+def job_start(fn, exclusive=True):
     jid = secrets.token_hex(8)
     with LOCK:
         JOBS[jid] = {'state': 'waiting', 'message': '等待处理'}
 
     def worker():
-        with WORK_LOCK:
+        with (WORK_LOCK if exclusive else nullcontext()):
             def progress(message):
                 with LOCK:
                     JOBS[jid] = {'state': 'running', 'message': message}
@@ -474,6 +474,104 @@ def download_video(url, progress):
          'video': source.name, 'subtitles': rows, 'subZh': parse_chinese_subtitles(folder), 'clips': []}
     save_project(p)
     return p
+
+
+PLAYLIST_DIR = DATA / '下载素材'
+
+
+def youtube_check(url):
+    """校验 YouTube 链接并返回解析结果。"""
+    parsed = urllib.parse.urlparse(str(url).strip())
+    if parsed.scheme != 'https' or parsed.hostname not in ('youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be'):
+        raise ValueError('请输入 https:// 开头的 YouTube 链接')
+    return parsed
+
+
+def youtube_error_hint(detail):
+    bot_check = 'Sign in to confirm' in detail or 'not a bot' in detail
+    if bot_check and not COOKIES.exists():
+        return 'YouTube 要求验证登录身份（风控）。请点击顶部「Cookie 设置」导入 cookies.txt 后重试。'
+    if bot_check:
+        return ('YouTube 仍要求验证登录身份：cookies.txt 可能已过期，或当前网络出口 IP 被标记。'
+                '请重新导出 Cookie 或更换网络节点。')
+    if 'Private video' in detail or 'members-only' in detail:
+        return '列表里有私有或会员专属视频，需要有效的 cookies.txt 才能下载。'
+    return 'YouTube 获取失败。请确认网络可访问 YouTube，且视频无需登录。'
+
+
+def playlist_archive(path):
+    """读取下载归档，返回已完成的视频 ID。"""
+    try:
+        lines = path.read_text(encoding='utf-8').splitlines()
+    except OSError:
+        return set()
+    return {line.rsplit(' ', 1)[-1] for line in lines if line.strip()}
+
+
+def download_playlist(url, folder, limit, progress):
+    """按列表顺序逐个下载视频和英文字幕，已下载的自动跳过。"""
+    import yt_dlp
+    parsed = youtube_check(url)
+    if not urllib.parse.parse_qs(parsed.query).get('list'):
+        raise ValueError('请粘贴带 list= 参数的播放列表链接（例如「稍后观看」或自建收藏夹页面地址）')
+    target = Path(str(folder or '').strip() or PLAYLIST_DIR).expanduser()
+    if not target.is_absolute():
+        raise ValueError('请填写保存文件夹的完整路径')
+    try:
+        target.mkdir(parents=True, exist_ok=True)
+    except OSError as error:
+        raise ValueError('无法创建保存文件夹：' + str(error)) from None
+    try:
+        limit = max(0, int(limit or 0))
+    except (TypeError, ValueError):
+        raise ValueError('「最多下载」请填写数字，留空表示全部') from None
+    archive = target / '.已下载.txt'
+    options = {
+        'outtmpl': str(target / '%(playlist_title).80B' / '%(title).120B [%(id)s].%(ext)s'),
+        'format': 'bv*[ext=mp4][vcodec^=avc1][height<=1080]+ba[ext=m4a]/b[ext=mp4]/best[height<=1080]',
+        'merge_output_format': 'mp4', 'writesubtitles': True, 'writeautomaticsub': True,
+        'subtitleslangs': ['en', 'en-US', 'en-GB', 'en-orig', 'zh-Hans', 'zh-CN', 'zh', 'zh-Hant', 'zh-TW'],
+        'subtitlesformat': 'vtt', 'ffmpeg_location': ffmpeg(),
+        'download_archive': str(archive), 'sleep_interval': 2, 'max_sleep_interval': 4,
+        'socket_timeout': 30, 'retries': 3, 'quiet': True, 'noplaylist': True,
+        'js_runtimes': {'node': {'path': str(ROOT / 'tools' / 'node.exe')}},
+        'compat_opts': ['no-certifi'],
+    }
+    if COOKIES.exists():
+        options['cookiefile'] = str(COOKIES)
+    progress('读取播放列表信息')
+    listing = {key: value for key, value in options.items() if key != 'download_archive'}
+    listing.update({'extract_flat': 'in_playlist', 'skip_download': True})
+    try:
+        with yt_dlp.YoutubeDL(listing) as ydl:
+            info = ydl.extract_info(url, download=False)
+    except yt_dlp.utils.DownloadError as error:
+        raise ValueError(youtube_error_hint(str(error)) + '\n' + str(error)[-500:]) from None
+    entries = [entry for entry in (info.get('entries') or []) if entry and entry.get('id')]
+    if not entries:
+        raise ValueError('播放列表没有可下载的视频（私有列表请先导入 cookies.txt）')
+    total = len(entries)
+    if limit:
+        entries = entries[:limit]
+    done = playlist_archive(archive)
+    downloaded, skipped, failed = 0, 0, []
+    for index, entry in enumerate(entries, 1):
+        vid = entry['id']
+        title = str(entry.get('title') or vid)[:120]
+        if vid in done:
+            skipped += 1
+            progress('跳过 {}/{}（已下载）：{}'.format(index, total, title))
+            continue
+        progress('下载 {}/{}：{}'.format(index, total, title))
+        try:
+            with yt_dlp.YoutubeDL(options) as ydl:
+                ydl.download(['https://www.youtube.com/watch?v=' + vid])
+            downloaded += 1
+            done.add(vid)
+        except yt_dlp.utils.DownloadError as error:
+            failed.append({'title': title, 'error': str(error)[-300:]})
+    return {'folder': str(target), 'total': total, 'downloaded': downloaded, 'skipped': skipped,
+            'failed': failed[:20], 'failedCount': len(failed), 'hasCookies': COOKIES.exists()}
 
 
 def deepseek(messages, key, max_tokens, json_output=False):
@@ -2184,6 +2282,10 @@ class Handler(BaseHTTPRequestHandler):
                 self.reply(job_start(lambda progress: library_topic(body.get('ids'), body.get('title', ''), progress)))
             elif self.path == '/api/download':
                 self.reply(job_start(lambda progress: download_video(body['url'], progress)))
+            elif self.path == '/api/download-playlist':
+                # 批量下载可能持续很久，不占用视频处理锁，避免挡住导出和合成。
+                self.reply(job_start(lambda progress: download_playlist(
+                    body.get('url', ''), body.get('folder', ''), body.get('limit'), progress), exclusive=False))
             elif self.path == '/api/translate':
                 key = KEY
                 self.reply(job_start(lambda progress: translate(body['english'], key)))

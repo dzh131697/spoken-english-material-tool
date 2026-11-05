@@ -223,6 +223,58 @@ class WorkflowTest(unittest.TestCase):
                 self.assertEqual(captured['cookiefile'], str(cookie_path))
                 self.assertIn('已过期', str(error.exception))
 
+    def test_playlist_download_skips_finished_and_continues(self):
+        state = {'entries': [{'id': 'aaa', 'title': 'A'}, {'id': 'bbb', 'title': 'B'},
+                             {'id': 'ccc', 'title': 'C'}], 'failed': {'ccc'}, 'downloaded': [], 'options': []}
+
+        class FakeYDL:
+            def __init__(self, options):
+                self.options = options
+                state['options'].append(options)
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def extract_info(self, url, download=False):
+                return {'title': '收藏夹', 'entries': state['entries']}
+
+            def download(self, urls):
+                vid = urls[0].rsplit('=', 1)[-1]
+                if vid in state['failed']:
+                    raise RuntimeError('视频不可用')
+                state['downloaded'].append(vid)
+                archive = self.options.get('download_archive')
+                if archive:
+                    with open(archive, 'a', encoding='utf-8') as handle:
+                        handle.write('youtube %s\n' % vid)
+
+        fake = types.SimpleNamespace(YoutubeDL=FakeYDL,
+                                     utils=types.SimpleNamespace(DownloadError=RuntimeError))
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with patch.object(app, 'COOKIES', root / 'cookies.txt'), \
+                    patch.dict(sys.modules, {'yt_dlp': fake}):
+                first = app.download_playlist('https://www.youtube.com/playlist?list=PLx',
+                                              str(root / 'videos'), 0, lambda message: None)
+                self.assertEqual((first['total'], first['downloaded'], first['skipped']), (3, 2, 0))
+                self.assertEqual(first['failedCount'], 1)
+                self.assertEqual(first['failed'][0]['title'], 'C')
+                # 归档写入后重跑：已下载的跳过，失败的补下。
+                state['failed'] = set()
+                second = app.download_playlist('https://www.youtube.com/playlist?list=PLx',
+                                               str(root / 'videos'), 0, lambda message: None)
+                self.assertEqual((second['downloaded'], second['skipped']), (1, 2))
+                self.assertEqual(state['downloaded'], ['aaa', 'bbb', 'ccc'])
+                with self.assertRaises(ValueError):
+                    app.download_playlist('https://www.youtube.com/watch?v=aaa', str(root / 'v'), 0,
+                                          lambda message: None)
+                with self.assertRaises(ValueError):
+                    app.download_playlist('https://example.com/playlist?list=PLx', str(root / 'v'), 0,
+                                          lambda message: None)
+
     def test_youtube_rolling_captions_become_sentences(self):
         # YouTube 自动字幕：每个 cue 上行是残留、下行是正在累积的当前行，并带逐词时间戳。
         sample = ('WEBVTT\n\n'
