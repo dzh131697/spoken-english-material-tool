@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="zh-CN">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>语法素材库 · 口语素材工作台</title>
+<style>
+:root{font-family:"Segoe UI","Microsoft YaHei",sans-serif;color:#203c34;background:#f3f6f2;font-size:14px}*{box-sizing:border-box}body{margin:0}header{padding:22px 30px;background:#fff;border-bottom:1px solid #dbe5dd;display:flex;justify-content:space-between;align-items:center;gap:20px}h1{font-size:23px;margin:0 0 6px}h2{font-size:17px;margin:0 0 15px}p{line-height:1.65}button,input,select,textarea{font:inherit}button{background:white;border:1px solid #b9cdc0;border-radius:7px;padding:9px 13px;color:#254c3c;cursor:pointer}button:hover{background:#eaf3eb}button.primary{background:#28644d;color:white;border-color:#28644d}button:disabled{opacity:.5;cursor:wait}input:not([type=checkbox]),select,textarea{padding:9px;border:1px solid #cbd9ce;border-radius:6px;background:white;color:#203c34;max-width:100%}input[type=checkbox]{accent-color:#28644d}textarea{width:100%;resize:vertical}label{line-height:1.7}.muted{color:#677e70;font-size:13px}.row{display:flex;align-items:center;gap:9px;flex-wrap:wrap}.grow{flex:1;min-width:200px}.panel{background:white;border:1px solid #dbe5dd;border-radius:12px;padding:18px}main{padding:22px 30px;max-width:1700px;margin:auto}.toolbar{margin-bottom:15px}.status{padding:12px 15px;white-space:pre-wrap;background:#e7efe8;border-radius:8px;margin:12px 0;max-height:220px;overflow:auto}.error{color:#9c352f;background:#ffefeb}.layout{display:grid;grid-template-columns:230px minmax(300px,1fr) minmax(330px,1fr);gap:16px;align-items:start}.filters label{display:block;margin-bottom:13px}.filters input,.filters select{width:100%}.results{max-height:650px;overflow:auto}.result{padding:14px 4px;border-bottom:1px solid #e0e9e1}.result p{margin:8px 0}.result.active{background:#edf5ef}.tag{display:inline-block;padding:3px 7px;border-radius:5px;background:#eaf1eb;font-size:12px;margin:2px}.preview{position:sticky;top:15px}.preview video{width:100%;max-height:320px;background:#17251e;border-radius:8px}.preview label{display:block;margin-top:12px}.preview input:not([type=checkbox]){width:100%}.times{display:grid;grid-template-columns:1fr 1fr;gap:10px}.sources{max-height:260px;overflow:auto;margin:12px 0}.source{display:flex;gap:9px;padding:10px 0;border-bottom:1px solid #e2eae3;align-items:flex-start}.source span{flex:1}.source small{display:block;color:#687e71;margin-top:4px}.basket{margin-top:18px}.basket-item{display:flex;align-items:center;gap:8px;border-top:1px solid #e1e9e2;padding:10px 0}.basket-item span{flex:1}.hidden{display:none!important}dialog{border:1px solid #cbd9ce;border-radius:14px;padding:24px;max-width:520px;width:90%}dialog::backdrop{background:#172d2466}dialog input{width:100%;margin-bottom:12px}a{color:#28644d}@media(max-width:1100px){.layout{grid-template-columns:190px 1fr}.preview{grid-column:1/-1;position:static}.preview video{max-height:400px}}@media(max-width:650px){main,header{padding:15px}.layout{grid-template-columns:1fr}.preview{grid-column:auto}header{flex-wrap:wrap}}
+</style>
+<header><div><h1>语法素材库</h1><span class="muted">从真实表达中，挑选下一期的主题。</span></div><div class="row"><span id="keyStatus" class="muted"></span><button id="settings">API Key 设置</button><button id="back">返回素材制作</button></div></header>
+<main>
+<section class="panel toolbar">
+  <h2>导入与分析</h2>
+  <div class="row"><input id="folder" class="grow" aria-label="视频文件夹路径" placeholder="视频文件夹完整路径，例如 D:\EnglishVlogs"><button id="pickFolder">选择文件夹</button><button id="import" class="primary">导入文件夹</button></div>
+  <p class="muted">递归匹配同名 .en.srt / .en.vtt（含 en-orig 等英文变体）或无语言后缀字幕。仅保存本地路径，不复制原视频；请保留原文件位置。文件变化后重新导入会重建该视频的分析结果。</p>
+  <details><summary id="sourceSummary">素材列表</summary><div class="row" style="margin-top:12px"><button id="selectAll">全选待分析</button><button id="selectNone">取消全选</button><button id="refresh">刷新列表</button></div><div id="sources" class="sources"></div></details>
+  <div class="row"><button id="analyze" class="primary">分析所选字幕 / 继续未完成</button><span class="muted">仅主动分析时向 DeepSeek 发送英文字幕，不发送视频、音频或文件路径。会产生 API 用量。</span></div>
+</section>
+<div id="status" class="status" role="status">导入视频和字幕后，勾选素材并开始分析。已完成批次自动缓存。</div>
+<div class="layout">
+  <aside class="panel filters"><h2>查找例句</h2><label>英文 / 中文<input id="query" placeholder="搜索原句或释义"></label><label>语法<select id="grammar"><option value="">全部语法</option></select></label><label>句型<input id="pattern" placeholder="例如 Have you ever"></label><label>来源视频<select id="sourceFilter"><option value="">全部来源</option></select></label><button id="search" class="primary">查找</button><p id="count" class="muted"></p><div class="row"><button id="prev">上一页</button><button id="next">下一页</button></div></aside>
+  <section class="panel"><h2>例句与出处</h2><div id="results" class="results"><p class="muted">还没有分析结果。</p></div></section>
+  <section class="panel preview"><h2>预览与调整</h2><video id="video" controls preload="metadata"></video><p id="previewTitle" class="muted">点击例句查看对应视频片段。</p><div id="editor" class="hidden"><p id="english"></p><div class="times"><label>开始 / 秒<input id="start" type="number" min="0" step="0.01"></label><label>结束 / 秒<input id="end" type="number" min="0" step="0.01"></label></div><div class="row" style="margin-top:12px"><button id="preview">播放选段</button><button id="setStart">此刻设为开始</button><button id="setEnd">此刻设为结束</button></div><label>中文释义<textarea id="chinese" rows="3"></textarea></label><label>语法标签（逗号分隔，使用左侧语法分类）<input id="editGrammar"></label><label>句型标签（每行一个）<textarea id="editPatterns" rows="2"></textarea></label><div class="row" style="margin-top:14px"><button id="save">保存调整</button><button id="add" class="primary">保存并加入本期</button></div></div></section>
+</div>
+<section class="panel basket"><div class="row"><h2 class="grow">本期素材 · <span id="basketCount">0</span> 段</h2><button id="clearBasket">清空本期选择</button></div><div id="basket"></div><div class="row"><input id="topicTitle" class="grow" aria-label="本期主题名称" placeholder="本期主题，例如：Have you ever 的五种真实表达"><button id="createTopic" class="primary">生成专题项目并进入制作</button></div><p class="muted">按列表顺序仅提取所选片段，生成独立专题视频；进入制作后可继续调整题卡、导出散件或合成。原视频保持完整。</p><div id="topicReady"></div></section>
+</main>
+<dialog id="settingsDialog"><h2>DeepSeek API Key 设置</h2><p>与素材制作页共用密钥。使用 Windows 当前账户加密保存，复制工具文件夹不会带走密钥。</p><label for="key">API Key</label><input id="key" type="password" autocomplete="off" placeholder="输入新的 API Key"><div class="row"><button id="saveKey" class="primary">保存密钥</button><button id="clearKey">删除密钥</button><button id="closeSettings">关闭</button></div><p id="keyMessage" role="status" class="muted"></p></dialog>
+<script>
+const $=id=>document.getElementById(id);
+const token=new URLSearchParams(location.search).get('token');
+const escapeHTML=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let sources=[],items=[],current=null,offset=0,total=0,busy=false,dirty=false,stopAt=null;
+let basket=[];
+try{basket=JSON.parse(localStorage.getItem('grammarBasket')||'[]');if(!Array.isArray(basket))basket=[]}catch{}
+function status(text,error=false){$('status').textContent=text;$('status').classList.toggle('error',error)}
+async function api(path,body){const response=await fetch(path,{method:body===undefined?'GET':'POST',headers:{'X-App-Token':token,'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});const data=await response.json();if(!response.ok||data.error)throw Error(data.error||'请求失败');return data}
+async function action(fn){if(busy)return;busy=true;document.querySelectorAll('button,input,select,textarea').forEach(x=>x.disabled=true);try{await fn()}catch(error){status(error.message,true);if($('settingsDialog').open)$('keyMessage').textContent=error.message}finally{busy=false;document.querySelectorAll('button,input,select,textarea').forEach(x=>x.disabled=false);updatePaging()}}
+async function pollJob(id){for(;;){const data=await api('/api/job?id='+encodeURIComponent(id));status(data.message);if(data.state==='error'){sessionStorage.removeItem('grammarJob');throw Error(data.message)}if(data.state==='done'){sessionStorage.removeItem('grammarJob');return data.result}await new Promise(resolve=>setTimeout(resolve,800))}}
+async function job(path,body){const {job:id}=await api(path,body);sessionStorage.setItem('grammarJob',id);return pollJob(id)}
+function home(pid=''){location.href='/?token='+encodeURIComponent(token)+(pid?'&project='+encodeURIComponent(pid):'')}
+function mayLeave(){return !dirty||confirm('当前例句的修改尚未保存，是否放弃？')}
+async function refreshSources(){
+  const checked=new Set([...document.querySelectorAll('[data-source]:checked')].map(x=>x.dataset.source));
+  const data=await api('/api/library/sources');sources=data.sources;
+  $('keyStatus').textContent=data.keyError||(data.hasKey?'密钥已保存':'尚未设置 API Key');
+  const selectedGrammar=$('grammar').value,selectedSource=$('sourceFilter').value;
+  $('grammar').innerHTML='<option value="">全部语法</option>'+data.grammar.map(x=>`<option>${escapeHTML(x)}</option>`).join('');$('grammar').value=selectedGrammar;
+  $('sourceFilter').innerHTML='<option value="">全部来源</option>'+sources.map(x=>`<option value="${x.id}">${escapeHTML(x.title)}</option>`).join('');$('sourceFilter').value=selectedSource;
+  $('sourceSummary').textContent=`素材列表 · ${sources.length} 个视频 · ${sources.filter(x=>x.done===x.batches).length} 个已完成`;
+  $('sources').innerHTML=sources.map(x=>`<label class="source"><input type="checkbox" data-source="${x.id}" ${checked.has(x.id)?'checked':''}><span>${escapeHTML(x.title)}<small>${x.done}/${x.batches} 批 · ${x.sentences} 条例句${x.available?'':' · 原视频已移动或删除'}${x.error?' · '+escapeHTML(x.error):''}</small></span></label>`).join('')||'<p class="muted">尚未导入素材。</p>';
+}
+function updatePaging(){$('prev').disabled=busy||offset===0;$('next').disabled=busy||offset+80>=total}
+async function search(){
+  const params=new URLSearchParams({q:$('query').value.trim(),grammar:$('grammar').value,pattern:$('pattern').value.trim(),source:$('sourceFilter').value,offset});
+  const data=await api('/api/library/search?'+params);items=data.items;total=data.total;
+  $('count').textContent=`共 ${total} 条${total?' · 第 '+(offset/80+1)+' 页':''}`;
+  $('results').innerHTML=items.map(x=>`<article class="result ${current?.id===x.id?'active':''}"><button data-preview="${x.id}">预览 / 编辑</button><p>${escapeHTML(x.english)}</p><p class="muted">${escapeHTML(x.chinese)}</p><div>${[...x.grammar,...x.patterns].map(tag=>`<span class="tag">${escapeHTML(tag)}</span>`).join('')}</div><small class="muted">${escapeHTML(x.title)} · ${x.start.toFixed(2)}–${x.end.toFixed(2)} 秒</small></article>`).join('')||'<p class="muted">没有匹配例句，可先分析字幕或调整筛选条件。</p>';
+  updatePaging();
+}
+function showSentence(item){
+  if(!mayLeave())return;dirty=false;current=item;stopAt=null;$('video').pause();
+  const url='/library-media?id='+encodeURIComponent(item.source_id)+'&token='+encodeURIComponent(token);
+  const seek=()=>{$('video').currentTime=item.start};
+  if($('video').getAttribute('src')!==url){$('video').src=url;$('video').onloadedmetadata=seek}else seek();
+  $('previewTitle').textContent=item.title;$('english').textContent=item.english;
+  for(const key of ['start','end','chinese'])$(key).value=item[key];
+  $('editGrammar').value=item.grammar.join('，');$('editPatterns').value=item.patterns.join('\n');
+  $('editor').classList.remove('hidden');document.querySelectorAll('[data-preview]').forEach(button=>button.closest('article').classList.toggle('active',Number(button.dataset.preview)===item.id));
+}
+function tags(text){return text.split(/[,，\n]/).map(x=>x.trim()).filter(Boolean)}
+async function saveCurrent(){
+  if(!current)throw Error('请先选择例句');
+  const draft={...current,start:Number($('start').value),end:Number($('end').value),chinese:$('chinese').value.trim(),grammar:tags($('editGrammar').value),patterns:$('editPatterns').value.split('\n').map(x=>x.trim()).filter(Boolean)};
+  const duration=$('video').duration;
+  if(Number.isFinite(duration)&&draft.end>duration+.1)throw Error('结束时间超过视频时长');
+  await api('/api/library/update',draft);current=draft;dirty=false;
+  basket=basket.map(x=>x.id===draft.id?draft:x);renderBasket();await search();return draft;
+}
+function renderBasket(){
+  localStorage.setItem('grammarBasket',JSON.stringify(basket));$('basketCount').textContent=basket.length;
+  $('basket').innerHTML=basket.map((x,index)=>`<div class="basket-item"><b>${index+1}</b><span>${escapeHTML(x.english)}<br><small class="muted">${escapeHTML(x.title)}</small></span><button data-move="${index}" data-step="-1" aria-label="上移">↑</button><button data-move="${index}" data-step="1" aria-label="下移">↓</button><button data-remove="${index}">移除</button></div>`).join('');
+}
+function ready(project){$('topicReady').innerHTML=`<p>专题项目已生成：<a href="/?token=${encodeURIComponent(token)}&project=${encodeURIComponent(project.id)}">${escapeHTML(project.title)} · 进入素材制作</a></p>`}
+$('settings').onclick=()=>{$('keyMessage').textContent='';$('settingsDialog').showModal()};
+$('closeSettings').onclick=()=>$('settingsDialog').close();
+$('saveKey').onclick=()=>action(async()=>{await api('/api/key',{key:$('key').value});$('key').value='';await refreshSources();$('settingsDialog').close();status('密钥已加密保存在当前 Windows 账户。')});
+$('clearKey').onclick=()=>action(async()=>{await api('/api/key-clear',{});$('key').value='';await refreshSources();$('keyMessage').textContent='已删除本机保存的密钥。'});
+$('back').onclick=()=>{if(mayLeave()){dirty=false;home()}};
+$('pickFolder').onclick=()=>action(async()=>{const result=await job('/api/library/folder',{});if(result.folder)$('folder').value=result.folder;status(result.folder?'已选择文件夹，点击导入开始匹配视频与字幕。':'已取消选择。')});
+$('import').onclick=()=>action(async()=>{
+  if(!mayLeave())return;
+  if(!confirm('重新导入会更新有变化的视频字幕，并清除这些视频的旧分类。继续？'))return;
+  const result=await job('/api/library/import',{folder:$('folder').value.trim()});
+  await refreshSources();await search();status(`已导入 / 更新 ${result.added} 个，跳过 ${result.skipped} 个。`+(result.missing.length?'\n缺少匹配英文字幕：\n'+result.missing.join('\n'):'')+(result.errors.length?'\n导入失败：\n'+result.errors.map(x=>x.name+'：'+x.error).join('\n'):''));
+  current=null;dirty=false;$('editor').classList.add('hidden');$('video').pause();
+});
+$('selectAll').onclick=()=>{document.querySelectorAll('[data-source]').forEach(box=>{const source=sources.find(x=>x.id===box.dataset.source);box.checked=source.done<source.batches})};
+$('selectNone').onclick=()=>document.querySelectorAll('[data-source]').forEach(box=>box.checked=false);
+$('refresh').onclick=()=>action(refreshSources);
+$('analyze').onclick=()=>action(async()=>{
+  const ids=[...document.querySelectorAll('[data-source]:checked')].map(x=>x.dataset.source);
+  if(!ids.length)throw Error('请展开素材列表，勾选需要分析的视频');
+  if(!confirm('将所选视频的英文字幕发送给 DeepSeek 分类并生成中文释义，会产生 API 用量。继续？'))return;
+  try{const result=await job('/api/library/analyze',{ids});status('字幕分析结束，本次使用 '+result.tokens+' Token。'+(result.errors.length?'\n以下素材未完成，可点击继续重试：\n'+result.errors.map(x=>x.title+'：'+x.error).join('\n'):'全部所选素材已完成。'),Boolean(result.errors.length))}finally{await refreshSources();await search()}
+});
+$('search').onclick=()=>action(async()=>{offset=0;await search()});
+for(const id of ['query','pattern'])$(id).onkeydown=event=>{if(event.key==='Enter')$('search').click()};
+for(const id of ['grammar','sourceFilter'])$(id).onchange=()=>$('search').click();
+$('prev').onclick=()=>action(async()=>{offset=Math.max(0,offset-80);await search()});
+$('next').onclick=()=>action(async()=>{offset+=80;await search()});
+$('results').onclick=event=>{const button=event.target.closest('[data-preview]');if(button)showSentence(items.find(x=>x.id===Number(button.dataset.preview)))};
+for(const id of ['start','end','chinese','editGrammar','editPatterns'])$(id).oninput=()=>dirty=true;
+$('setStart').onclick=()=>{$('start').value=$('video').currentTime.toFixed(3);dirty=true};
+$('setEnd').onclick=()=>{$('end').value=$('video').currentTime.toFixed(3);dirty=true};
+$('preview').onclick=()=>{const start=Number($('start').value),end=Number($('end').value);if(!(start>=0&&end>start)){status('请设置正确的起止时间。',true);return}stopAt=end;$('video').currentTime=start;$('video').play().catch(()=>status('视频无法播放，请确认编码为 H.264 + AAC 的 MP4。',true))};
+$('video').ontimeupdate=()=>{if(stopAt!==null&&$('video').currentTime>=stopAt){$('video').pause();stopAt=null}};
+$('video').onerror=()=>status('无法预览视频，请检查原文件是否存在，以及浏览器是否支持它的编码。',true);
+$('save').onclick=()=>action(async()=>{await saveCurrent();status('例句调整已保存。')});
+$('add').onclick=()=>action(async()=>{const draft=await saveCurrent();if(!basket.some(x=>x.id===draft.id))basket.push(draft);renderBasket();status('已加入本期素材，可在下方调整顺序。')});
+$('basket').onclick=event=>{const remove=event.target.closest('[data-remove]'),move=event.target.closest('[data-move]');if(remove)basket.splice(Number(remove.dataset.remove),1);if(move){const index=Number(move.dataset.move),target=index+Number(move.dataset.step);if(target>=0&&target<basket.length)[basket[index],basket[target]]=[basket[target],basket[index]]}renderBasket()};
+$('clearBasket').onclick=()=>{if(confirm('清空本期选择？素材库和原视频会保留。')){basket=[];renderBasket()}};
+$('createTopic').onclick=()=>action(async()=>{if(dirty)throw Error('请先保存当前例句调整');if(!basket.length)throw Error('请先加入本期素材');const project=await job('/api/library/topic',{ids:basket.map(x=>x.id),title:$('topicTitle').value});ready(project);home(project.id)});
+window.addEventListener('beforeunload',event=>{if(dirty){event.preventDefault();event.returnValue=''}});
+renderBasket();
+action(async()=>{await refreshSources();await search();const pending=sessionStorage.getItem('grammarJob');if(pending){try{const result=await pollJob(pending);if(result?.id)ready(result);else status('上次任务已完成。')}finally{await refreshSources();await search()}}});
+</script>
+</html>

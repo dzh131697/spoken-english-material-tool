@@ -354,7 +354,16 @@ function setupMobile(){
   renderMobileSelection();renderClips();showMobilePage('source');
 }
 if(isAndroid)setupMobile();
-refreshProjects().catch(e=>status(e.message,true));
+else {
+  const libraryButton=document.createElement('button');
+  libraryButton.id='libraryTab';libraryButton.textContent='语法素材库';
+  libraryButton.onclick=()=>window.open('/library?token='+encodeURIComponent(token),'_blank','noopener');
+  $('desktopPages').append(libraryButton);
+}
+refreshProjects().then(async()=>{
+  const pid=new URLSearchParams(location.search).get('project');
+  if(pid&&!isAndroid)load(await api('/api/project?id='+encodeURIComponent(pid)));
+}).catch(e=>status(e.message,true));
 </script>
 <script src="/publish.js"></script>
 </html>
