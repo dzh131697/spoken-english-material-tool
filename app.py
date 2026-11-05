@@ -441,7 +441,8 @@ def download_video(url, progress):
         'subtitleslangs': ['en', 'en-US', 'en-GB', 'en-orig', 'zh-Hans', 'zh-CN', 'zh', 'zh-Hant', 'zh-TW'],
         'subtitlesformat': 'vtt',
         'ffmpeg_location': ffmpeg(), 'logger': Logger(), 'progress_hooks': [hook],
-        'socket_timeout': 30, 'retries': 3, 'quiet': True,
+        'socket_timeout': 30, 'retries': 10, 'fragment_retries': 10,
+        'http_chunk_size': 1048576, 'quiet': True,
         'js_runtimes': {'node': {'path': str(ROOT / 'tools' / 'node.exe')}},
         'compat_opts': ['no-certifi'],
     }
@@ -533,7 +534,8 @@ def download_playlist(url, folder, limit, progress):
         'subtitleslangs': ['en', 'en-US', 'en-GB', 'en-orig', 'zh-Hans', 'zh-CN', 'zh', 'zh-Hant', 'zh-TW'],
         'subtitlesformat': 'vtt', 'ffmpeg_location': ffmpeg(),
         'download_archive': str(archive), 'sleep_interval': 2, 'max_sleep_interval': 4,
-        'socket_timeout': 30, 'retries': 3, 'quiet': True, 'noplaylist': True,
+        'socket_timeout': 30, 'retries': 10, 'fragment_retries': 10,
+        'http_chunk_size': 1048576, 'quiet': True, 'noplaylist': True,
         'js_runtimes': {'node': {'path': str(ROOT / 'tools' / 'node.exe')}},
         'compat_opts': ['no-certifi'],
     }
@@ -569,7 +571,7 @@ def download_playlist(url, folder, limit, progress):
             downloaded += 1
             done.add(vid)
         except yt_dlp.utils.DownloadError as error:
-            failed.append({'title': title, 'error': str(error)[-300:]})
+            failed.append({'title': title, 'error': str(error)[:300]})
     return {'folder': str(target), 'total': total, 'downloaded': downloaded, 'skipped': skipped,
             'failed': failed[:20], 'failedCount': len(failed), 'hasCookies': COOKIES.exists()}
 
