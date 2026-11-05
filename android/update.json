@@ -1,7 +1,7 @@
 {
-  "versionCode": 1005,
-  "versionName": "0.2.1005",
-  "apkUrl": "https://github.com/dzh131697/spoken-english-material-tool/releases/download/android-v1005/spoken-material-android.apk",
-  "sha256": "e5b98f81246d59799c99dad201fd8c0e9a054d82849ac36a223da5bfde6011ef",
-  "notes": "题卡可选加学习提示：按英文自动生成 2-3 个关键词、1 条搭配和 1 条语法说明，排版在本地完成；题卡版式重做，“试着用英语说出来”改成醒目的行动条。可选择下载并安装。"
+  "versionCode": 1006,
+  "versionName": "0.2.1006",
+  "apkUrl": "https://github.com/dzh131697/spoken-english-material-tool/releases/download/android-v1006/spoken-material-android.apk",
+  "sha256": "1603473e06de63e5e9df05481380590de975f43aacbc94350494441ddcf0c925",
+  "notes": "安卓版有新更新，包含界面与功能修正。可选择下载并安装。"
 }
