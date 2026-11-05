@@ -3,5 +3,5 @@
   "versionName": "0.2.1006",
   "apkUrl": "https://github.com/dzh131697/spoken-english-material-tool/releases/download/android-v1006/spoken-material-android.apk",
   "sha256": "1603473e06de63e5e9df05481380590de975f43aacbc94350494441ddcf0c925",
-  "notes": "安卓版有新更新，包含界面与功能修正。可选择下载并安装。"
+  "notes": "新增发布准备页：独立管理封面、标题、简介和标签；支持五种封面样式、手动/随机选帧和多平台文案。题卡底部提示语可自定义，保留波形切点、多版本成片及学习提示。可选择下载并安装。"
 }
