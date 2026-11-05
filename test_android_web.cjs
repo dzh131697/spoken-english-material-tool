@@ -19,6 +19,8 @@ async function openPage(browser, android, width = 390) {
   await context.addInitScript(isAndroid => {
     window.saved = [];
     window.played = 0;
+    window.copied = [];
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText: async text => window.copied.push(text) } });
     Object.defineProperty(HTMLMediaElement.prototype, 'duration', { get: () => 100, configurable: true });
     HTMLMediaElement.prototype.play = function () { window.played++; return Promise.resolve(); };
     HTMLMediaElement.prototype.pause = function () {};
@@ -169,16 +171,31 @@ async function openPage(browser, android, width = 390) {
       await page.evaluate(() => project.outputs.push({ ...project.outputs[0], id: '20261105_111111_abcdef' }));
       await page.locator('[data-publish-output]').first().click();
       await page.waitForFunction(() => !busy && publishingFrame !== null);
+      assert.equal(await page.locator('[data-publish-panel]:visible').count(), 1);
+      assert.equal(await page.locator('#publishTitle').isVisible(), false);
       assert.equal(state.generations.length, 0);
       await page.locator('#coverFrameMode').selectOption('random');
       await page.waitForFunction(() => !busy);
       assert.equal(state.frames.at(-1).mode, 'random');
+      await page.locator('[data-publish-tab="title"]').click();
       await page.locator('#publishTitle').fill('第一条视频标题');
+      await page.locator('#copyPublishTitle').click();
+      await page.waitForFunction(() => window.copied.includes('第一条视频标题'));
+      await page.locator('[data-publish-tab="description"]').click();
+      await page.locator('#publishDescription').fill('第一条视频的简介');
+      await page.locator('[data-publish-tab="tags"]').click();
+      await page.locator('#publishTags').fill('#英语口语 #真实表达');
+      await page.locator('[data-publish-tab="reference"]').click();
+      await page.locator('#publishSourceDescription').fill('这一条成片的参考内容');
       await page.locator('#publishPlatform').selectOption('xiaohongshu');
       assert.equal(await page.locator('#publishTitle').inputValue(), '');
+      await page.locator('[data-publish-tab="title"]').click();
       await page.locator('#publishTitle').fill('小红书标题');
       await page.locator('#publishPlatform').selectOption('bilibili');
       assert.equal(await page.locator('#publishTitle').inputValue(), '第一条视频标题');
+      assert.equal(await page.locator('#publishDescription').inputValue(), '第一条视频的简介');
+      assert.equal(await page.locator('#publishTags').inputValue(), '#英语口语 #真实表达');
+      await page.locator('[data-publish-tab="cover"]').click();
       await page.locator('#coverTitle').fill('这句话英语怎么说');
       fs.mkdirSync('qa', { recursive: true });
       for (const style of ['viewfinder', 'magazine', 'note', 'pop', 'minimal']) {
@@ -186,6 +203,7 @@ async function openPage(browser, android, width = 390) {
         assert.equal(await page.evaluate(() => coverLayoutValid), true);
         if (width === 390) fs.writeFileSync(`qa/封面_${style}.png`, Buffer.from(await page.evaluate(() => document.querySelector('#coverCanvas').toDataURL().split(',')[1]), 'base64'));
       }
+      await page.locator('#coverAdjustments > summary').click();
       await page.locator('#coverShowTitle').uncheck();
       assert.equal(await page.evaluate(() => activeCover().show_title), false);
       await page.locator('#coverShowTitle').check();
@@ -197,22 +215,33 @@ async function openPage(browser, android, width = 390) {
       const firstID = '20261104_123456_abcdef';
       assert.equal(state.publicationSaves[firstID].body.publication.platforms.bilibili.title, '第一条视频标题');
       assert.equal(state.publicationSaves[firstID].body.publication.platforms.xiaohongshu.title, '小红书标题');
+      assert.equal(state.publicationSaves[firstID].body.publication.platforms.bilibili.description, '第一条视频的简介');
+      assert.deepEqual(state.publicationSaves[firstID].body.publication.platforms.bilibili.tags, ['英语口语', '真实表达']);
       assert.deepEqual(Object.keys(state.publicationSaves[firstID].body.cover_images).sort(), ['landscape', 'portrait34']);
+      await page.locator('[data-publish-tab="title"]').click();
       page.once('dialog', dialog => dialog.accept());
       await page.locator('[data-generate-publication="title"]').click();
       await page.locator('#publishTitle').filter({ visible: true }).waitFor();
       await page.waitForFunction(() => document.querySelector('#publishTitle').value === '模拟生成的标题' && !busy);
       assert.equal(state.generations[0].output, firstID);
+      assert.equal(state.generations[0].source.description, '这一条成片的参考内容');
       await page.locator('#savePublication').click();
       await page.waitForFunction(() => !busy && !publishingDirty);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
-      await page.locator('#coverCanvas').scrollIntoViewIfNeeded();
-      await page.screenshot({ path: `qa/发布准备_${width}.png` });
+      for (const tab of ['cover', 'title', 'description', 'tags', 'reference']) {
+        await page.locator(`[data-publish-tab="${tab}"]`).click();
+        assert.equal(await page.locator('[data-publish-panel]:visible').count(), 1);
+        assert.equal(await page.locator(`[data-publish-panel="${tab}"]`).isVisible(), true);
+        assert.equal(await page.locator(`[data-publish-tab="${tab}"]`).getAttribute('aria-selected'), 'true');
+        assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+        await page.screenshot({ path: `qa/发布准备_${tab}_${width}.png` });
+      }
       await page.locator('#publishBack').click();
       await page.locator('[data-edit-publication="20261105_111111_abcdef"]').click();
       await page.waitForFunction(() => !busy && publishingFrame !== null);
       assert.equal(await page.locator('#coverFrameMode').inputValue(), 'manual');
       assert.equal(await page.locator('#publishTitle').inputValue(), '');
+      await page.locator('[data-publish-tab="title"]').click();
       await page.locator('#publishTitle').fill('第二条视频标题');
       page.once('dialog', dialog => dialog.dismiss());
       await page.locator('#publishBack').click();
@@ -221,6 +250,7 @@ async function openPage(browser, android, width = 390) {
       await page.waitForFunction(() => !busy && !publishingDirty);
       assert.equal(state.publicationSaves[firstID].output.publication.platforms.bilibili.title, '模拟生成的标题');
       assert.equal(state.publicationSaves['20261105_111111_abcdef'].output.publication.platforms.bilibili.title, '第二条视频标题');
+      await page.locator('[data-publish-tab="cover"]').click();
       await page.locator('#downloadCover').click();
       await page.waitForFunction(() => window.saved.some(item => item.publication));
       assert.deepEqual(await page.evaluate(() => window.saved.find(item => item.publication)), { publication: '20261105_111111_abcdef', name: '封面_横版.png' });
@@ -243,10 +273,20 @@ async function openPage(browser, android, width = 390) {
     await desktop.page.locator('[data-edit-publication]').click();
     await desktop.page.waitForFunction(() => !busy && publishingFrame !== null);
     assert.equal(await desktop.page.locator('#productionPage').isVisible(), false);
+    await desktop.page.locator('[data-publish-tab="title"]').focus();
+    await desktop.page.keyboard.press('ArrowRight');
+    assert.equal(await desktop.page.locator('#publishDescription').isVisible(), true);
+    await desktop.page.keyboard.press('End');
+    assert.equal(await desktop.page.locator('#publishSourceURL').isVisible(), true);
+    await desktop.page.keyboard.press('Home');
+    assert.equal(await desktop.page.locator('#coverCanvas').isVisible(), true);
+    await desktop.page.locator('[data-publish-tab="title"]').click();
     await desktop.page.locator('#publishPlatform').selectOption('xiaohongshu');
     await desktop.page.locator('#publishTitle').fill('字'.repeat(21));
+    await desktop.page.locator('[data-publish-tab="reference"]').click();
     await desktop.page.locator('#savePublication').click();
     await desktop.page.locator('#status').filter({ hasText: '超出字数限制' }).waitFor();
+    assert.equal(await desktop.page.locator('#publishTitle').isVisible(), true);
     assert.equal(Object.keys(desktop.state.publicationSaves).length, 0);
     await desktop.page.locator('#publishTitle').fill('桌面端发布标题');
     await desktop.page.locator('#savePublication').click();

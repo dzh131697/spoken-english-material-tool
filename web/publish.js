@@ -4,34 +4,58 @@ $('publishSection').innerHTML = `
 <div id="publishList" class="publish-list"><p class="muted">合成视频后，在这里准备发布资料。</p></div>
 <div id="publishEditor" class="hidden">
   <div class="publish-identity"><strong id="publishName"></strong><small id="publishIdentity"></small><span id="publishSaved" role="status"></span></div>
-  <div class="publish-video-row"><div><select id="publishVersion" aria-label="预览成片版本"></select><video id="publishVideo" controls preload="none" aria-label="当前成片"></video></div><p id="publishSnapshot" class="hint"></p></div>
+  <div class="publish-editor-nav">
+    <div class="publish-toolbar"><label class="platform-picker"><span>发布平台</span><select id="publishPlatform" aria-label="发布平台"><option value="bilibili">B站</option><option value="douyin">抖音</option><option value="xiaohongshu">小红书</option><option value="other">其他平台</option></select></label><div class="row"><button id="savePublication" class="primary">保存全部</button><button id="downloadPublication">导出发布包</button></div></div>
+    <nav class="publish-tabs" role="tablist" aria-label="发布资料分类">
+      <button id="publishTab-cover" role="tab" data-publish-tab="cover" aria-controls="publishPanel-cover" aria-selected="true">封面</button>
+      <button id="publishTab-title" role="tab" data-publish-tab="title" aria-controls="publishPanel-title" aria-selected="false" tabindex="-1">标题</button>
+      <button id="publishTab-description" role="tab" data-publish-tab="description" aria-controls="publishPanel-description" aria-selected="false" tabindex="-1">简介</button>
+      <button id="publishTab-tags" role="tab" data-publish-tab="tags" aria-controls="publishPanel-tags" aria-selected="false" tabindex="-1">标签</button>
+      <button id="publishTab-reference" role="tab" data-publish-tab="reference" aria-controls="publishPanel-reference" aria-selected="false" tabindex="-1">参考</button>
+    </nav>
+  </div>
+  <section id="publishPanel-cover" data-publish-panel="cover" role="tabpanel" aria-labelledby="publishTab-cover">
+  <div class="publish-panel-intro"><h3>设计视频封面</h3><p class="hint">选画面、换样式，再填写一句醒目的文案。</p></div>
   <div class="publish-layout">
-    <div class="cover-preview"><canvas id="coverCanvas" width="1920" height="1080" aria-label="封面实时预览"></canvas><p id="coverLayoutHint" class="hint" role="status"></p><div class="row wrap"><button id="savePublication" class="primary">保存这条成片的资料</button><button id="downloadCover">保存封面图片</button><button id="downloadPublication">保存整套发布包</button></div></div>
+    <div class="cover-preview"><div class="cover-canvas-wrap"><canvas id="coverCanvas" width="1920" height="1080" aria-label="封面实时预览"></canvas></div><p id="coverLayoutHint" class="hint" role="status"></p><button id="downloadCover">导出当前封面</button></div>
     <div class="publish-controls">
-      <h3>封面画面</h3>
       <div class="publish-grid"><label>封面画幅<select id="coverRatio"><option value="landscape">横版 16:9</option><option value="portrait">竖版 9:16</option><option value="portrait34">竖版 3:4</option></select></label><label>选帧方式<select id="coverFrameMode"><option value="manual">手动选帧</option><option value="random">自动随机选帧</option></select></label></div>
-      <div id="manualFrameControls"><video id="coverSourceVideo" controls preload="metadata" aria-label="选择封面帧的原视频"></video><div class="row wrap"><label>时间 / 秒 <input id="coverFrameTime" type="number" min="0" step="0.01" value="0"></label><button id="captureCoverFrame">使用此刻画面</button></div></div>
+      <details id="manualFrameControls" class="publish-group"><summary>手动选择视频画面</summary><video id="coverSourceVideo" controls preload="metadata" aria-label="选择封面帧的原视频"></video><div class="row wrap"><label>时间 / 秒 <input id="coverFrameTime" type="number" min="0" step="0.01" value="0"></label><button id="captureCoverFrame">使用此刻画面</button></div></details>
       <button id="randomCoverFrame" class="hidden">随机选一帧 / 换一帧</button><p id="coverFrameHint" class="hint">选择画面后，可继续修改裁切、文字和装饰。</p>
-      <div class="publish-grid"><label>画面左右<input id="coverCropX" type="range" min="0" max="100" value="50"></label><label>画面上下<input id="coverCropY" type="range" min="0" max="100" value="50"></label><label>画面放大<input id="coverZoom" type="range" min="1" max="2" step="0.01" value="1"></label></div>
-      <h3>封面样式与元素</h3>
+      <details class="publish-group" open><summary>样式与封面文案</summary>
       <div class="cover-styles" role="group" aria-label="封面样式"><button data-cover-style="viewfinder">取景框</button><button data-cover-style="magazine">杂志</button><button data-cover-style="note">便签</button><button data-cover-style="pop">撞色</button><button data-cover-style="minimal">极简</button></div>
-      <div class="publish-checks"><label><input id="coverShowTitle" type="checkbox">主文案</label><label><input id="coverShowSubtitle" type="checkbox">副文案</label><label><input id="coverShowBadge" type="checkbox">小标签</label><label><input id="coverShowFrame" type="checkbox">角框 / 装饰</label><label><input id="coverShowPanel" type="checkbox">文字底板</label><label><input id="coverShowGradient" type="checkbox">渐变遮罩</label><label><input id="coverShadow" type="checkbox">文字阴影</label></div>
       <label class="label" for="coverTitle">封面主文案 <small id="coverTitleCount"></small></label><textarea id="coverTitle" rows="2" placeholder="建议 6–16 字，最多 32 字、两行"></textarea>
       <label class="label" for="coverSubtitle">封面副文案 <small id="coverSubtitleCount"></small></label><input id="coverSubtitle" class="wide" placeholder="可留空，最多 40 字">
       <label class="label" for="coverBadge">小标签 <small id="coverBadgeCount"></small></label><input id="coverBadge" class="wide" placeholder="例如：真实口语，最多 12 字">
-      <div class="publish-grid"><label>文字左右<input id="coverTextX" type="range" min="0" max="100" value="0"></label><label>文字上下<input id="coverTextY" type="range" min="0" max="100" value="72"></label><label>字号<input id="coverFontScale" type="range" min="0.6" max="1.4" step="0.05" value="1"></label><label>文字颜色<input id="coverTextColor" type="color" value="#ffffff"></label><label>装饰颜色<input id="coverAccent" type="color" value="#a8dfbd"></label></div>
       <button id="generateCoverText">AI 生成封面文案</button>
+      </details>
+      <details id="coverAdjustments" class="publish-group"><summary>装饰与画面精调</summary>
+        <div class="publish-checks"><label><input id="coverShowTitle" type="checkbox">主文案</label><label><input id="coverShowSubtitle" type="checkbox">副文案</label><label><input id="coverShowBadge" type="checkbox">小标签</label><label><input id="coverShowFrame" type="checkbox">角框 / 装饰</label><label><input id="coverShowPanel" type="checkbox">文字底板</label><label><input id="coverShowGradient" type="checkbox">渐变遮罩</label><label><input id="coverShadow" type="checkbox">文字阴影</label></div>
+        <p class="hint">画面裁切</p><div class="publish-grid"><label>画面左右<input id="coverCropX" type="range" min="0" max="100" value="50"></label><label>画面上下<input id="coverCropY" type="range" min="0" max="100" value="50"></label><label>画面放大<input id="coverZoom" type="range" min="1" max="2" step="0.01" value="1"></label></div>
+        <p class="hint">文字排版</p><div class="publish-grid"><label>文字左右<input id="coverTextX" type="range" min="0" max="100" value="0"></label><label>文字上下<input id="coverTextY" type="range" min="0" max="100" value="72"></label><label>字号<input id="coverFontScale" type="range" min="0.6" max="1.4" step="0.05" value="1"></label><label>文字颜色<input id="coverTextColor" type="color" value="#ffffff"></label><label>装饰颜色<input id="coverAccent" type="color" value="#a8dfbd"></label></div>
+      </details>
     </div>
   </div>
-  <div class="publish-copy">
-    <div class="sectionhead wrap"><h3>标题、简介与标签</h3><div class="row wrap"><select id="publishPlatform" aria-label="发布平台"><option value="bilibili">B站</option><option value="douyin">抖音</option><option value="xiaohongshu">小红书</option><option value="other">其他平台</option></select><button id="generateAllPublication">AI 生成整套文案</button></div></div>
-    <p class="hint">各平台分别保存文案。这里采用便于发布的长度上限，实际要求以平台发布页为准。AI 仅在点击时发送选段文字与参考信息，不上传视频。</p>
-    <div class="sectionhead"><label for="publishTitle">标题 <small id="publishTitleCount"></small></label><button data-generate-publication="title" class="quiet">AI 生成标题</button></div><input id="publishTitle" class="wide">
-    <div class="sectionhead"><label for="publishDescription">简介 <small id="publishDescriptionCount"></small></label><button data-generate-publication="description" class="quiet">AI 生成简介</button></div><textarea id="publishDescription" rows="5"></textarea>
-    <div class="sectionhead"><label for="publishTags">标签 <small id="publishTagsCount"></small></label><button data-generate-publication="tags" class="quiet">AI 生成标签</button></div><textarea id="publishTags" rows="2" placeholder="用 #、逗号或换行分隔，最多 10 个，每个最多 20 字"></textarea>
-    <div class="row wrap"><button id="copyPublication">复制当前平台文案</button><button id="downloadPublishText">保存全部平台文案 TXT</button></div>
-    <details class="publish-reference"><summary>YouTube 来源与内容参考（可选）</summary><p class="hint">优先依据这条成片的选段生成；原视频标题和简介只作参考。本地视频也可手动填写内容说明。</p><label class="label" for="publishSourceURL">YouTube 链接</label><div class="row wrap"><input id="publishSourceURL" class="grow" placeholder="https://www.youtube.com/watch?v=…"><button id="readPublishSource">读取原标题与简介</button></div><label class="label" for="publishSourceTitle">原标题</label><input id="publishSourceTitle" class="wide"><label class="label" for="publishSourceDescription">原简介 / 手动内容说明</label><textarea id="publishSourceDescription" rows="4"></textarea></details>
-  </div>
+  </section>
+  <section id="publishPanel-title" class="publish-copy hidden" data-publish-panel="title" role="tabpanel" aria-labelledby="publishTab-title">
+    <div class="publish-panel-intro"><h3>写一个清楚的标题</h3><p class="hint">手动填写或让 AI 提供灵感，切换平台保留各自标题。</p></div>
+    <div class="sectionhead"><label for="publishTitle">视频标题 <small id="publishTitleCount"></small></label><button data-generate-publication="title" class="quiet">AI 生成标题</button></div><textarea id="publishTitle" rows="3" placeholder="让观众一眼知道这条视频练什么"></textarea>
+    <p class="hint">字数上限随发布平台变化，实际要求以平台发布页为准。</p><button id="copyPublishTitle">复制标题</button>
+  </section>
+  <section id="publishPanel-description" class="publish-copy hidden" data-publish-panel="description" role="tabpanel" aria-labelledby="publishTab-description">
+    <div class="publish-panel-intro"><h3>介绍这条视频</h3><p class="hint">说明练习内容与观看方式，也可以补充自己的话。</p></div>
+    <div class="sectionhead"><label for="publishDescription">视频简介 <small id="publishDescriptionCount"></small></label><button data-generate-publication="description" class="quiet">AI 生成简介</button></div><textarea id="publishDescription" rows="8" placeholder="这次会遇到哪些真实英语表达？观众可以怎样跟着练？"></textarea><div class="row"><button id="copyPublishDescription">复制简介</button></div>
+  </section>
+  <section id="publishPanel-tags" class="publish-copy hidden" data-publish-panel="tags" role="tabpanel" aria-labelledby="publishTab-tags">
+    <div class="publish-panel-intro"><h3>选择相关标签</h3><p class="hint">用 #、逗号或换行分隔，最多 10 个，每个最多 20 字。</p></div>
+    <div class="sectionhead"><label for="publishTags">发布标签 <small id="publishTagsCount"></small></label><button data-generate-publication="tags" class="quiet">AI 生成标签</button></div><textarea id="publishTags" rows="4" placeholder="#英语口语 #真实表达 #口语练习"></textarea><div class="row"><button id="copyPublishTags">复制标签</button></div>
+  </section>
+  <section id="publishPanel-reference" class="publish-copy hidden" data-publish-panel="reference" role="tabpanel" aria-labelledby="publishTab-reference">
+    <div class="publish-panel-intro"><h3>视频与来源参考</h3><p class="hint">AI 仅在点击时使用选段文字与参考信息，不上传视频。</p></div>
+    <div class="publish-video-row"><div><select id="publishVersion" aria-label="预览成片版本"></select><video id="publishVideo" controls preload="none" aria-label="当前成片"></video></div><p id="publishSnapshot" class="hint"></p></div>
+    <details class="publish-reference" open><summary>YouTube 来源与内容参考（可选）</summary><p class="hint">优先依据这条成片的选段生成；原视频标题和简介只作参考。本地视频也可手动填写内容说明。</p><label class="label" for="publishSourceURL">YouTube 链接</label><div class="row wrap"><input id="publishSourceURL" class="grow" placeholder="https://www.youtube.com/watch?v=…"><button id="readPublishSource">读取原标题与简介</button></div><label class="label" for="publishSourceTitle">原标题</label><input id="publishSourceTitle" class="wide"><label class="label" for="publishSourceDescription">原简介 / 手动内容说明</label><textarea id="publishSourceDescription" rows="4"></textarea></details>
+    <div class="publish-bundle-tools"><h3>整套文案</h3><p class="hint">为当前平台生成或复制完整文案，生成后可在各标签页检查。</p><div class="row wrap"><button id="generateAllPublication">AI 生成整套文案</button><button id="copyPublication">复制当前平台文案</button><button id="downloadPublishText">导出全部平台文案 TXT</button></div></div>
+  </section>
 </div>`;
 
 const tipSetting = document.createElement('div');
@@ -84,6 +108,35 @@ $('productionTab').onclick=()=>{
 };
 $('publishBack').onclick=()=>{if(!mayDiscardPublishing())return;closePublishEditor();renderPublishList()};
 
+function selectPublishTab(name, scrollToEditor=false){
+  const panel=$('publishPanel-'+name);
+  if(!panel)return;
+  document.querySelectorAll('[data-publish-panel]').forEach(item=>item.classList.toggle('hidden',item!==panel));
+  document.querySelectorAll('[data-publish-tab]').forEach(button=>{
+    const selected=button.dataset.publishTab===name;
+    button.setAttribute('aria-selected',String(selected));
+    button.tabIndex=selected?0:-1;
+  });
+  if(name!=='cover')$('coverSourceVideo').pause();
+  if(name!=='reference')$('publishVideo').pause();
+  if(scrollToEditor)$('publishEditor').scrollIntoView({block:'start'});
+}
+const publishTabButtons=[...document.querySelectorAll('[data-publish-tab]')];
+publishTabButtons.forEach((button,index)=>{
+  button.onclick=()=>selectPublishTab(button.dataset.publishTab,true);
+  button.onkeydown=event=>{
+    let next;
+    if(event.key==='ArrowRight')next=(index+1)%publishTabButtons.length;
+    else if(event.key==='ArrowLeft')next=(index+publishTabButtons.length-1)%publishTabButtons.length;
+    else if(event.key==='Home')next=0;
+    else if(event.key==='End')next=publishTabButtons.length-1;
+    else return;
+    event.preventDefault();
+    selectPublishTab(publishTabButtons[next].dataset.publishTab,true);
+    publishTabButtons[next].focus({preventScroll:true});
+  };
+});
+
 function renderPublishList(){
   if(publishingPid!==project?.id){closePublishEditor();publishingPid=project?.id}
   const items=project?.outputs||[];
@@ -124,16 +177,20 @@ async function openPublishOutput(id){
   publishingDraft.platform=publishingDraft.platform||'bilibili';publishingDraft.ratio=publishingDraft.ratio||(output.portrait?'portrait':'landscape');
   publishingDraft.covers[publishingDraft.ratio] ||= defaultCover(output);
   $('publishList').classList.add('hidden');$('publishEditor').classList.remove('hidden');$('publishBack').classList.remove('hidden');
-  $('publishName').textContent=output.source_title||project.title;$('publishIdentity').textContent=(output.created||'')+' · '+output.id+' · '+output.name;
+  $('publishName').textContent=output.source_title||project.title;$('publishName').title=$('publishName').textContent;
+  $('publishIdentity').textContent=(output.created||'')+' · 编号 '+output.id.slice(-6)+' · '+output.name;
+  $('publishIdentity').title=output.id+' · '+output.name;
   $('publishSnapshot').textContent=output.clips?.length?'这条成片已保存 '+output.clips.length+' 段内容快照，AI 参考的是这条视频的选段。':'这是旧成片，没有选段快照。选帧使用成片本身（可能含题卡）；请在参考信息里填写实际内容后再用 AI。';
   $('publishVideo').src=publishURL('/output-media',output.id);$('coverSourceVideo').src=publishURL('/publish-source',output.id);
   $('publishVersion').innerHTML=(output.files?.length?output.files:[{name:output.name,label:'成片'}]).map(file=>`<option value="${escapeHTML(file.name)}">${escapeHTML(file.label)}</option>`).join('');
   $('coverFrameMode').value='manual';$('manualFrameControls').classList.remove('hidden');$('randomCoverFrame').classList.add('hidden');
+  $('manualFrameControls').open=false;$('coverAdjustments').open=false;
   $('coverFrameHint').textContent='选择画面后，可继续修改裁切、文字和装饰。';
   $('publishPlatform').value=publishingDraft.platform;$('coverRatio').value=publishingDraft.ratio;
   $('publishSourceURL').value=publishingDraft.source.url;$('publishSourceTitle').value=publishingDraft.source.title;$('publishSourceDescription').value=publishingDraft.source.description;
   $('publishSaved').textContent=output.publication?'已加载这条成片的发布资料':'尚未保存发布资料';
   loadPlatformControls();loadCoverControls();
+  selectPublishTab('cover');
   await action(()=>fetchCoverFrame('manual',activeCover().frame_time,false));
 }
 
@@ -155,13 +212,13 @@ $('coverSourceVideo').ontimeupdate=()=>{if(document.activeElement!==$('coverFram
 $('publishVersion').onchange=()=>{$('publishVideo').src=publishURL('/output-media',publishingOutput.id)+'&file='+encodeURIComponent($('publishVersion').value)};
 $('coverSourceVideo').onloadedmetadata=()=>{if(publishingDraft)$('coverSourceVideo').currentTime=activeCover().frame_time};
 $('coverFrameTime').onchange=()=>{const time=Number($('coverFrameTime').value);if(Number.isFinite(time)&&time>=0)$('coverSourceVideo').currentTime=time};
-$('coverFrameMode').onchange=()=>{const random=$('coverFrameMode').value==='random';$('manualFrameControls').classList.toggle('hidden',random);$('randomCoverFrame').classList.toggle('hidden',!random);$('coverSourceVideo').pause();if(random)action(()=>fetchCoverFrame('random',0))};
+$('coverFrameMode').onchange=()=>{const random=$('coverFrameMode').value==='random';$('manualFrameControls').classList.toggle('hidden',random);$('manualFrameControls').open=!random;$('randomCoverFrame').classList.toggle('hidden',!random);$('coverSourceVideo').pause();if(random)action(()=>fetchCoverFrame('random',0))};
 $('captureCoverFrame').onclick=()=>action(()=>fetchCoverFrame('manual',Number($('coverFrameTime').value)));
 $('randomCoverFrame').onclick=()=>action(()=>fetchCoverFrame('random',0));
 
 function cacheCoverImage(){
   if(!publishingFrame)return;
-  if(!coverLayoutValid)throw Error('封面文字放不下，请缩短文字或减小字号');
+  if(!coverLayoutValid){selectPublishTab('cover',true);throw Error('封面文字放不下，请缩短文字或减小字号')}
   coverImages[publishingDraft.ratio]=$('coverCanvas').toDataURL('image/png').split(',')[1];
 }
 $('coverRatio').onchange=()=>action(async()=>{
@@ -181,10 +238,17 @@ for(const id of ['publishTitle','publishDescription','publishTags','publishSourc
 function validatePublicationDraft(){
   collectPublication();
   for(const [platform,fields] of Object.entries(publishingDraft.platforms)){
-    const limit=publishLimits[platform];if(characterCount(fields.title)>limit.title||characterCount(fields.description)>limit.description)throw Error('有平台的标题或简介超出字数限制，请切换检查');
-    if(fields.tags.length>10||fields.tags.some(t=>characterCount(t)>20))throw Error('标签最多 10 个，每个最多 20 字');
+    const limit=publishLimits[platform];
+    let field,message;
+    if(characterCount(fields.title)>limit.title){field='title';message='标题超出字数限制，最多 '+limit.title+' 字，请缩短后保存'}
+    else if(characterCount(fields.description)>limit.description){field='description';message='简介超出字数限制，最多 '+limit.description+' 字，请缩短后保存'}
+    else if(fields.tags.length>10||fields.tags.some(t=>characterCount(t)>20)){field='tags';message='标签最多 10 个，每个最多 20 字'}
+    if(field){
+      publishingDraft.platform=platform;$('publishPlatform').value=platform;loadPlatformControls();
+      selectPublishTab(field,true);throw Error(message);
+    }
   }
-  for(const cover of Object.values(publishingDraft.covers))if(characterCount(cover.title)>32||characterCount(cover.subtitle)>40||characterCount(cover.badge)>12)throw Error('封面文案超过字数限制，请缩短');
+  for(const cover of Object.values(publishingDraft.covers))if(characterCount(cover.title)>32||characterCount(cover.subtitle)>40||characterCount(cover.badge)>12){selectPublishTab('cover',true);throw Error('封面文案超过字数限制，请缩短')}
 }
 async function persistPublication(){
   validatePublicationDraft();cacheCoverImage();
@@ -204,7 +268,15 @@ $('downloadPublication').onclick=()=>action(async()=>{
   if(isAndroid){const r=await api('/api/publish-folder',{id:project.id,output:output.id});window.AndroidHost.saveBatch(r.folder)}
   else{await job('/api/publish-package',{id:project.id,output:output.id});downloadPublishAsset('发布包.zip')}
 });
-$('copyPublication').onclick=()=>action(async()=>{collectPublication();const f=publishingDraft.platforms[publishingDraft.platform];const text=f.title+'\n\n'+f.description+'\n\n'+f.tags.map(t=>'#'+t).join(' ');try{await navigator.clipboard.writeText(text);status('已复制当前平台文案。')}catch(error){status('当前浏览器无法自动复制，请直接选择标题和简介文字复制。',true)}});
+async function copyPublishingText(text,message){
+  if(!text.trim())throw Error('请先填写要复制的文案');
+  try{await navigator.clipboard.writeText(text);status(message)}
+  catch(error){status('当前设备无法自动复制，请直接选择输入框中的文字复制。',true)}
+}
+$('copyPublishTitle').onclick=()=>action(()=>copyPublishingText($('publishTitle').value,'标题已复制。'));
+$('copyPublishDescription').onclick=()=>action(()=>copyPublishingText($('publishDescription').value,'简介已复制。'));
+$('copyPublishTags').onclick=()=>action(()=>copyPublishingText(parsePublishTags().map(tag=>'#'+tag).join(' '),'标签已复制。'));
+$('copyPublication').onclick=()=>action(async()=>{collectPublication();const f=publishingDraft.platforms[publishingDraft.platform];await copyPublishingText(f.title+'\n\n'+f.description+'\n\n'+f.tags.map(t=>'#'+t).join(' '),'已复制当前平台文案。')});
 
 async function generatePublication(field){
   collectPublication();
