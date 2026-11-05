@@ -59,6 +59,30 @@ class LibraryTest(unittest.TestCase):
         self.assertEqual(app.library_import(str(video.parent), lambda message: None)['missing'], [video.name])
         self.assertEqual(app.library_sources()['sources'][0]['done'], 0)
 
+    def test_tolerates_unusual_grammar_labels_from_ai(self):
+        source, _, _ = self.import_source(count=1)
+
+        def answer(messages, key, max_tokens, json_output):
+            rows = json.loads(messages[1]['content'])
+            return json.dumps({'segments': [{
+                'first': row['index'], 'last': row['index'], 'chinese': '你曾经试过吗？',
+                'grammar': ['现在完成时/一般过去时', '现在完成进行时（持续到现在）', '自创的语法名称'],
+                'patterns': ['Have you ever…?']} for row in rows]}), {'total_tokens': 10}
+
+        with patch.object(app, 'deepseek', side_effect=answer):
+            result = app.library_analyze([source['id']], 'placeholder', lambda message: None)
+        self.assertEqual(result['errors'], [])
+        tags = app.library_search()['items'][0]['grammar']
+        self.assertIn('现在完成时', tags)
+        self.assertIn('一般过去时', tags)
+        self.assertIn('现在完成进行时', tags)
+        self.assertNotIn('自创的语法名称', tags)
+
+    def test_strict_tags_still_reject_user_typos(self):
+        with self.assertRaises(ValueError):
+            app.library_tags(['自创的语法名称'], True)
+        self.assertEqual(app.library_tags(['现在完成时'], True), ['现在完成时'])
+
     def test_resume_after_failed_batch_and_only_text_sent_to_ai(self):
         source, video, subtitle = self.import_source(count=65)
         calls = []
