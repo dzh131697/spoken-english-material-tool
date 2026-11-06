@@ -71,7 +71,7 @@ body[data-step=browse] .shell{padding-top:18px}body[data-step=browse] .workflow{
         <div class="sources-heading"><div class="section-top"><h2>待整理的素材</h2><span id="sourceSummary" class="muted">尚未导入</span></div></div>
         <div class="sources-toolbar"><button id="selectAll" class="text-button">选择待整理</button><button id="selectNone" class="text-button">取消选择</button><button id="refresh" class="text-button">刷新</button><span id="selectedSourceCount" class="selection-count">已选 0 个</span></div>
         <div id="sources" class="sources"></div>
-        <div class="analysis-footer"><div class="row"><span id="analysisHint" class="muted grow">导入后，勾选要分析的视频。</span><button id="retag" disabled>整理旧句型</button><button id="analyze" class="primary" disabled>分析字幕</button></div><p>只向 DeepSeek 发送英文字幕，按 API 用量计费。已完成批次会自动跳过，可随时继续未完成的分析。</p></div>
+        <div class="analysis-footer"><div class="row"><span id="analysisHint" class="muted grow">导入后，勾选要分析的视频。</span><button id="retag" disabled>整理旧句型</button><button id="reanalyze" disabled>重跑所选</button><button id="analyze" class="primary" disabled>分析字幕</button></div><p>只向 DeepSeek 发送英文字幕，按 API 用量计费。只收录能独立练习的单句（英文不超过 16 词），不适合的句子会跳过；已完成批次自动跳过。「重跑所选」会清空该视频已有例句后按当前规则重做。</p></div>
       </section>
     </div>
     <div class="step-footer"><button id="goBrowse">进入例句库 <svg class="icon"><use href="#i-arrow"/></svg></button></div>
@@ -141,6 +141,7 @@ function updateControls(){
   $('next').disabled=busy||offset+80>=total;
   $('import').disabled=busy||(isAndroid?!importFiles.length:!$('folder').value.trim());
   $('analyze').disabled=busy||!document.querySelector('[data-source]:checked');
+  $('reanalyze').disabled=busy||!document.querySelector('[data-source]:checked');
   $('retag').disabled=busy||![...document.querySelectorAll('[data-source]:checked')].some(box=>sources.find(item=>item.id===box.dataset.source)?.patterns_pending>0);
   $('createTopic').disabled=busy||!basket.length;
   $('save').disabled=busy||!dirty;
@@ -197,7 +198,7 @@ function updateSourceSelection(){
   const oldPatterns=[...document.querySelectorAll('[data-source]:checked')].reduce((sum,box)=>sum+(sources.find(item=>item.id===box.dataset.source)?.patterns_pending||0),0);
   $('selectedSourceCount').textContent=`已选 ${count} 个`;
   $('analyze').textContent=count?`分析所选 ${count} 个视频`:'分析字幕';
-  $('analysisHint').textContent=!sources.length?'先添加视频与字幕。':count?(hasKey?(oldPatterns?'有 '+oldPatterns+' 条旧例句，可点击「整理旧句型」，不必重新分段。':'分析后，即可按语法与句型挑选。'):'首次分析前，请先设置 API Key。'):'勾选要分析的视频，已完成的会自动跳过。';
+  $('analysisHint').textContent=!sources.length?'先添加视频与字幕。':count?(hasKey?(oldPatterns?'有 '+oldPatterns+' 条旧例句待整理句型；要按当前规则重建分段请点「重跑所选」。':'分析后即可按语法与句型挑选，只收短句。'):'首次分析前，请先设置 API Key。'):'勾选要分析的视频，已完成的会自动跳过；重跑会清空重建。';
   updateControls();
 }
 async function refreshSources(selectPending=false){
@@ -242,7 +243,7 @@ async function search(){
   $('results').innerHTML=items.map((item,index)=>{
     const chosen=basket.some(x=>x.id===item.id);
     const patternTags=[...new Set([...(item.pattern_categories||[]),...item.patterns])];
-    return `<article class="result ${current?.id===item.id?'active':''}" data-preview="${item.id}" role="button" tabindex="0" aria-label="预览：${escapeHTML(item.english)}" aria-pressed="${current?.id===item.id}"><div class="result-top"><span class="result-number">${String(offset+index+1).padStart(2,'0')}</span><div class="grow"><p class="result-english">${escapeHTML(item.english)}</p><p class="result-chinese">${escapeHTML(item.chinese)}</p><div class="tags">${item.grammar.map(tag=>`<span class="tag">${escapeHTML(tag)}</span>`).join('')}${patternTags.map(tag=>`<span class="tag pattern">${escapeHTML(tag)}</span>`).join('')}</div><div class="result-bottom"><span>${escapeHTML(item.title)} · ${time(item.start)}–${time(item.end)}</span><span class="${chosen?'chosen-mark':'result-open'}">${chosen?'✓ 已加入本期':icon('play')+' 试听片段'}</span></div></div></div></article>`;
+    return `<article class="result ${current?.id===item.id?'active':''}" data-preview="${item.id}" role="button" tabindex="0" aria-label="预览：${escapeHTML(item.english)}" aria-pressed="${current?.id===item.id}"><div class="result-top"><span class="result-number">${String(offset+index+1).padStart(2,'0')}</span><div class="grow"><p class="result-english">${escapeHTML(item.english)}</p><p class="result-chinese">${escapeHTML(item.chinese)}</p><div class="tags">${item.grammar.map(tag=>`<span class="tag">${escapeHTML(tag)}</span>`).join('')}${patternTags.map(tag=>`<span class="tag pattern">${escapeHTML(tag)}</span>`).join('')}</div><div class="result-bottom"><span>${escapeHTML(item.title)} · ${time(item.start)}–${time(item.end)} · ${item.english.trim().split(/\s+/).length} 词</span><span class="${chosen?'chosen-mark':'result-open'}">${chosen?'✓ 已加入本期':icon('play')+' 试听片段'}</span></div></div></div></article>`;
   }).join('')||`<div class="empty-state">${icon('search')}<h3>${sources.length?'还没有匹配的例句':'素材库还是空的'}</h3><p>${sources.some(x=>x.done)?'换个词试试，或重置筛选。':'先到「导入与分析」整理字幕，再来挑选。'}</p></div>`;
   updateControls();
 }
@@ -323,8 +324,12 @@ $('retag').onclick=()=>{
   if(!hasKey){openSettings('整理句型需要 API Key，仅在点击后发送英文。');return}
   action(async()=>{
     const ids=[...document.querySelectorAll('[data-source]:checked')].map(box=>box.dataset.source);
-    try{const result=await job('/api/library/retag',{ids});status('已整理 '+result.updated+' 条旧例句的句型标签，使用 '+result.tokens+' Token。');showStep('browse')}
-    finally{await refreshSources();await search()}
+    try{
+      const result=await job('/api/library/retag',{ids});
+      const problems=(result.errors||[]).map(x=>x.source+'：'+x.error).join('\n');
+      status('已整理 '+result.updated+' 条旧例句的句型标签，使用 '+result.tokens+' Token。'+(problems?'\n以下素材未完成，可重试：\n'+problems:''),Boolean(problems));
+      if(!problems)showStep('browse');
+    }finally{await refreshSources();await search()}
   });
 };
 $('analyze').onclick=()=>{
@@ -334,8 +339,21 @@ $('analyze').onclick=()=>{
     if(!ids.length)throw Error('请勾选需要分析的视频');
     try{
       const result=await job('/api/library/analyze',{ids});
-      status('字幕分析完成，本次使用 '+result.tokens+' Token。'+(result.errors.length?'\n以下素材未完成，可继续重试：\n'+result.errors.map(x=>x.title+'：'+x.error).join('\n'):'现在可以按语法与句型挑选例句。'),Boolean(result.errors.length));
+      status('字幕分析完成：收录 '+(result.added||0)+' 条可练例句，跳过 '+(result.skipped||0)+' 条超长/残句，使用 '+result.tokens+' Token。'+(result.errors.length?'\n以下素材未完成，可继续重试：\n'+result.errors.map(x=>x.title+'：'+x.error).join('\n'):'现在可以按语法与句型挑选例句。'),Boolean(result.errors.length));
       if(!result.errors.length)showStep('browse');
+    }finally{await refreshSources();await search()}
+  });
+};
+$('reanalyze').onclick=()=>{
+  if(!hasKey){openSettings('先保存 API Key，然后点击「重跑所选」。');return}
+  const ids=[...document.querySelectorAll('[data-source]:checked')].map(x=>x.dataset.source);
+  if(!ids.length)return status('请勾选需要重跑的视频',true);
+  const names=ids.map(id=>sources.find(item=>item.id===id)?.title||id);
+  if(!confirm('将重跑所选 '+ids.length+' 个视频：\n'+names.join('\n')+'\n\n会清空这些视频已有的全部例句（含手动修正的中文、切点和标签），按当前规则重新分析，并重新产生 API 用量。\n已生成的专题和成片不受影响。\n\n是否继续？'))return;
+  action(async()=>{
+    try{
+      const result=await job('/api/library/reanalyze',{ids});
+      status('重跑完成：收录 '+(result.added||0)+' 条可练例句，跳过 '+(result.skipped||0)+' 条超长/残句，使用 '+result.tokens+' Token。'+(result.errors.length?'\n以下素材未完成，可点击「分析字幕」重试：\n'+result.errors.map(x=>x.title+'：'+x.error).join('\n'):''),Boolean(result.errors.length));
     }finally{await refreshSources();await search()}
   });
 };

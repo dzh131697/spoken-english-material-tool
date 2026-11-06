@@ -170,11 +170,13 @@ class LibraryTest(unittest.TestCase):
             calls.append(messages)
             if len(calls) == 2:
                 raise ValueError('模拟网络中断')
-            return json.dumps({'items': [{'id': row['id'], 'patterns': ['I need + 名词']} for row in json.loads(messages[1]['content'])]}), {'total_tokens': 5}
+            payload = json.loads(messages[1]['content'])
+            return json.dumps({'items': [{'patterns': ['I need + 名词']} for row in payload]}), {'total_tokens': 5}
         with patch.object(app, 'deepseek', side_effect=answer):
-            with self.assertRaisesRegex(ValueError, '模拟网络中断'):
-                app.library_retag([source['id']], 'placeholder', lambda text: None)
+            failed = app.library_retag([source['id']], 'placeholder', lambda text: None)
             result = app.library_retag([source['id']], 'placeholder', lambda text: None)
+        self.assertEqual(len(failed['errors']), 1)
+        self.assertIn('模拟网络中断', failed['errors'][0]['error'])
         self.assertEqual(result['updated'], 1)
         self.assertEqual(len(json.loads(calls[-1][1]['content'])), 1)
         self.assertTrue(all(item['chinese'] == '保留中文' for item in app.library_search()['items']))
@@ -188,6 +190,105 @@ class LibraryTest(unittest.TestCase):
         prompt = ai.call_args.args[0][0]['content']
         self.assertIn('不限种类', prompt)
         self.assertIn('I need + 名词 与 I need to + 动词原形 分开', prompt)
+
+    def test_reanalyze_clears_manual_edits_and_rebuilds(self):
+        source, _, _ = self.import_source('rerun', 1)
+        self.analyze(source)
+        item = app.library_search()['items'][0]
+        item.update(start=.1, end=.9, chinese='手动修正的释义', grammar=['疑问句'], patterns=['自定义句型'])
+        app.library_update(item)
+        self.assertEqual(app.library_search(query='手动修正')['total'], 1)
+        with patch.object(app, 'deepseek', side_effect=self.answer) as ai:
+            result = app.library_analyze([source['id']], 'placeholder', lambda text: None, True)
+        self.assertEqual(result['errors'], [])
+        self.assertEqual(ai.call_count, 1)
+        self.assertEqual(app.library_search(query='手动修正')['total'], 0)
+        self.assertEqual(app.library_search()['total'], 1)
+        self.assertEqual(app.library_sources()['sources'][0]['done'], 1)
+
+    def test_long_fragment_is_skipped_but_batch_is_completed(self):
+        source, _, _ = self.import_source('long', 4)
+
+        def answer(messages, key, max_tokens, json_output):
+            rows = json.loads(messages[1]['content'])
+            return json.dumps({'segments': [{'first': 0, 'last': len(rows) - 1,
+                'chinese': '太长的一段', 'grammar': ['其他'], 'patterns': ['I am going to...']}]}), {'total_tokens': 3}
+
+        with patch.object(app, 'deepseek', side_effect=answer):
+            result = app.library_analyze([source['id']], 'placeholder', lambda text: None)
+        self.assertEqual(result['errors'], [])
+        self.assertEqual(result['added'], 0)
+        self.assertEqual(result['skipped'], 1)
+        self.assertEqual(app.library_search()['total'], 0)
+        self.assertEqual(app.library_sources()['sources'][0]['done'], 1)
+
+    def test_bracket_noise_is_removed(self):
+        source, _, _ = self.import_source('noise', 1)
+        with app.library_db() as db:
+            rows = json.loads(db.execute('SELECT rows_json FROM sources WHERE id=?', (source['id'],)).fetchone()[0])
+            rows[0]['text'] = 'I am [music] going to rest.'
+            db.execute('UPDATE sources SET rows_json=? WHERE id=?', (json.dumps(rows, ensure_ascii=False), source['id']))
+        self.analyze(source)
+        self.assertEqual(app.library_search()['items'][0]['english'], 'I am going to rest.')
+
+    def test_analysis_prompt_picks_short_sentences_and_caps_patterns(self):
+        source, _, _ = self.import_source('prompt', 1)
+
+        def answer(messages, key, max_tokens, json_output):
+            rows = json.loads(messages[1]['content'])
+            return json.dumps({'segments': [{'first': r['index'], 'last': r['index'],
+                'chinese': '释义', 'grammar': ['现在完成时'],
+                'patterns': ['A + B', 'C + D', 'E + F']} for r in rows]}), {'total_tokens': 4}
+
+        with patch.object(app, 'deepseek', side_effect=answer) as ai:
+            app.library_analyze([source['id']], 'placeholder', lambda text: None)
+        prompt = ai.call_args.args[0][0]['content']
+        self.assertIn('不必覆盖全部', prompt)
+        self.assertIn('16 词', prompt)
+        self.assertIn('主干', prompt)
+        self.assertEqual(len(app.library_search()['items'][0]['patterns']), 2)
+
+    def test_retag_aligns_by_order_without_asking_for_ids(self):
+        source, _, _ = self.import_source('align', 1)
+        with app.library_db() as db:
+            db.execute('INSERT INTO sentences(source_id,start,end,english,chinese,grammar,patterns) VALUES (?,?,?,?,?,?,?)',
+                       (source['id'], 0, 1, 'I need a break.', '保留中文', '[]', '["旧标签"]'))
+
+        def answer(messages, key, max_tokens, json_output):
+            payload = json.loads(messages[1]['content'])
+            self.assertNotIn('id', payload[0])
+            self.assertIn('english', payload[0])
+            return json.dumps({'items': [{'patterns': ['I need + 名词']} for row in payload]}), {'total_tokens': 5}
+
+        with patch.object(app, 'deepseek', side_effect=answer):
+            result = app.library_retag([source['id']], 'placeholder', lambda text: None)
+        self.assertEqual(result['errors'], [])
+        self.assertEqual(result['updated'], 1)
+        self.assertEqual(app.library_sources()['sources'][0]['patterns_pending'], 0)
+        self.assertEqual(app.library_search(pattern='I need + 名词')['total'], 1)
+
+    def test_retag_reports_count_mismatch_and_isolates_sources(self):
+        one, _, _ = self.import_source('iso1', 1)
+        two, _, _ = self.import_source('iso2', 1)
+        for source in (one, two):
+            with app.library_db() as db:
+                db.execute('INSERT INTO sentences(source_id,start,end,english,chinese,grammar,patterns) VALUES (?,?,?,?,?,?,?)',
+                           (source['id'], 0, 1, 'I need a break.', '中文', '[]', '["旧标签"]'))
+        calls = []
+
+        def answer(messages, key, max_tokens, json_output):
+            calls.append(messages)
+            payload = json.loads(messages[1]['content'])
+            if len(calls) == 1:
+                return json.dumps({'items': []}), {'total_tokens': 1}
+            return json.dumps({'items': [{'patterns': ['I need + 名词']} for row in payload]}), {'total_tokens': 5}
+
+        with patch.object(app, 'deepseek', side_effect=answer):
+            result = app.library_retag([one['id'], two['id']], 'placeholder', lambda text: None)
+        self.assertEqual(len(result['errors']), 1)
+        self.assertIn('期望 1 项', result['errors'][0]['error'])
+        self.assertEqual(result['updated'], 1)
+        self.assertEqual(app.library_sources()['sources'][1]['patterns_pending'], 0)
 
     def test_http_requires_token_and_media_uses_registered_source_only(self):
         source, video, _ = self.import_source()

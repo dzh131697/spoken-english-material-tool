@@ -18,7 +18,7 @@ const {execFileSync}=require('node:child_process');
     if(android)await page.addInitScript(()=>{window.AndroidHost={}});
     const errors=[];
     page.on('pageerror',error=>errors.push(error.message));
-    const state={key:false,imported:false,analyzed:false,saved:[],topic:null,analyze:null};
+    const state={key:false,imported:false,analyzed:false,saved:[],topic:null,analyze:null,reanalyze:null};
     const source={id:'0123456789abcdef',title:'Weekend in London',done:0,batches:2,sentences:0,available:true,error:''};
     let items=[
       {id:1,source_id:source.id,title:source.title,start:1.2,end:4.5,english:'Have you ever been to London?',chinese:'你去过伦敦吗？',grammar:['现在完成时','疑问句'],patterns:['Have you ever…?']},
@@ -26,7 +26,8 @@ const {execFileSync}=require('node:child_process');
     ];
     const patterns=[{name:'Have you ever + 过去分词?',count:1,example:'Have you ever been to London?'},
       {name:'I need + 名词',count:1,example:'I need a break.'}];
-    page.on('dialog',dialog=>dialog.accept());
+    let dialogMode='accept';
+    page.on('dialog',dialog=>{dialogMode==='dismiss'?dialog.dismiss():dialog.accept()});
     await page.route('**/*',async route=>{
       const url=new URL(route.request().url()),path=url.pathname;
       if(path==='/library')return route.fulfill({contentType:'text/html',body:fs.readFileSync('web/library.html','utf8')});
@@ -47,17 +48,19 @@ const {execFileSync}=require('node:child_process');
         items=items.map(x=>x.id===body.id?body:x);return route.fulfill({json:{ok:true}});
       }
       if(path==='/api/library/analyze'){state.analyze=route.request().postDataJSON();return route.fulfill({json:{job:'analysis'}})}
+      if(path==='/api/library/reanalyze'){state.reanalyze=route.request().postDataJSON();return route.fulfill({json:{job:'reanalyze'}})}
       if(path==='/api/library/retag'){state.retagCalls=(state.retagCalls||0)+1;return route.fulfill({json:{job:'retag'}})}
       if(path==='/api/library/folder')return route.fulfill({json:{job:'folder'}});
       if(path==='/api/library/upload')return route.fulfill({json:{folder:'/private/imports/test'}});
       if(path==='/api/library/import'){state.imported=true;return route.fulfill({json:{job:'import'}})}
       if(path==='/api/library/topic'){state.topic=route.request().postDataJSON();return route.fulfill({json:{job:'topic'}})}
       if(path==='/api/job'){
-        if(url.searchParams.get('id')==='retag'){source.patterns_pending=0;return route.fulfill({json:{state:'done',message:'完成',result:{updated:2,tokens:10}}})}
+        if(url.searchParams.get('id')==='retag'){source.patterns_pending=0;return route.fulfill({json:{state:'done',message:'完成',result:{updated:2,tokens:10,errors:[]}}})}
+        if(url.searchParams.get('id')==='reanalyze')return route.fulfill({json:{state:'done',message:'完成',result:{errors:[],tokens:20,added:2,skipped:1}}});
         if(url.searchParams.get('id')==='folder')return route.fulfill({json:{state:'done',message:'完成',result:{folder:'D:\\EnglishVlogs'}}});
         if(url.searchParams.get('id')==='import')return route.fulfill({json:{state:'done',message:'完成',result:{added:1,skipped:0,missing:[],errors:[]}}});
         if(url.searchParams.get('id')==='topic')return route.fulfill({json:{state:'done',message:'完成',result:{id:'abcdef0123456789',title:'完成时专题'}}});
-        state.analyzed=true;source.done=2;source.sentences=2;return route.fulfill({json:{state:'done',message:'完成',result:{errors:[],tokens:20}}});
+        state.analyzed=true;source.done=2;source.sentences=2;return route.fulfill({json:{state:'done',message:'完成',result:{errors:[],tokens:20,added:2,skipped:0}}});
       }
       if(path==='/')return route.fulfill({contentType:'text/html',body:'<h1>专题素材制作</h1>'});
       if(path==='/library-media'){
@@ -75,6 +78,7 @@ const {execFileSync}=require('node:child_process');
     assert.equal(await page.locator('#step-browse').isVisible(),false);
     assert.equal(await page.locator('#import').isDisabled(),true);
     assert.equal(await page.locator('#analyze').isDisabled(),true);
+    assert.equal(await page.locator('#reanalyze').isDisabled(),true);
     const screenshot=process.env.LIBRARY_SCREENSHOT;
     if(screenshot)await page.screenshot({path:screenshot.replace('.png','-empty.png'),fullPage:true,animations:'disabled'});
     if(android)await page.locator('#libraryFiles').setInputFiles([{name:'sample.mp4',mimeType:'video/mp4',buffer:fs.readFileSync(mediaPath)},{name:'sample.en.srt',mimeType:'text/plain',buffer:Buffer.from('1\n00:00:00,100 --> 00:00:01,000\nI need a break.')}]);
@@ -181,7 +185,19 @@ const {execFileSync}=require('node:child_process');
     await page.locator('#status').filter({hasText:'已整理 2 条旧例句'}).waitFor();
     assert.equal(state.retagCalls,1);
     assert.equal(await page.locator('#retag').isDisabled(),true);
+    await page.locator('#manageSources').click();
+    await page.locator('#selectNone').click();
+    await page.locator('[data-source]').check();
+    assert.equal(await page.locator('#reanalyze').isDisabled(),false);
+    dialogMode='dismiss';
+    await page.locator('#reanalyze').click();
+    await page.waitForTimeout(200);
+    assert.equal(state.reanalyze,null);
+    dialogMode='accept';
+    await page.locator('#reanalyze').click();
+    await page.locator('#status').filter({hasText:'重跑完成'}).waitFor();
+    assert.deepEqual(state.reanalyze.ids,[source.id]);
     assert.deepEqual(errors,[]);
-    console.log('Library GUI passed: guided import, automatic source selection, key setup, analysis-to-browse navigation, keyboard preview, edits, filters, separate arrangement, persistent ordering, topic navigation and responsive layout.');
+    console.log('Library GUI passed: guided import, key setup, analysis, cancelable re-run, retag, edits, filters, arrangement, topic navigation and responsive layout.');
   }finally{await browser.close();fs.rmSync(mediaFolder,{recursive:true,force:true})}
 })().catch(error=>{console.error(error);process.exitCode=1});
