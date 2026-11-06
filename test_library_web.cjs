@@ -20,16 +20,28 @@ const {execFileSync}=require('node:child_process');
     const source={id:'0123456789abcdef',title:'Weekend in London',done:0,batches:2,sentences:0,available:true,error:''};
     let items=[
       {id:1,source_id:source.id,title:source.title,start:1.2,end:4.5,english:'Have you ever been to London?',chinese:'你去过伦敦吗？',grammar:['现在完成时','疑问句'],patterns:['Have you ever…?']},
-      {id:2,source_id:source.id,title:'A quiet morning',start:6,end:9,english:'I have never tried this before.',chinese:'我以前从未试过这个。',grammar:['现在完成时'],patterns:['I have never + 过去分词']},
+      {id:2,source_id:source.id,title:'A quiet morning',start:6,end:9,english:'I need a break.',chinese:'我需要休息一下。',grammar:['一般现在时'],patterns:[],pattern_categories:['I want / I need ...']},
+    ];
+    const patterns=[
+      {name:'I want / I need ...',description:'表达愿望或需求',example:'I need a break.'},
+      {name:'Could you / Would you ...?',description:'礼貌请求别人做事',example:'Could you help me?'},
+      {name:'Can I ...?',description:'询问许可或提出请求',example:'Can I ask a question?'},
+      {name:"It's + 形容词 + (for/to) ...",description:'评价一件事',example:"It's nice to meet you."},
+      {name:'What if ...?',description:'提出假设',example:'What if it rains?'},
     ];
     page.on('dialog',dialog=>dialog.accept());
     await page.route('**/*',async route=>{
       const url=new URL(route.request().url()),path=url.pathname;
       if(path==='/library')return route.fulfill({contentType:'text/html',body:fs.readFileSync('web/library.html','utf8')});
-      if(path==='/api/library/sources')return route.fulfill({json:{sources:state.imported?[source]:[],grammar:['现在完成时','疑问句','条件句'],hasKey:state.key}});
+      if(path==='/api/library/sources')return route.fulfill({json:{sources:state.imported?[source]:[],grammar:['现在完成时','一般现在时','疑问句','条件句'],patterns,hasKey:state.key}});
       if(path==='/api/library/search'){
         const query=url.searchParams.get('q')||'';
-        const result=(state.analyzed?items:[]).filter(x=>(x.english.toLowerCase().includes(query.toLowerCase())||x.chinese.includes(query))&&(!url.searchParams.get('grammar')||x.grammar.includes(url.searchParams.get('grammar'))));
+        const pattern=url.searchParams.get('pattern')||'';
+        const result=(state.analyzed?items:[]).filter(x=>
+          (x.english.toLowerCase().includes(query.toLowerCase())||x.chinese.includes(query))&&
+          (!url.searchParams.get('grammar')||x.grammar.includes(url.searchParams.get('grammar')))&&
+          (!pattern||(patterns.some(item=>item.name===pattern)?(x.pattern_categories||[]).includes(pattern):
+            [...x.patterns,x.english].some(text=>text.toLowerCase().includes(pattern.toLowerCase())))));
         return route.fulfill({json:{items:result,total:result.length}});
       }
       if(path==='/api/key'){state.key=true;return route.fulfill({json:{ok:true}})}
@@ -109,7 +121,7 @@ const {execFileSync}=require('node:child_process');
     await page.reload();
     await page.locator('#count').filter({hasText:'共 2 条'}).waitFor();
     await page.locator('[data-step="arrange"]').click();
-    assert.match(await page.locator('.basket-item').first().innerText(),/I have never/);
+    assert.match(await page.locator('.basket-item').first().innerText(),/I need a break/);
     if(screenshot)await page.screenshot({path:screenshot.replace('.png','-arrange.png'),fullPage:true,animations:'disabled'});
     await page.locator('#continuePicking').click();
     await page.locator('[data-preview="1"]').click();
@@ -124,8 +136,21 @@ const {execFileSync}=require('node:child_process');
     await page.locator('#count').filter({hasText:'共 0 条'}).waitFor();
     await page.locator('#resetFilters').click();
     await page.locator('#count').filter({hasText:'共 2 条'}).waitFor();
+    assert.equal(await page.locator('#patternCategory option').count(),7);
+    await page.locator('#patternCategory').selectOption('custom');
+    await page.locator('#pattern').fill('Have you ever');
+    await page.locator('#pattern').press('Enter');
+    await page.locator('#count').filter({hasText:'共 1 条'}).waitFor();
+    assert.match(await page.locator('#results').innerText(),/Have you ever/);
+    await page.locator('#resetFilters').click();
+    await page.locator('#count').filter({hasText:'共 2 条'}).waitFor();
+    assert.equal(await page.locator('#pattern').isVisible(),false);
+    await page.locator('#patternCategory').selectOption('I want / I need ...');
+    await page.locator('#count').filter({hasText:'共 1 条'}).waitFor();
+    assert.match(await page.locator('#patternHint').innerText(),/表达愿望或需求.*I need a break/);
+    assert.match(await page.locator('#results .tag.pattern').innerText(),/I want \/ I need/);
     await page.locator('[data-preview="2"]').focus();await page.keyboard.press('Enter');
-    assert.match(await page.locator('#english').innerText(),/I have never/);
+    assert.match(await page.locator('#english').innerText(),/I need a break/);
     for(const viewport of [{width:1366,height:768},{width:1000,height:900}]){
       await page.setViewportSize(viewport);
       await page.evaluate(()=>{window.scrollTo(0,0);return new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))});

@@ -1817,6 +1817,27 @@ LIBRARY_GRAMMAR = ('一般现在时', '一般过去时', '一般将来时', '现
                    '定语从句', '名词性从句', '状语从句', '非谓语动词', '比较句', '疑问句',
                    '祈使句', '强调句', '其他')
 
+# 名称、用途、例句、本地可确定的常见写法；更复杂的表达仍由 AI 标注。
+LIBRARY_PATTERNS = (
+    ('I want / I need ...', '表达愿望或需求', 'I need a break.',
+     r'\bI\s+(?:(?:really|just|also)\s+)*(?:want|need)\b'),
+    ('Could you / Would you ...?', '礼貌请求别人做事', 'Could you help me?',
+     r'\b(?:could|would)\s+you\b'),
+    ('Can I ...?', '询问许可或提出请求', 'Can I ask a question?', r'\bcan\s+I\b'),
+    ("It's + 形容词 + (for/to) ...", '评价一件事或说明对谁如何', "It's nice to meet you.",
+     r"\bit(?:'s|\s+is)\s+(?:(?:not|so|very|really|quite|too)\s+)*"
+     r'(?:nice|good|great|wonderful|lovely|easy|hard|difficult|important|necessary|possible|'
+     r'impossible|helpful|useful|safe|dangerous|better|best|bad|normal|common|unusual|rare|'
+     r'fun|exciting|interesting|amazing|essential|convenient|challenging|tough)\s+(?:for|to)\s+\w'),
+    ('What if ...?', '提出假设或担心的情况', 'What if it rains?', r'\bwhat\s+if\b'),
+)
+
+
+def library_pattern_categories(english, tags):
+    text = english.replace('’', "'").replace('‘', "'")
+    return [name for name, description, example, rule in LIBRARY_PATTERNS
+            if name in tags or re.search(rule, text, re.IGNORECASE)]
+
 
 @contextmanager
 def library_db():
@@ -1914,7 +1935,10 @@ def library_sources():
             item['sentences'] = db.execute('SELECT COUNT(*) FROM sentences WHERE source_id=?', (item['id'],)).fetchone()[0]
             item['available'] = Path(item['video']).is_file()
             sources.append(item)
-    return {'sources': sources, 'grammar': LIBRARY_GRAMMAR, 'hasKey': bool(KEY), 'keyError': KEY_ERROR}
+    patterns = [{'name': name, 'description': description, 'example': example}
+                for name, description, example, rule in LIBRARY_PATTERNS]
+    return {'sources': sources, 'grammar': LIBRARY_GRAMMAR, 'patterns': patterns,
+            'hasKey': bool(KEY), 'keyError': KEY_ERROR}
 
 
 def grammar_tag(text):
@@ -1987,6 +2011,9 @@ def library_analyze(ids, key, progress):
                     '必须从以下分类里原样选择，不得自创、简写或写成组合（如「现在完成时/一般过去时」）：'
                     + '、'.join(LIBRARY_GRAMMAR) + '。'
                     '提取最多3个可复用的具体句型，如 Have you ever + 过去分词，而不是抽象语法名称；'
+                    '如果确实使用以下常用口语句型，patterns 中必须使用对应的统一名称：'
+                    + '；'.join(name + '（' + description + '）' for name, description, example, rule in LIBRARY_PATTERNS)
+                    + '。其他具体句型仍可提取，不要把不符合的表达强行归类。'
                     '没有典型句型可以为空。附准确中文释义。返回 JSON 对象 '
                     '{"segments":[{"first":0,"last":1,"chinese":"中文",'
                     '"grammar":["现在完成时"],"patterns":["Have you ever…?"]}]}。'
@@ -2039,13 +2066,19 @@ def library_search(query='', grammar='', pattern='', source='', offset=0):
         clauses.append('EXISTS(SELECT 1 FROM json_each(s.grammar) WHERE value=?)')
         values.append(grammar)
     if pattern:
-        clauses.append('instr(lower(s.patterns),lower(?))>0')
-        values.append(pattern)
+        if pattern in {item[0] for item in LIBRARY_PATTERNS}:
+            clauses.append('matches_pattern(s.english,s.patterns)')
+        else:
+            clauses.append('(instr(lower(s.patterns),lower(?))>0 OR instr(lower(s.english),lower(?))>0)')
+            values.extend([pattern, pattern])
     if source:
         clauses.append('s.source_id=?')
         values.append(source)
     where = ' WHERE ' + ' AND '.join(clauses) if clauses else ''
     with library_db() as db:
+        # 旧例句查询时补识别，无需改写数据库或重跑付费分析；计数和分页使用同一条件。
+        db.create_function('matches_pattern', 2, lambda english, tags:
+                           pattern in library_pattern_categories(english, json.loads(tags)))
         total = db.execute('SELECT COUNT(*) FROM sentences s' + where, values).fetchone()[0]
         results = db.execute('SELECT s.*,v.title FROM sentences s JOIN sources v ON v.id=s.source_id' + where +
                              ' ORDER BY v.title,s.start,s.id LIMIT 80 OFFSET ?', values + [max(0, int(offset))]).fetchall()
@@ -2054,6 +2087,7 @@ def library_search(query='', grammar='', pattern='', source='', offset=0):
         item = dict(row)
         for name in ('grammar', 'patterns'):
             item[name] = json.loads(item[name])
+        item['pattern_categories'] = library_pattern_categories(item['english'], item['patterns'])
         items.append(item)
     return {'items': items, 'total': total}
 

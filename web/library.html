@@ -24,6 +24,7 @@ body[data-step=browse] .shell{padding-top:18px}body[data-step=browse] .workflow{
 @media(max-width:850px){.import-layout,.browse-layout,.arrange-layout{grid-template-columns:1fr}.step small{display:none}.import-card{padding:20px}.import-art{display:none}.import-card>p{margin-bottom:14px}.folder-picker{display:flex;gap:15px;align-items:center}.folder-picker button{width:auto}.folder-picker p{margin:0}.import-help{margin-top:14px;padding-top:12px}.preview{grid-row:1}.results{height:400px}.topic-card{position:static}.page-heading .summary{display:none}.basket-tools{max-width:none}.header-actions #keyStatus{display:none}}
 @media(max-width:550px){.shell{padding:18px 12px}.app-header{padding:0 14px;height:67px}.brand-name{font-size:13px}.brand small{font-size:10px}.brand-mark{width:32px;height:32px;font-size:19px}.header-actions button{font-size:10px;padding:8px}.header-actions #back{display:none}.step{padding:9px 7px;gap:6px}.step strong{font-size:11px}.step-number{width:23px;height:23px;font-size:10px}.step-arrow{display:none}.workflow{margin-bottom:22px;gap:2px;padding:5px}h1{font-size:23px}.page-heading p{font-size:12px}.page-heading{align-items:flex-start}.filter-line{gap:10px}.filter-line label{flex:1;min-width:120px}.filter-line input,.filter-line select{width:100%;max-width:none}.filter-line label:last-of-type{flex-basis:100%}.search-line{gap:7px}.search-line button{padding:10px 12px}.filter-bar{padding:14px}.selection-bar{gap:10px;padding:13px}.selection-bar .selection-icon{display:none}.selection-bar button{font-size:11px;padding:10px}.basket-item{flex-wrap:wrap}.basket-tools{margin-left:40px}.folder-picker{display:block}.folder-picker p{margin-top:10px}.folder-picker button{width:100%}.sources-heading{padding:18px}.analysis-footer{padding:16px}.source .badge{font-size:10px;padding:4px 6px}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+.pattern-hint{font-size:11px;color:#7b8b74;line-height:1.7;margin-top:11px;grid-column:1/-1;order:4}.filter-bar.custom-pattern{display:block}.filter-bar.custom-pattern .search-line{display:flex}.filter-bar.custom-pattern .filter-line{display:flex}
 </style>
 </head>
 <body>
@@ -76,7 +77,8 @@ body[data-step=browse] .shell{padding-top:18px}body[data-step=browse] .workflow{
     <div class="page-heading find-heading"><div><div class="eyebrow">STEP 02 / FIND YOUR EXPRESSIONS</div><h1 id="browseTitle">为这一期，找到好表达。</h1><p>先筛选主题，再试听真实语境。喜欢的例句，加入本期素材。</p></div><button id="manageSources" class="text-button"><svg class="icon"><use href="#i-folder"/></svg>管理素材</button></div>
     <section class="panel filter-bar" aria-label="例句筛选">
       <div class="search-line"><div class="search-box"><svg class="icon"><use href="#i-search"/></svg><input id="query" aria-label="搜索英文或中文" placeholder="搜索英文表达或中文含义…"></div><button id="search" class="primary">查找例句</button></div>
-      <div class="filter-line"><label>语法<select id="grammar"><option value="">全部语法</option></select></label><label>来源<select id="sourceFilter"><option value="">全部视频</option></select></label><label>句型<input id="pattern" placeholder="例如 Have you ever"></label><button id="resetFilters" class="text-button reset">重置筛选</button></div>
+      <div class="filter-line"><label>语法<select id="grammar"><option value="">全部语法</option></select></label><label>来源<select id="sourceFilter"><option value="">全部视频</option></select></label><label>口语句型<select id="patternCategory"><option value="">全部句型</option></select></label><label id="customPatternFilter" class="hidden">自定义<input id="pattern" placeholder="例如 Have you ever"></label><button id="resetFilters" class="text-button reset">重置筛选</button></div>
+      <p id="patternHint" class="pattern-hint hidden" aria-live="polite"></p>
     </section>
     <div class="browse-layout">
       <section class="panel results-panel"><div class="results-header"><h2>例句库</h2><span id="count">共 0 条</span></div><div id="results" class="results"></div><div class="paging"><button id="prev">← 上一页</button><span id="pageNumber">第 1 页</span><button id="next">下一页 →</button></div></section>
@@ -112,6 +114,7 @@ const escapeHTML=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&
 const icon=name=>`<svg class="icon" aria-hidden="true"><use href="#i-${name}"/></svg>`;
 let sources=[],items=[],current=null,offset=0,total=0,busy=false,dirty=false,stopAt=null,hasKey=false,activeStep='import';
 let basket=[];
+let patternCategories=[];
 try{basket=JSON.parse(localStorage.getItem('grammarBasket')||'[]');if(!Array.isArray(basket))basket=[]}catch{}
 
 function fitBrowse(){
@@ -199,6 +202,11 @@ async function refreshSources(selectPending=false){
   $('grammar').value=selectedGrammar;
   $('sourceFilter').innerHTML='<option value="">全部视频</option>'+sources.map(x=>`<option value="${escapeHTML(x.id)}">${escapeHTML(x.title)}</option>`).join('');
   $('sourceFilter').value=selectedSource;
+  const selectedPattern=$('patternCategory').value;
+  patternCategories=data.patterns||[];
+  $('patternCategory').innerHTML='<option value="">全部句型</option>'+patternCategories.map(item=>`<option value="${escapeHTML(item.name)}">${escapeHTML(item.name)}</option>`).join('')+'<option value="custom">自定义句型…</option>';
+  $('patternCategory').value=selectedPattern;
+  updatePatternFilter();
   $('sourceTotal').textContent=sources.length;
   $('sourceSummary').textContent=`${sources.length} 个视频 · ${sources.filter(x=>x.done===x.batches).length} 个已完成`;
   $('sources').innerHTML=sources.map(source=>{
@@ -209,14 +217,25 @@ async function refreshSources(selectPending=false){
   updateSourceSelection();
 }
 function time(value){const seconds=Math.max(0,Number(value)||0);return Math.floor(seconds/60)+':'+Math.floor(seconds%60).toString().padStart(2,'0')}
+function updatePatternFilter(){
+  const value=$('patternCategory').value,category=patternCategories.find(item=>item.name===value);
+  $('customPatternFilter').classList.toggle('hidden',value!=='custom');
+  document.querySelector('.filter-bar').classList.toggle('custom-pattern',value==='custom');
+  $('patternHint').classList.toggle('hidden',!category);
+  $('patternHint').textContent=category?`${category.description} · 例如：${category.example}`:'';
+  $('patternCategory').title=category?.name||'选择常用口语句型';
+  fitBrowse();
+}
 async function search(){
-  const params=new URLSearchParams({q:$('query').value.trim(),grammar:$('grammar').value,pattern:$('pattern').value.trim(),source:$('sourceFilter').value,offset});
+  const pattern=$('patternCategory').value==='custom'?$('pattern').value.trim():$('patternCategory').value;
+  const params=new URLSearchParams({q:$('query').value.trim(),grammar:$('grammar').value,pattern,source:$('sourceFilter').value,offset});
   const data=await api('/api/library/search?'+params);items=data.items;total=data.total;
   $('count').textContent=`共 ${total} 条例句`;
   $('pageNumber').textContent=total?`${Math.floor(offset/80)+1} / ${Math.ceil(total/80)}`:'暂无结果';
   $('results').innerHTML=items.map((item,index)=>{
     const chosen=basket.some(x=>x.id===item.id);
-    return `<article class="result ${current?.id===item.id?'active':''}" data-preview="${item.id}" role="button" tabindex="0" aria-label="预览：${escapeHTML(item.english)}" aria-pressed="${current?.id===item.id}"><div class="result-top"><span class="result-number">${String(offset+index+1).padStart(2,'0')}</span><div class="grow"><p class="result-english">${escapeHTML(item.english)}</p><p class="result-chinese">${escapeHTML(item.chinese)}</p><div class="tags">${item.grammar.map(tag=>`<span class="tag">${escapeHTML(tag)}</span>`).join('')}${item.patterns.map(tag=>`<span class="tag pattern">${escapeHTML(tag)}</span>`).join('')}</div><div class="result-bottom"><span>${escapeHTML(item.title)} · ${time(item.start)}–${time(item.end)}</span><span class="${chosen?'chosen-mark':'result-open'}">${chosen?'✓ 已加入本期':icon('play')+' 试听片段'}</span></div></div></div></article>`;
+    const patternTags=[...new Set([...(item.pattern_categories||[]),...item.patterns])];
+    return `<article class="result ${current?.id===item.id?'active':''}" data-preview="${item.id}" role="button" tabindex="0" aria-label="预览：${escapeHTML(item.english)}" aria-pressed="${current?.id===item.id}"><div class="result-top"><span class="result-number">${String(offset+index+1).padStart(2,'0')}</span><div class="grow"><p class="result-english">${escapeHTML(item.english)}</p><p class="result-chinese">${escapeHTML(item.chinese)}</p><div class="tags">${item.grammar.map(tag=>`<span class="tag">${escapeHTML(tag)}</span>`).join('')}${patternTags.map(tag=>`<span class="tag pattern">${escapeHTML(tag)}</span>`).join('')}</div><div class="result-bottom"><span>${escapeHTML(item.title)} · ${time(item.start)}–${time(item.end)}</span><span class="${chosen?'chosen-mark':'result-open'}">${chosen?'✓ 已加入本期':icon('play')+' 试听片段'}</span></div></div></div></article>`;
   }).join('')||`<div class="empty-state">${icon('search')}<h3>${sources.length?'还没有匹配的例句':'素材库还是空的'}</h3><p>${sources.some(x=>x.done)?'换个词试试，或重置筛选。':'先到「导入与分析」整理字幕，再来挑选。'}</p></div>`;
   updateControls();
 }
@@ -297,7 +316,8 @@ $('analyze').onclick=()=>{
 $('search').onclick=()=>action(async()=>{offset=0;await search()});
 for(const id of ['query','pattern'])$(id).onkeydown=event=>{if(event.key==='Enter')$('search').click()};
 for(const id of ['grammar','sourceFilter'])$(id).onchange=()=>$('search').click();
-$('resetFilters').onclick=()=>{for(const id of ['query','pattern','grammar','sourceFilter'])$(id).value='';$('search').click()};
+$('patternCategory').onchange=()=>{updatePatternFilter();$('search').click()};
+$('resetFilters').onclick=()=>{for(const id of ['query','pattern','patternCategory','grammar','sourceFilter'])$(id).value='';updatePatternFilter();$('search').click()};
 $('prev').onclick=()=>action(async()=>{offset=Math.max(0,offset-80);await search()});
 $('next').onclick=()=>action(async()=>{offset+=80;await search()});
 $('results').onclick=event=>{const card=event.target.closest('[data-preview]');if(card&&!busy)showSentence(items.find(x=>x.id===Number(card.dataset.preview)))};
