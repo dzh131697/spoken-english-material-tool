@@ -1355,6 +1355,10 @@ def subtitle_font():
     return 'Microsoft YaHei'
 
 
+def subtitle_english_font():
+    return 'Segoe UI'
+
+
 def subtitle_font_dir():
     return str(Path(os.environ.get('WINDIR', 'C:/Windows')) / 'Fonts')
 
@@ -1380,7 +1384,11 @@ def ass_text(text):
 
 def write_ass(path, cues, bilingual, width, height):
     """把这一段的字幕写成 ASS 文件：英文字幕版只有英文，双语版在下面加一行中文。"""
-    size = max(28, round(min(width, height) * .043))
+    size = max(28, round(min(width, height) * .045))
+    chinese_size = round(size * .76)
+    gap = max(4, round(size * .18))
+    outline = round(max(1.2, min(width, height) * .0018), 1)
+    shadow = round(outline * .4, 1)
     side = round(width * .055)
     bottom = round(height * .05)
     header = ('[Script Info]\nScriptType: v4.00+\nPlayResX: {w}\nPlayResY: {h}\n'
@@ -1389,16 +1397,19 @@ def write_ass(path, cues, bilingual, width, height):
               'Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, '
               'Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, '
               'Alignment, MarginL, MarginR, MarginV, Encoding\n'
-              'Style: Cap,{font},{size},&H00FFFFFF,&H000000FF,&H00141414,&H96000000,0,0,0,0,100,100,0,0,3,3,0,2,'
+              'Style: Cap,{english_font},{size},&H00FFFFFF,&H000000FF,&H00202020,&H80000000,-1,0,0,0,100,100,0,0,1,{outline},{shadow},2,'
+              '{side},{side},{bottom},1\n'
+              'Style: Chinese,{font},{chinese_size},&H00F2F2F2,&H000000FF,&H00202020,&H80000000,0,0,0,0,100,100,0,0,1,{outline},{shadow},2,'
               '{side},{side},{bottom},1\n\n'
               '[Events]\n'
               'Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text\n').format(
-        w=width, h=height, font=subtitle_font(), size=size, side=side, bottom=bottom)
+        w=width, h=height, english_font=subtitle_english_font(), font=subtitle_font(),
+        size=size, chinese_size=chinese_size, outline=outline, shadow=shadow, side=side, bottom=bottom)
     lines = []
     for cue in cues:
         text = ass_text(cue['text'])
         if bilingual and cue.get('chinese'):
-            text += r'\N{\c&H00D9E8F7&}' + ass_text(cue['chinese'])
+            text += r'\N{\fs' + str(gap) + r'}\h\N{\rChinese}' + ass_text(cue['chinese'])
         lines.append('Dialogue: 0,{},{},Cap,,0,0,0,,{}\n'.format(
             ass_time(cue['start']), ass_time(cue['end']), text))
     path.write_text(header + ''.join(lines), encoding='utf-8')

@@ -53,6 +53,7 @@ def start(root_path, native_path, packages_path, bridge):
 
     app.font_path = font_path
     app.subtitle_font = lambda: 'Noto Sans CJK SC'
+    app.subtitle_english_font = lambda: 'Roboto'
     app.subtitle_font_dir = lambda: '/system/fonts'
     def youtube_dl(options):
         options = dict(options)

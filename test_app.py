@@ -644,6 +644,12 @@ class WorkflowTest(unittest.TestCase):
                     self.assertIn('See you tomorrow.', content)
                     self.assertIn('明天见。', content)
                     self.assertIn('Dialogue: 0,0:00:00.00,0:00:01.50', content)
+                    styles = {line.split(',')[0]: line.split(',') for line in content.splitlines()
+                              if line.startswith('Style: ')}
+                    self.assertGreater(float(styles['Style: Cap'][2]), float(styles['Style: Chinese'][2]))
+                    self.assertEqual(styles['Style: Cap'][15], '1')  # 描边，不使用方框黑底
+                    self.assertEqual(styles['Style: Chinese'][15], '1')
+                    self.assertIn(r'\h\N{\rChinese}明天见。', content)
                     app.write_ass(ass_file, [{'start': 0, 'end': 1.5, 'text': 'See you tomorrow.',
                                               'chinese': '明天见。'}], False, 1920, 1080)
                     self.assertNotIn('明天见。', ass_file.read_text(encoding='utf-8'))
