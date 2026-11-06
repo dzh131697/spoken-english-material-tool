@@ -2,6 +2,7 @@
 const {chromium}=require('playwright');
 const fs=require('node:fs');
 const assert=require('node:assert/strict');
+const android=process.argv.includes('--android');
 const os=require('node:os');
 const path=require('node:path');
 const {execFileSync}=require('node:child_process');
@@ -13,22 +14,18 @@ const {execFileSync}=require('node:child_process');
     'testsrc2=size=480x270:rate=24:duration=12','-c:v','libx264','-pix_fmt','yuv420p','-movflags','+faststart',mediaPath],{windowsHide:true});
   const browser=await chromium.launch({channel:'msedge',headless:true});
   try{
-    const page=await browser.newPage({viewport:{width:1500,height:1050}});
+    const page=await browser.newPage({viewport:android?{width:390,height:844}:{width:1500,height:1050}});
+    if(android)await page.addInitScript(()=>{window.AndroidHost={}});
     const errors=[];
     page.on('pageerror',error=>errors.push(error.message));
     const state={key:false,imported:false,analyzed:false,saved:[],topic:null,analyze:null};
     const source={id:'0123456789abcdef',title:'Weekend in London',done:0,batches:2,sentences:0,available:true,error:''};
     let items=[
       {id:1,source_id:source.id,title:source.title,start:1.2,end:4.5,english:'Have you ever been to London?',chinese:'你去过伦敦吗？',grammar:['现在完成时','疑问句'],patterns:['Have you ever…?']},
-      {id:2,source_id:source.id,title:'A quiet morning',start:6,end:9,english:'I need a break.',chinese:'我需要休息一下。',grammar:['一般现在时'],patterns:[],pattern_categories:['I want / I need ...']},
+      {id:2,source_id:source.id,title:'A quiet morning',start:6,end:9,english:'I need a break.',chinese:'我需要休息一下。',grammar:['一般现在时'],patterns:['I need + 名词']},
     ];
-    const patterns=[
-      {name:'I want / I need ...',description:'表达愿望或需求',example:'I need a break.'},
-      {name:'Could you / Would you ...?',description:'礼貌请求别人做事',example:'Could you help me?'},
-      {name:'Can I ...?',description:'询问许可或提出请求',example:'Can I ask a question?'},
-      {name:"It's + 形容词 + (for/to) ...",description:'评价一件事',example:"It's nice to meet you."},
-      {name:'What if ...?',description:'提出假设',example:'What if it rains?'},
-    ];
+    const patterns=[{name:'Have you ever + 过去分词?',count:1,example:'Have you ever been to London?'},
+      {name:'I need + 名词',count:1,example:'I need a break.'}];
     page.on('dialog',dialog=>dialog.accept());
     await page.route('**/*',async route=>{
       const url=new URL(route.request().url()),path=url.pathname;
@@ -40,7 +37,7 @@ const {execFileSync}=require('node:child_process');
         const result=(state.analyzed?items:[]).filter(x=>
           (x.english.toLowerCase().includes(query.toLowerCase())||x.chinese.includes(query))&&
           (!url.searchParams.get('grammar')||x.grammar.includes(url.searchParams.get('grammar')))&&
-          (!pattern||(patterns.some(item=>item.name===pattern)?(x.pattern_categories||[]).includes(pattern):
+          (!pattern||(patterns.some(item=>item.name===pattern)?x.patterns.includes(pattern):
             [...x.patterns,x.english].some(text=>text.toLowerCase().includes(pattern.toLowerCase())))));
         return route.fulfill({json:{items:result,total:result.length}});
       }
@@ -50,10 +47,13 @@ const {execFileSync}=require('node:child_process');
         items=items.map(x=>x.id===body.id?body:x);return route.fulfill({json:{ok:true}});
       }
       if(path==='/api/library/analyze'){state.analyze=route.request().postDataJSON();return route.fulfill({json:{job:'analysis'}})}
+      if(path==='/api/library/retag'){state.retagCalls=(state.retagCalls||0)+1;return route.fulfill({json:{job:'retag'}})}
       if(path==='/api/library/folder')return route.fulfill({json:{job:'folder'}});
+      if(path==='/api/library/upload')return route.fulfill({json:{folder:'/private/imports/test'}});
       if(path==='/api/library/import'){state.imported=true;return route.fulfill({json:{job:'import'}})}
       if(path==='/api/library/topic'){state.topic=route.request().postDataJSON();return route.fulfill({json:{job:'topic'}})}
       if(path==='/api/job'){
+        if(url.searchParams.get('id')==='retag'){source.patterns_pending=0;return route.fulfill({json:{state:'done',message:'完成',result:{updated:2,tokens:10}}})}
         if(url.searchParams.get('id')==='folder')return route.fulfill({json:{state:'done',message:'完成',result:{folder:'D:\\EnglishVlogs'}}});
         if(url.searchParams.get('id')==='import')return route.fulfill({json:{state:'done',message:'完成',result:{added:1,skipped:0,missing:[],errors:[]}}});
         if(url.searchParams.get('id')==='topic')return route.fulfill({json:{state:'done',message:'完成',result:{id:'abcdef0123456789',title:'完成时专题'}}});
@@ -77,10 +77,11 @@ const {execFileSync}=require('node:child_process');
     assert.equal(await page.locator('#analyze').isDisabled(),true);
     const screenshot=process.env.LIBRARY_SCREENSHOT;
     if(screenshot)await page.screenshot({path:screenshot.replace('.png','-empty.png'),fullPage:true,animations:'disabled'});
-    await page.locator('#pickFolder').click();
+    if(android)await page.locator('#libraryFiles').setInputFiles([{name:'sample.mp4',mimeType:'video/mp4',buffer:fs.readFileSync(mediaPath)},{name:'sample.en.srt',mimeType:'text/plain',buffer:Buffer.from('1\n00:00:00,100 --> 00:00:01,000\nI need a break.')}]);
+    else await page.locator('#pickFolder').click();
     await page.locator('#import').waitFor({state:'visible'});
     await page.waitForFunction(()=>!document.querySelector('#import').disabled);
-    assert.equal(await page.locator('#folder').inputValue(),'D:\\EnglishVlogs');
+    if(!android)assert.equal(await page.locator('#folder').inputValue(),'D:\\EnglishVlogs');
     await page.locator('#import').click();
     await page.locator('#selectedSourceCount').filter({hasText:'已选 1 个'}).waitFor();
     await page.locator('#analyze').click();
@@ -125,6 +126,7 @@ const {execFileSync}=require('node:child_process');
     if(screenshot)await page.screenshot({path:screenshot.replace('.png','-arrange.png'),fullPage:true,animations:'disabled'});
     await page.locator('#continuePicking').click();
     await page.locator('[data-preview="1"]').click();
+    if(android)await page.locator('#mobilePreviewBack').click();
     await page.locator('#query').fill('have you ever');
     await page.locator('#search').click();
     await page.locator('#count').filter({hasText:'共 1 条'}).waitFor();
@@ -132,11 +134,12 @@ const {execFileSync}=require('node:child_process');
     await page.locator('#count').filter({hasText:'共 2 条'}).waitFor();
     await page.waitForFunction(()=>document.getElementById('video').readyState>=2&&!document.getElementById('video').seeking&&Math.abs(document.getElementById('video').currentTime-1.2)<.1);
     if(screenshot)await page.screenshot({path:screenshot,fullPage:true,animations:'disabled'});
+    if(android)await page.locator('#openFilters').click();
     await page.locator('#grammar').selectOption('条件句');
     await page.locator('#count').filter({hasText:'共 0 条'}).waitFor();
     await page.locator('#resetFilters').click();
     await page.locator('#count').filter({hasText:'共 2 条'}).waitFor();
-    assert.equal(await page.locator('#patternCategory option').count(),7);
+    assert.equal(await page.locator('#patternCategory option').count(),4);
     await page.locator('#patternCategory').selectOption('custom');
     await page.locator('#pattern').fill('Have you ever');
     await page.locator('#pattern').press('Enter');
@@ -145,28 +148,39 @@ const {execFileSync}=require('node:child_process');
     await page.locator('#resetFilters').click();
     await page.locator('#count').filter({hasText:'共 2 条'}).waitFor();
     assert.equal(await page.locator('#pattern').isVisible(),false);
-    await page.locator('#patternCategory').selectOption('I want / I need ...');
+    await page.locator('#patternCategory').selectOption('I need + 名词');
     await page.locator('#count').filter({hasText:'共 1 条'}).waitFor();
-    assert.match(await page.locator('#patternHint').innerText(),/表达愿望或需求.*I need a break/);
-    assert.match(await page.locator('#results .tag.pattern').innerText(),/I want \/ I need/);
+    assert.match(await page.locator('#patternHint').innerText(),/1 条例句.*I need a break/);
+    assert.match(await page.locator('#results .tag.pattern').innerText(),/I need \+ 名词/);
+    if(android)await page.locator('#closeFilters').click();
     await page.locator('[data-preview="2"]').focus();await page.keyboard.press('Enter');
     assert.match(await page.locator('#english').innerText(),/I need a break/);
-    for(const viewport of [{width:1366,height:768},{width:1000,height:900}]){
+    for(const viewport of (android?[{width:320,height:740}]:[{width:1366,height:768},{width:1000,height:900}])){
       await page.setViewportSize(viewport);
       await page.evaluate(()=>{window.scrollTo(0,0);return new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))});
       assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);
       const button=await page.locator('#add').boundingBox();
-      assert(button.y>=0&&button.y+button.height<=viewport.height,`加入本期按钮应在 ${viewport.width}×${viewport.height} 首屏可见，实际 ${JSON.stringify(button)}`);
+      assert(android||(button.y>=0&&button.y+button.height<=viewport.height),`加入本期按钮应在 ${viewport.width}×${viewport.height} 首屏可见，实际 ${JSON.stringify(button)}`);
       const summary=await page.locator('#adjustments summary').boundingBox();
-      assert(summary.y>=0&&summary.y+summary.height<=viewport.height,'切点调整入口应在首屏可见');
+      assert(android||(summary.y>=0&&summary.y+summary.height<=viewport.height),'切点调整入口应在首屏可见');
       if(screenshot&&viewport.width===1366)await page.screenshot({path:screenshot.replace('.png','-compact.png'),fullPage:true,animations:'disabled'});
     }
+    if(android)await page.locator('#mobilePreviewBack').click();
     await page.locator('#goArrange').click();
     await page.locator('#topicTitle').fill('完成时专题');
     await page.locator('#createTopic').click();
     await page.waitForURL('**/?token=*&project=abcdef0123456789');
     assert.deepEqual(state.topic.ids,[2,1]);
     assert.equal(state.topic.title,'完成时专题');
+    source.patterns_pending=2;
+    await page.goto('http://127.0.0.1:8765/library?token=synthetic-token');
+    await page.waitForFunction(()=>!document.querySelector('#manageSources').disabled);
+    await page.locator('#manageSources').click();
+    await page.locator('#selectAll').click();
+    await page.locator('#retag').click();
+    await page.locator('#status').filter({hasText:'已整理 2 条旧例句'}).waitFor();
+    assert.equal(state.retagCalls,1);
+    assert.equal(await page.locator('#retag').isDisabled(),true);
     assert.deepEqual(errors,[]);
     console.log('Library GUI passed: guided import, automatic source selection, key setup, analysis-to-browse navigation, keyboard preview, edits, filters, separate arrangement, persistent ordering, topic navigation and responsive layout.');
   }finally{await browser.close();fs.rmSync(mediaFolder,{recursive:true,force:true})}

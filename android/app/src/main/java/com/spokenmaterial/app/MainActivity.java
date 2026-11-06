@@ -118,7 +118,7 @@ public class MainActivity extends Activity {
         if (!directory.isDirectory() && !directory.mkdirs()) {
             throw new IOException("无法创建网页目录");
         }
-        for (String name : new String[]{"index.html", "publish.js", "publish.css"}) {
+        for (String name : new String[]{"index.html", "publish.js", "publish.css", "library.html"}) {
             try (InputStream input = getAssets().open(name);
                  OutputStream output = new FileOutputStream(new File(directory, name))) {
                 copy(input, output);
@@ -166,7 +166,10 @@ public class MainActivity extends Activity {
                 if (fileCallback != null) fileCallback.onReceiveValue(null);
                 fileCallback = callback;
                 try {
-                    startActivityForResult(params.createIntent(), PICK_FILE);
+                    Intent intent = params.createIntent();
+                    intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, params.getMode() == FileChooserParams.MODE_OPEN_MULTIPLE);
+                    if (params.getMode() == FileChooserParams.MODE_OPEN_MULTIPLE) intent.setType("*/*");
+                    startActivityForResult(intent, PICK_FILE);
                     return true;
                 } catch (Exception error) {
                     fileCallback = null;
@@ -189,7 +192,14 @@ public class MainActivity extends Activity {
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
         if (requestCode == PICK_FILE && fileCallback != null) {
-            fileCallback.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(resultCode, data));
+            if (resultCode == RESULT_OK && data != null && data.getClipData() != null) {
+                int count = data.getClipData().getItemCount();
+                Uri[] uris = new Uri[count];
+                for (int i = 0; i < count; i++) uris[i] = data.getClipData().getItemAt(i).getUri();
+                fileCallback.onReceiveValue(uris);
+            } else {
+                fileCallback.onReceiveValue(WebChromeClient.FileChooserParams.parseResult(resultCode, data));
+            }
             fileCallback = null;
         } else if (requestCode == SAVE_FILE) {
             File source = pendingSave;

@@ -25,6 +25,10 @@ body[data-step=browse] .shell{padding-top:18px}body[data-step=browse] .workflow{
 @media(max-width:550px){.shell{padding:18px 12px}.app-header{padding:0 14px;height:67px}.brand-name{font-size:13px}.brand small{font-size:10px}.brand-mark{width:32px;height:32px;font-size:19px}.header-actions button{font-size:10px;padding:8px}.header-actions #back{display:none}.step{padding:9px 7px;gap:6px}.step strong{font-size:11px}.step-number{width:23px;height:23px;font-size:10px}.step-arrow{display:none}.workflow{margin-bottom:22px;gap:2px;padding:5px}h1{font-size:23px}.page-heading p{font-size:12px}.page-heading{align-items:flex-start}.filter-line{gap:10px}.filter-line label{flex:1;min-width:120px}.filter-line input,.filter-line select{width:100%;max-width:none}.filter-line label:last-of-type{flex-basis:100%}.search-line{gap:7px}.search-line button{padding:10px 12px}.filter-bar{padding:14px}.selection-bar{gap:10px;padding:13px}.selection-bar .selection-icon{display:none}.selection-bar button{font-size:11px;padding:10px}.basket-item{flex-wrap:wrap}.basket-tools{margin-left:40px}.folder-picker{display:block}.folder-picker p{margin-top:10px}.folder-picker button{width:100%}.sources-heading{padding:18px}.analysis-footer{padding:16px}.source .badge{font-size:10px;padding:4px 6px}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 .pattern-hint{font-size:11px;color:#7b8b74;line-height:1.7;margin-top:11px;grid-column:1/-1;order:4}.filter-bar.custom-pattern{display:block}.filter-bar.custom-pattern .search-line{display:flex}.filter-bar.custom-pattern .filter-line{display:flex}
+
+.android .brand small{font-size:10px}.android .header-actions #back{display:inline-flex}.android .import-layout{display:block}.android .import-card{margin-bottom:15px}.android .sources{max-height:36dvh;min-height:120px}.android .analysis-footer .row{gap:7px}.android .analysis-footer .row>span{flex-basis:100%}.android .analysis-footer button{flex:1;font-size:12px}.android .workflow{position:sticky;top:0;z-index:3}.android .app-header{height:62px}.android .page-heading h1{font-size:21px}.android .page-heading .eyebrow{display:none}
+.android #step-browse .preview{display:none}.android.library-preview #step-browse .preview{display:block}.android.library-preview .results-panel,.android.library-preview .filter-bar,.android.library-preview .find-heading,.android.library-preview .selection-bar{display:none}.android .browse-layout{display:block}.android .results{height:auto;max-height:none}.android .preview{position:static;overflow:visible}.android.library-preview .video-wrap{position:sticky;top:62px;z-index:2;max-height:28dvh}.android .preview-actions{position:sticky;bottom:0;z-index:3}.android .preview-header{flex-wrap:wrap}.android #mobilePreviewBack{font-size:11px;padding:6px}.android #filterDialog .filter-line{display:flex;flex-direction:column;align-items:stretch}.android #filterDialog label{display:flex;flex-direction:column;align-items:stretch}.android #filterDialog input,.android #filterDialog select{max-width:none;width:100%}.android .adjustments{max-height:none}.android .topic-card{margin-top:16px}.android .selection-bar{position:sticky;bottom:0;z-index:2}.android .filter-bar{display:block}
+.android .app-header{padding:0 12px;gap:8px}.android .brand{gap:8px;min-width:0}.android .brand small{max-width:130px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis}
 </style>
 </head>
 <body>
@@ -59,15 +63,15 @@ body[data-step=browse] .shell{padding-top:18px}body[data-step=browse] .workflow{
         <div class="import-art"><svg class="icon"><use href="#i-folder"/></svg></div><h2>添加本地素材</h2><p>将视频和英文字幕放在同一文件夹，工具会自动匹配。</p>
         <div class="folder-picker"><button id="pickFolder"><svg class="icon"><use href="#i-folder"/></svg>选择文件夹</button><p>支持子文件夹，一次导入多个视频</p></div>
         <p id="folderValue" class="folder-value hidden"></p>
-        <details class="path-field" id="pathDetails"><summary>手动填写路径</summary><input id="folder" aria-label="视频文件夹路径" placeholder="例如 D:\EnglishVlogs"></details>
+        <details class="path-field" id="pathDetails"><summary>手动填写路径</summary><input id="libraryFiles" type="file" multiple accept="video/*,.srt,.vtt" hidden><input id="folder" aria-label="视频文件夹路径" placeholder="例如 D:\EnglishVlogs"></details>
         <button id="import" class="primary" disabled>导入素材</button>
         <details class="import-help"><summary>字幕如何命名？</summary><p>例如 video.mp4 搭配 video.en.srt 或 video.en.vtt，也支持 video.srt、en-orig 和 en-US 等英文后缀。明确标为其他语言的字幕不会作为英文导入。<br>视频保留在原位置，请不要移动或删除。重复导入时，有变化的视频会重新建立分类。</p></details>
       </section>
       <section class="panel sources-card">
         <div class="sources-heading"><div class="section-top"><h2>待整理的素材</h2><span id="sourceSummary" class="muted">尚未导入</span></div></div>
-        <div class="sources-toolbar"><button id="selectAll" class="text-button">选择待分析</button><button id="selectNone" class="text-button">取消选择</button><button id="refresh" class="text-button">刷新</button><span id="selectedSourceCount" class="selection-count">已选 0 个</span></div>
+        <div class="sources-toolbar"><button id="selectAll" class="text-button">选择待整理</button><button id="selectNone" class="text-button">取消选择</button><button id="refresh" class="text-button">刷新</button><span id="selectedSourceCount" class="selection-count">已选 0 个</span></div>
         <div id="sources" class="sources"></div>
-        <div class="analysis-footer"><div class="row"><span id="analysisHint" class="muted grow">导入后，勾选要分析的视频。</span><button id="analyze" class="primary" disabled>分析字幕</button></div><p>只向 DeepSeek 发送英文字幕，按 API 用量计费。已完成批次会自动跳过，可随时继续未完成的分析。</p></div>
+        <div class="analysis-footer"><div class="row"><span id="analysisHint" class="muted grow">导入后，勾选要分析的视频。</span><button id="retag" disabled>整理旧句型</button><button id="analyze" class="primary" disabled>分析字幕</button></div><p>只向 DeepSeek 发送英文字幕，按 API 用量计费。已完成批次会自动跳过，可随时继续未完成的分析。</p></div>
       </section>
     </div>
     <div class="step-footer"><button id="goBrowse">进入例句库 <svg class="icon"><use href="#i-arrow"/></svg></button></div>
@@ -109,12 +113,13 @@ body[data-step=browse] .shell{padding-top:18px}body[data-step=browse] .workflow{
 <dialog id="settingsDialog" aria-labelledby="settingsTitle"><div class="section-top"><h2 id="settingsTitle">连接 DeepSeek</h2><button id="closeSettings" class="close-dialog" aria-label="关闭设置">×</button></div><p>设置一次，即可在字幕分类、翻译和素材制作中共用。</p><label for="key">API Key</label><input id="key" type="password" autocomplete="off" placeholder="输入你的 DeepSeek API Key"><p class="dialog-key-note">密钥使用当前 Windows 账户加密保存，仅保留在本机。</p><div class="row"><button id="clearKey" class="text-button">删除已保存密钥</button><button id="saveKey" class="primary">保存密钥</button></div><p id="keyMessage" role="status"></p></dialog>
 <script>
 const $=id=>document.getElementById(id);
+const isAndroid=typeof window.AndroidHost!=='undefined';
 const token=new URLSearchParams(location.search).get('token');
 const escapeHTML=value=>String(value).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const icon=name=>`<svg class="icon" aria-hidden="true"><use href="#i-${name}"/></svg>`;
 let sources=[],items=[],current=null,offset=0,total=0,busy=false,dirty=false,stopAt=null,hasKey=false,activeStep='import';
 let basket=[];
-let patternCategories=[];
+let patternCategories=[],importFiles=[];
 try{basket=JSON.parse(localStorage.getItem('grammarBasket')||'[]');if(!Array.isArray(basket))basket=[]}catch{}
 
 function fitBrowse(){
@@ -134,8 +139,9 @@ async function api(path,body){
 function updateControls(){
   $('prev').disabled=busy||offset===0;
   $('next').disabled=busy||offset+80>=total;
-  $('import').disabled=busy||!$('folder').value.trim();
+  $('import').disabled=busy||(isAndroid?!importFiles.length:!$('folder').value.trim());
   $('analyze').disabled=busy||!document.querySelector('[data-source]:checked');
+  $('retag').disabled=busy||![...document.querySelectorAll('[data-source]:checked')].some(box=>sources.find(item=>item.id===box.dataset.source)?.patterns_pending>0);
   $('createTopic').disabled=busy||!basket.length;
   $('save').disabled=busy||!dirty;
   $('preview').disabled=busy||!current;
@@ -175,7 +181,7 @@ function home(pid=''){location.href='/?token='+encodeURIComponent(token)+(pid?'&
 function mayLeave(){return !dirty||confirm('当前例句的修改尚未保存，是否放弃？')}
 function showStep(step){
   if(step!==activeStep)$('video').pause();
-  activeStep=step;
+  activeStep=step;document.body.classList.remove('library-preview');
   document.body.dataset.step=step;
   for(const name of ['import','browse','arrange'])$('step-'+name).classList.toggle('hidden',name!==step);
   document.querySelectorAll('[data-step]').forEach(button=>{
@@ -188,9 +194,10 @@ function showStep(step){
 }
 function updateSourceSelection(){
   const count=document.querySelectorAll('[data-source]:checked').length;
+  const oldPatterns=[...document.querySelectorAll('[data-source]:checked')].reduce((sum,box)=>sum+(sources.find(item=>item.id===box.dataset.source)?.patterns_pending||0),0);
   $('selectedSourceCount').textContent=`已选 ${count} 个`;
   $('analyze').textContent=count?`分析所选 ${count} 个视频`:'分析字幕';
-  $('analysisHint').textContent=!sources.length?'先添加视频与字幕。':count?(hasKey?'分析后，即可按语法与句型挑选。':'首次分析前，请先设置 API Key。'):'勾选要分析的视频，已完成的会自动跳过。';
+  $('analysisHint').textContent=!sources.length?'先添加视频与字幕。':count?(hasKey?(oldPatterns?'有 '+oldPatterns+' 条旧例句，可点击「整理旧句型」，不必重新分段。':'分析后，即可按语法与句型挑选。'):'首次分析前，请先设置 API Key。'):'勾选要分析的视频，已完成的会自动跳过。';
   updateControls();
 }
 async function refreshSources(selectPending=false){
@@ -204,15 +211,15 @@ async function refreshSources(selectPending=false){
   $('sourceFilter').value=selectedSource;
   const selectedPattern=$('patternCategory').value;
   patternCategories=data.patterns||[];
-  $('patternCategory').innerHTML='<option value="">全部句型</option>'+patternCategories.map(item=>`<option value="${escapeHTML(item.name)}">${escapeHTML(item.name)}</option>`).join('')+'<option value="custom">自定义句型…</option>';
+  $('patternCategory').innerHTML='<option value="">全部句型</option>'+patternCategories.map(item=>`<option value="${escapeHTML(item.name)}">${escapeHTML(item.name)} (${item.count||0})</option>`).join('')+'<option value="custom">关键词搜索…</option>';
   $('patternCategory').value=selectedPattern;
   updatePatternFilter();
   $('sourceTotal').textContent=sources.length;
   $('sourceSummary').textContent=`${sources.length} 个视频 · ${sources.filter(x=>x.done===x.batches).length} 个已完成`;
   $('sources').innerHTML=sources.map(source=>{
     const done=source.done===source.batches;
-    const selected=checked.has(source.id)||(selectPending&&!done);
-    return `<label class="source"><input type="checkbox" data-source="${escapeHTML(source.id)}" ${selected?'checked':''}><span class="source-icon">${icon('video')}</span><span class="grow"><span class="source-title">${escapeHTML(source.title)}</span><small>${source.sentences} 条例句 · ${source.done}/${source.batches} 批完成${source.available?'':' · 原视频已移动或删除'}</small>${source.error?`<small class="source-error">${escapeHTML(source.error)}</small>`:''}</span><span class="badge ${source.error?'failed':done?'':'pending'}">${source.error?'待重试':done?'已入库':'待分析'}</span></label>`;
+    const selected=checked.has(source.id)||(selectPending&&(!done||source.patterns_pending));
+    return `<label class="source"><input type="checkbox" data-source="${escapeHTML(source.id)}" ${selected?'checked':''}><span class="source-icon">${icon('video')}</span><span class="grow"><span class="source-title">${escapeHTML(source.title)}</span><small>${source.sentences} 条例句 · ${source.done}/${source.batches} 批完成${source.patterns_pending?' · '+source.patterns_pending+' 条待整理句型':''}${source.available?'':' · 原视频已移动或删除'}</small>${source.error?`<small class="source-error">${escapeHTML(source.error)}</small>`:''}</span><span class="badge ${source.error?'failed':done?'':'pending'}">${source.error?'待重试':done?'已入库':'待分析'}</span></label>`;
   }).join('')||`<div class="empty-state">${icon('video')}<h3>从第一个视频开始</h3><p>选择左侧文件夹并导入，视频会出现在这里。</p></div>`;
   updateSourceSelection();
 }
@@ -222,7 +229,7 @@ function updatePatternFilter(){
   $('customPatternFilter').classList.toggle('hidden',value!=='custom');
   document.querySelector('.filter-bar').classList.toggle('custom-pattern',value==='custom');
   $('patternHint').classList.toggle('hidden',!category);
-  $('patternHint').textContent=category?`${category.description} · 例如：${category.example}`:'';
+  $('patternHint').textContent=category?`${category.count||0} 条例句 · 例如：${category.example}`:'';
   $('patternCategory').title=category?.name||'选择常用口语句型';
   fitBrowse();
 }
@@ -246,6 +253,7 @@ function updateCutSummary(){
 function updateAddButton(){const added=current&&basket.some(item=>item.id===current.id);$('add').textContent=added?(dirty?'保存并更新本期':'✓ 已加入本期'):'＋ 加入本期素材';$('previewBadge').textContent=added?'本期已选':'先听，再挑选'}
 function showSentence(item){
   if(!item||!mayLeave())return;
+  if(isAndroid){document.body.classList.add('library-preview');window.scrollTo(0,0)}
   dirty=false;current=item;stopAt=null;$('video').pause();
   const url='/library-media?id='+encodeURIComponent(item.source_id)+'&token='+encodeURIComponent(token);
   const seek=()=>{$('video').currentTime=item.start};
@@ -286,21 +294,39 @@ $('settings').onclick=()=>openSettings();$('closeSettings').onclick=()=>$('setti
 $('saveKey').onclick=()=>action(async()=>{await api('/api/key',{key:$('key').value});$('key').value='';await refreshSources();$('settingsDialog').close();status('API Key 已加密保存，可以开始分析字幕。')});
 $('clearKey').onclick=()=>action(async()=>{await api('/api/key-clear',{});$('key').value='';await refreshSources();$('keyMessage').textContent='已删除本机保存的密钥。'});
 $('back').onclick=()=>{if(mayLeave()){dirty=false;home()}};
-$('pickFolder').onclick=()=>action(async()=>{const result=await job('/api/library/folder',{});if(result.folder){setFolder(result.folder);status('已选择文件夹，点击「导入素材」完成添加。')}else status('')});
+$('pickFolder').onclick=()=>{if(isAndroid){$('libraryFiles').click();return}action(async()=>{const result=await job('/api/library/folder',{});if(result.folder){setFolder(result.folder);status('已选择文件夹，点击「导入素材」完成添加。')}else status('')})};
 $('folder').oninput=()=>setFolder($('folder').value);
 $('import').onclick=()=>action(async()=>{
   if(!mayLeave())return;
-  const folder=$('folder').value.trim();
+  let folder=$('folder').value.trim();
+  if(isAndroid){
+    const batch=Array.from(crypto.getRandomValues(new Uint8Array(8)),n=>n.toString(16).padStart(2,'0')).join('');
+    for(let index=0;index<importFiles.length;index++){
+      const file=importFiles[index];status('复制到应用：'+(index+1)+'/'+importFiles.length+' · '+file.name);
+      const response=await fetch('/api/library/upload',{method:'POST',headers:{'X-App-Token':token,'X-Library-Batch':batch,'X-File-Name':encodeURIComponent(file.name)},body:file});
+      const data=await response.json();if(!response.ok||data.error)throw Error(data.error||'导入失败');folder=data.folder;
+    }
+  }
   if(sources.some(source=>source.video?.toLowerCase().startsWith(folder.toLowerCase()+'\\'))&&!confirm('将重新检查这个文件夹。有变化的视频会清除旧分类并重新分析，是否继续？'))return;
   const result=await job('/api/library/import',{folder});
   await refreshSources(true);await search();
   status(`已添加 / 更新 ${result.added} 个视频，跳过 ${result.skipped} 个未变化的视频。`+(result.missing.length?'\n以下视频缺少英文字幕：\n'+result.missing.join('\n'):'')+(result.errors.length?'\n导入失败：\n'+result.errors.map(x=>x.name+'：'+x.error).join('\n'):''),Boolean(result.errors.length));
+  if(isAndroid){importFiles=[];$('libraryFiles').value='';$('folderValue').textContent='导入完成，文件保存在应用私有空间。'}
   current=null;dirty=false;$('editor').classList.add('hidden');$('video').pause();$('video').removeAttribute('src');$('video').load();$('videoEmpty').classList.remove('hidden');$('previewPlaceholder').classList.remove('hidden');
 });
+$('libraryFiles').onchange=()=>{const files=[...$('libraryFiles').files];if(new Set(files.map(file=>file.name)).size!==files.length){status('存在同名文件，请分批导入。',true);return}importFiles=files;$('folderValue').textContent='已选 '+files.length+' 个文件：'+files.map(file=>file.name).join('、');$('folderValue').classList.remove('hidden');updateControls()};
 $('sources').onchange=updateSourceSelection;
-$('selectAll').onclick=()=>{document.querySelectorAll('[data-source]').forEach(box=>box.checked=sources.find(x=>x.id===box.dataset.source).done<sources.find(x=>x.id===box.dataset.source).batches);updateSourceSelection()};
+$('selectAll').onclick=()=>{document.querySelectorAll('[data-source]').forEach(box=>{const source=sources.find(item=>item.id===box.dataset.source);box.checked=source.done<source.batches||source.patterns_pending>0});updateSourceSelection()};
 $('selectNone').onclick=()=>{document.querySelectorAll('[data-source]').forEach(box=>box.checked=false);updateSourceSelection()};
 $('refresh').onclick=()=>action(refreshSources);
+$('retag').onclick=()=>{
+  if(!hasKey){openSettings('整理句型需要 API Key，仅在点击后发送英文。');return}
+  action(async()=>{
+    const ids=[...document.querySelectorAll('[data-source]:checked')].map(box=>box.dataset.source);
+    try{const result=await job('/api/library/retag',{ids});status('已整理 '+result.updated+' 条旧例句的句型标签，使用 '+result.tokens+' Token。');showStep('browse')}
+    finally{await refreshSources();await search()}
+  });
+};
 $('analyze').onclick=()=>{
   if(!hasKey){openSettings('先保存 API Key，然后点击「分析字幕」。');return}
   action(async()=>{
@@ -334,7 +360,7 @@ $('preview').onclick=()=>{
 $('video').ontimeupdate=()=>{if(stopAt!==null&&$('video').currentTime>=stopAt){$('video').pause();stopAt=null}};
 $('video').onerror=()=>{if($('video').getAttribute('src'))status('无法预览视频，请检查原文件是否存在，以及浏览器是否支持它的编码。',true)};
 $('save').onclick=()=>action(async()=>{await saveCurrent();status('例句修改已保存。')});
-$('add').onclick=()=>action(async()=>{const draft=await saveCurrent();if(!basket.some(x=>x.id===draft.id))basket.push(draft);renderBasket();await search();status('已加入本期素材。可继续挑选，或进入「本期编排」。')});
+$('add').onclick=()=>action(async()=>{const draft=await saveCurrent();if(!basket.some(x=>x.id===draft.id))basket.push(draft);renderBasket();await search();if(isAndroid)document.body.classList.remove('library-preview');status('已加入本期素材。可继续挑选，或进入「本期编排」。')});
 $('basket').onclick=event=>{
   if(busy)return;
   const remove=event.target.closest('[data-remove]'),move=event.target.closest('[data-move]'),edit=event.target.closest('[data-edit-basket]');
@@ -353,6 +379,20 @@ $('createTopic').onclick=()=>action(async()=>{
 });
 window.addEventListener('beforeunload',event=>{if(dirty){event.preventDefault();event.returnValue=''}});
 window.addEventListener('resize',fitBrowse);
+if(isAndroid){
+  document.body.classList.add('android');$('back').textContent='返回';$('settings').textContent='API Key';document.querySelector('.dialog-key-note').textContent='密钥使用 Android Keystore 加密保存在本机。';$('importTitle').nextElementSibling.textContent='批量选择手机视频与英文字幕，分析后建立可重复使用的例句库。';
+  document.querySelector('.brand small').textContent='语法与句型素材库 · Android';
+  document.querySelector('.import-card h2').textContent='添加手机素材';
+  document.querySelector('.import-card>p').textContent='同时选择视频和对应的英文 SRT / VTT 字幕，复制到应用后分析。';
+  $('pickFolder').textContent='选择视频与字幕';
+  document.querySelector('.folder-picker p').textContent='支持多选；视频与字幕需同名。';
+  $('pathDetails').classList.add('hidden');document.querySelector('.import-help').classList.add('hidden');
+  const back=document.createElement('button');back.id='mobilePreviewBack';back.textContent='← 返回例句';back.onclick=()=>{if(mayLeave()){dirty=false;document.body.classList.remove('library-preview');$('video').pause()}};document.querySelector('.preview-header').prepend(back);
+  const filter=document.createElement('dialog');filter.id='filterDialog';filter.innerHTML='<h2>筛选例句</h2><button id="closeFilters">完成筛选</button>';document.body.append(filter);
+  filter.insertBefore(document.querySelector('.filter-line'),$('closeFilters'));filter.insertBefore($('patternHint'),$('closeFilters'));
+  const open=document.createElement('button');open.id='openFilters';open.textContent='筛选';open.onclick=()=>filter.showModal();document.querySelector('.search-line').append(open);$('closeFilters').onclick=()=>filter.close();
+  window.mobileBack=()=>{const dialog=document.querySelector('dialog[open]');if(dialog){dialog.close();return true}if(document.body.classList.contains('library-preview')){$('mobilePreviewBack').click();return true}if(activeStep==='arrange'){showStep('browse');return true}if(mayLeave()){dirty=false;home()}return true};
+}
 renderBasket();
 action(async()=>{
   await refreshSources();await search();

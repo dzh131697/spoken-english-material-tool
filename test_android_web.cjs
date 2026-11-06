@@ -34,7 +34,7 @@ async function openPage(browser, android, width = 390) {
       };
     }
   }, android);
-  const state = { saves: [], failNextSave: false, suggestCalls: 0, publicationSaves: {}, frames: [], generations: [] };
+  const state = { saves: [], failNextSave: false, suggestCalls: 0, publicationSaves: {}, frames: [], generations: [], cards: [], deleted: [] };
   await context.route('**/*', async route => {
     const request = route.request();
     const url = new URL(request.url());
@@ -44,6 +44,15 @@ async function openPage(browser, android, width = 390) {
       body: fs.readFileSync('web' + url.pathname, 'utf8'),
     });
     if (url.pathname === '/api/projects') return route.fulfill({ json: { projects: [], hasKey: false } });
+    if (url.pathname === '/api/card-preview') {
+      state.cards.push(request.postDataJSON());
+      return route.fulfill({ contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360"><rect width="640" height="360" fill="#305b48"/></svg>' });
+    }
+    if (url.pathname === '/api/delete-output') {
+      state.deleted.push(request.postDataJSON());
+      const outputs = await page.evaluate(id => project.outputs.filter(item => item.id !== id), request.postDataJSON().output);
+      return route.fulfill({ json: { outputs } });
+    }
     if (url.pathname === '/media') return route.fulfill({ status: 204 });
     if (url.pathname === '/api/waveform') {
       const body = request.postDataJSON();
@@ -133,6 +142,17 @@ async function openPage(browser, android, width = 390) {
       assert.equal(await page.locator('#mobileSelectionCount').innerText(), '已选 2 句');
       assert.equal(await page.locator('#chinese').inputValue(), '你周末过得怎么样？');
       await page.locator('#mobileNav [data-mobile-screen="edit"]').click();
+      await page.locator('#showCard').click();
+      await page.locator('#mobileCardImage').waitFor({state:'visible'});
+      assert.equal(await page.locator('#video').isVisible(), false);
+      const refresh = page.waitForResponse('**/api/card-preview');
+      await page.locator('#chinese').fill('你周末过得怎么样？');
+      await refresh;
+      assert.equal(state.cards.at(-1).text, '你周末过得怎么样？');
+      await page.screenshot({path:`qa/题卡同屏_${width}.png`});
+      await page.locator('#closeMobileCard').click();
+      assert.equal(await page.locator('#video').isVisible(), true);
+      assert.equal(await page.locator('#videoSection').evaluate(node=>getComputedStyle(node).position), 'sticky');
       state.failNextSave = true;
       await page.locator('#mobileSave').click();
       await page.locator('#status').filter({ hasText: '保存测试失败' }).waitFor();
@@ -204,6 +224,12 @@ async function openPage(browser, android, width = 390) {
         if (width === 390) fs.writeFileSync(`qa/封面_${style}.png`, Buffer.from(await page.evaluate(() => document.querySelector('#coverCanvas').toDataURL().split(',')[1]), 'base64'));
       }
       await page.locator('#coverAdjustments > summary').click();
+      const previewBefore=await page.locator('#coverCanvas').boundingBox();
+      await page.locator('#coverFontScale').scrollIntoViewIfNeeded();
+      const previewAfter=await page.locator('#coverCanvas').boundingBox();
+      assert(Math.abs(previewBefore.y-previewAfter.y)<2,'滚动调整控件不应移走封面预览');
+      const navBox=await page.locator('#mobileNav').boundingBox();
+      assert(previewAfter.y>=0&&previewAfter.y+previewAfter.height<navBox.y,'封面应留在可见区域');
       await page.locator('#coverShowTitle').uncheck();
       assert.equal(await page.evaluate(() => activeCover().show_title), false);
       await page.locator('#coverShowTitle').check();
@@ -257,6 +283,24 @@ async function openPage(browser, android, width = 390) {
       await page.locator('#downloadPublication').click();
       await page.waitForFunction(() => window.saved.some(item => item.folder?.endsWith('20261105_111111_abcdef')));
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+      await page.locator('#mobilePublishBack').click();
+      const toDelete='20261105_111111_abcdef';
+      page.once('dialog',dialog=>dialog.dismiss());
+      await page.locator(`[data-delete-output="${toDelete}"]`).click();
+      assert.equal(state.deleted.length,0);
+      page.once('dialog',dialog=>dialog.accept());
+      await page.locator(`[data-delete-output="${toDelete}"]`).click();
+      await page.waitForFunction(()=>!busy&&project.outputs.every(item=>item.id!=='20261105_111111_abcdef'));
+      assert.equal(state.deleted[0].output,toDelete);
+      assert.equal(await page.evaluate(()=>project.clips.length),2);
+      await page.evaluate(()=>showMobilePage('edit'));
+      await page.locator('#chinese').fill('清空预览测试');
+      await page.locator('#showCard').click();
+      await page.locator('#mobileCardImage').waitFor({state:'visible'});
+      page.once('dialog',dialog=>dialog.accept());
+      await page.locator('#new').click();
+      assert.equal(await page.locator('#mobileCardPreview').isVisible(),false);
+      assert.equal(await page.locator('#video').isVisible(),true);
       assert.deepEqual(errors, []);
       await context.close();
     }
@@ -292,6 +336,10 @@ async function openPage(browser, android, width = 390) {
     await desktop.page.locator('#savePublication').click();
     await desktop.page.waitForFunction(() => !busy && !publishingDirty);
     assert.equal(await desktop.page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+    await desktop.page.locator('#publishBack').click();
+    desktop.page.once('dialog',dialog=>dialog.accept());
+    await desktop.page.locator('#publishList [data-delete-output]').click();
+    await desktop.page.waitForFunction(()=>!busy&&project.outputs.length===0);
     await desktop.page.screenshot({ path: 'qa/发布准备_桌面.png', fullPage: true });
     assert.deepEqual(desktop.errors, []);
     await desktop.context.close();

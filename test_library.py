@@ -139,56 +139,55 @@ class LibraryTest(unittest.TestCase):
         with self.assertRaises(ValueError):
             app.library_update({**item, 'grammar': ['不存在的分类']})
 
-    def test_common_spoken_patterns_classify_old_rows_without_ai_or_rewriting(self):
+    def test_dynamic_patterns_normalize_names_and_preserve_distinct_structures(self):
         source, _, _ = self.import_source(count=1)
-        examples = [
-            ('I need a break.', []), ('I really want some coffee.', []),
-            ('Could you help me?', []), ('Would you please open the door?', []),
-            ('Can I ask a question?', []), ("It's nice to meet you.", []),
-            ('It’s really important for me to try.', []), ('What if it rains?', []),
-            ("It's delightful to be here.", ["It's + 形容词 + (for/to) ..."]),
-            ('I wanted some coffee.', []), ('Would your brother help?', []),
-            ('Can Ian ask a question?', []), ("It's time to go.", []),
-            ("It's a nice place to visit.", []), ('What iffy weather!', []),
-        ]
+        examples = [('I need a break.', ['I need+名词']),
+                    ('I need some water.', ['i need + noun']),
+                    ('I need to rest.', ['I need to + 动词原形']),
+                    ('It takes me an hour to get there.', ['It takes + 人 + 时间 + to do']),
+                    ('The more you practice, the better you get.', ['The more..., the more...'])]
         with app.library_db() as db:
-            db.executemany('INSERT INTO sentences(source_id,start,end,english,chinese,grammar,patterns) '
-                           'VALUES (?,?,?,?,?,?,?)',
-                           [(source['id'], i * 2, i * 2 + 1, text, '例句', '["疑问句"]', json.dumps(tags))
-                            for i, (text, tags) in enumerate(examples)])
+            db.executemany('INSERT INTO sentences(source_id,start,end,english,chinese,grammar,patterns) VALUES (?,?,?,?,?,?,?)',
+                           [(source['id'], i, i + 1, text, '例句', '[]', json.dumps(tags)) for i, (text, tags) in enumerate(examples)])
             before = [tuple(row) for row in db.execute('SELECT * FROM sentences ORDER BY id')]
-        expected = {'I want / I need ...': 2, 'Could you / Would you ...?': 2,
-                    'Can I ...?': 1, "It's + 形容词 + (for/to) ...": 3, 'What if ...?': 1}
-        with patch.object(app, 'deepseek') as ai:
-            for name, count in expected.items():
-                with self.subTest(pattern=name):
-                    result = app.library_search(pattern=name, grammar='疑问句', source=source['id'])
-                    self.assertEqual(result['total'], count)
-                    self.assertTrue(all(name in item['pattern_categories'] for item in result['items']))
-            self.assertEqual(app.library_search(pattern='i need')['total'], 1)
-            ai.assert_not_called()
-        self.assertEqual([item['name'] for item in app.library_sources()['patterns']], list(expected))
+        catalog = app.library_sources()['patterns']
+        self.assertEqual(len(catalog), 4)
+        self.assertEqual(catalog[0]['name'], 'I need + 名词')
+        self.assertEqual(catalog[0]['count'], 2)
+        self.assertEqual(app.library_search(pattern='I need + 名词')['total'], 2)
+        self.assertEqual(app.library_search(pattern='I need to + 动词原形')['total'], 1)
+        self.assertEqual(app.library_search(pattern='The more..., the more...')['total'], 1)
         with app.library_db() as db:
             self.assertEqual([tuple(row) for row in db.execute('SELECT * FROM sentences ORDER BY id')], before)
 
-    def test_pattern_filter_counts_before_pagination(self):
+    def test_retag_resumes_without_touching_chinese_times_or_completed_rows(self):
         source, _, _ = self.import_source(count=1)
         with app.library_db() as db:
-            db.executemany('INSERT INTO sentences(source_id,start,end,english,chinese,grammar,patterns) '
-                           'VALUES (?,?,?,?,?,?,?)',
-                           [(source['id'], i, i + 1, 'I need a break.', '', '[]', '[]') for i in range(90)])
-        page = app.library_search(pattern='I want / I need ...', offset=80)
-        self.assertEqual(page['total'], 90)
-        self.assertEqual(len(page['items']), 10)
+            db.executemany('INSERT INTO sentences(source_id,start,end,english,chinese,grammar,patterns) VALUES (?,?,?,?,?,?,?)',
+                           [(source['id'], i, i + 1, 'I need a break.', '保留中文', '[]', '["旧标签"]') for i in range(21)])
+        calls = []
+        def answer(messages, key, max_tokens, json_output):
+            calls.append(messages)
+            if len(calls) == 2:
+                raise ValueError('模拟网络中断')
+            return json.dumps({'items': [{'id': row['id'], 'patterns': ['I need + 名词']} for row in json.loads(messages[1]['content'])]}), {'total_tokens': 5}
+        with patch.object(app, 'deepseek', side_effect=answer):
+            with self.assertRaisesRegex(ValueError, '模拟网络中断'):
+                app.library_retag([source['id']], 'placeholder', lambda text: None)
+            result = app.library_retag([source['id']], 'placeholder', lambda text: None)
+        self.assertEqual(result['updated'], 1)
+        self.assertEqual(len(json.loads(calls[-1][1]['content'])), 1)
+        self.assertTrue(all(item['chinese'] == '保留中文' for item in app.library_search()['items']))
+        self.assertEqual(app.library_sources()['sources'][0]['patterns_pending'], 0)
+        self.assertEqual(app.library_search(pattern='I need + 名词')['total'], 21)
 
-    def test_ai_prompt_uses_fixed_pattern_names(self):
+    def test_ai_prompt_extracts_open_ended_templates(self):
         source, _, _ = self.import_source(count=1)
         with patch.object(app, 'deepseek', side_effect=self.answer) as ai:
-            app.library_analyze([source['id']], 'placeholder', lambda message: None)
+            app.library_analyze([source['id']], 'placeholder', lambda text: None)
         prompt = ai.call_args.args[0][0]['content']
-        for name in ('I want / I need ...', 'Could you / Would you ...?', 'Can I ...?',
-                     "It's + 形容词 + (for/to) ...", 'What if ...?'):
-            self.assertIn(name, prompt)
+        self.assertIn('不限种类', prompt)
+        self.assertIn('I need + 名词 与 I need to + 动词原形 分开', prompt)
 
     def test_http_requires_token_and_media_uses_registered_source_only(self):
         source, video, _ = self.import_source()
@@ -211,6 +210,19 @@ class LibraryTest(unittest.TestCase):
         with urllib.request.urlopen(request) as response:
             self.assertEqual(response.status, 206)
             self.assertEqual(response.read(), video.read_bytes()[:4])
+        uploaded = None
+        for name, raw in [('phone.mp4', b'test video'), ('phone.en.srt', b'1\n00:00:00,100 --> 00:00:01,000\nI need a break.\n')]:
+            request = urllib.request.Request(base + '/api/library/upload', data=raw,
+                headers={'X-App-Token': app.TOKEN, 'X-Library-Batch': 'a' * 16, 'X-File-Name': name})
+            with urllib.request.urlopen(request) as response:
+                uploaded = json.load(response)['folder']
+        self.assertEqual(app.library_import(uploaded, lambda text: None)['added'], 1)
+        request = urllib.request.Request(base + '/api/library/upload', data=b'bad',
+            headers={'X-App-Token': app.TOKEN, 'X-Library-Batch': 'a' * 16, 'X-File-Name': '..%2Fescape.mp4'})
+        with self.assertRaises(urllib.error.HTTPError) as error:
+            urllib.request.urlopen(request)
+        self.assertEqual(error.exception.code, 400)
+        error.exception.close()
 
     def test_topic_extracts_multiple_sources_and_preserves_originals(self):
         one, video_one, _ = self.import_source('one', 1)

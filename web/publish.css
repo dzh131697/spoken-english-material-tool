@@ -51,3 +51,24 @@
 .android .card-tip-setting{display:flex;flex-direction:column;align-items:stretch;font-size:12px}.android .card-tip-setting input{min-width:0;width:100%}
 @media(max-width:900px){.publish-layout{grid-template-columns:1fr}.cover-preview{position:static}.publish-video-row{grid-template-columns:1fr}.publish-video-row video{max-width:480px}.cover-preview canvas{max-height:40vh}}
 @media(max-width:450px){.publish-list{grid-template-columns:minmax(0,1fr)}.publish-copy>.sectionhead{flex-wrap:wrap}.publish-grid{gap:9px}.publish-card .row button{flex:1}#publishSection>.sectionhead{flex-wrap:wrap}.publish-toolbar{gap:8px}.platform-picker span{display:none}.platform-picker select{min-width:0;width:94px}.publish-toolbar button{padding:7px 10px;font-size:12px}}
+
+/* 手机封面编辑：预览固定，只有参数区滚动；键盘出现时压缩预览。 */
+.android.mobile-cover-editor #publishEditor{position:fixed;inset:0 0 calc(62px + env(safe-area-inset-bottom)) 0;z-index:4;background:#f7f9f7;padding:10px 14px;display:flex;flex-direction:column;overflow:hidden}
+.android.mobile-cover-editor #publishEditor .publish-identity{display:none}
+.android #mobilePublishBack{align-self:flex-start;border:0;background:transparent;padding:4px 0;font-size:12px;min-height:30px;flex:none}
+.android.mobile-cover-editor .publish-editor-nav{position:static;flex:none;margin-bottom:8px;padding:8px}
+.android.mobile-cover-editor .publish-toolbar{flex-wrap:wrap}
+.android.mobile-cover-editor #publishPanel-cover{display:flex;flex-direction:column;flex:1;min-height:0}
+.android.mobile-cover-editor #publishPanel-cover>.publish-panel-intro{display:none}
+.android.mobile-cover-editor .publish-layout{display:flex;flex-direction:column;align-items:stretch;gap:10px;flex:1;min-height:0}
+.android.mobile-cover-editor .cover-preview{flex:none}
+.android.mobile-cover-editor .cover-canvas-wrap{height:clamp(100px,23dvh,220px);display:flex;justify-content:center;padding:6px}
+.android.mobile-cover-editor .cover-preview canvas{height:100%;width:auto;max-width:100%;max-height:100%;object-fit:contain}
+.android.mobile-cover-editor .cover-preview>button{padding:5px 10px;min-height:32px;font-size:12px}
+.android.mobile-cover-editor #coverLayoutHint{margin:3px 0;font-size:11px}
+.android.mobile-cover-editor .publish-controls{min-height:0;flex:1;overflow:auto;overscroll-behavior:contain;padding:12px}
+.android.mobile-cover-editor.mobile-keyboard .cover-canvas-wrap{height:100px}
+
+.android .mobile-publish-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex:none}.android .mobile-publish-head #publishSaved{font-size:11px;max-width:55%;line-height:1.4}
+
+.android .mobile-publish-head #publishSaved.error{color:#9b4736}

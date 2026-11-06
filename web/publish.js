@@ -88,6 +88,7 @@ function mayDiscardPublishing(){
   return confirm('这条成片的发布资料尚未保存，是否放弃修改？');
 }
 function closePublishEditor(){
+  document.body.classList.remove('mobile-cover-editor');
   publishingOutput=null;publishingDraft=null;publishingFrame=null;coverImages={};publishingDirty=false;
   for(const id of ['publishVideo','coverSourceVideo']){$(id).pause();$(id).removeAttribute('src');$(id).load()}
   $('publishEditor').classList.add('hidden');$('publishBack').classList.add('hidden');$('publishList').classList.remove('hidden');
@@ -117,6 +118,7 @@ function selectPublishTab(name, scrollToEditor=false){
     button.setAttribute('aria-selected',String(selected));
     button.tabIndex=selected?0:-1;
   });
+  document.body.classList.toggle('mobile-cover-editor',isAndroid&&name==='cover'&&Boolean(publishingOutput));
   if(name!=='cover')$('coverSourceVideo').pause();
   if(name!=='reference')$('publishVideo').pause();
   if(scrollToEditor)$('publishEditor').scrollIntoView({block:'start'});
@@ -143,10 +145,11 @@ function renderPublishList(){
   $('publishList').innerHTML=items.length?items.map(o=>{
     const p=o.publication||{},fields=p.platforms?.[p.platform]||{},ratio=p.ratio||'landscape';
     const image=(p.images||[]).includes(ratio)?`<img src="${escapeHTML(publishURL('/publish-asset',o.id,coverFiles[ratio]))}&v=${p.updated||0}" alt="这条成片的封面">`:'';
-    return `<article class="publish-card"><video controls preload="none" src="${escapeHTML(publishURL('/output-media',o.id))}" aria-label="${escapeHTML(o.created||o.id)} 成片"></video>${image}<strong>${escapeHTML(fields.title||o.source_title||project.title)}</strong><small>${escapeHTML(o.created||'')} · ${escapeHTML(o.id)}<br>${escapeHTML(o.name)} · ${escapeHTML(o.count)} 段 · ${escapeHTML(o.seconds)} 秒</small><p>${escapeHTML(fields.description||'还没有发布文案。')}</p><p class="tags">${escapeHTML((fields.tags||[]).map(t=>'#'+t).join(' '))}</p><div class="row wrap"><button data-edit-publication="${escapeHTML(o.id)}" class="primary">编辑封面与文案</button>${isAndroid?`<button data-publish-save-video="${escapeHTML(o.id)}" data-video-name="${escapeHTML(o.name)}">保存视频</button>`:''}</div></article>`;
+    return `<article class="publish-card"><video controls preload="none" src="${escapeHTML(publishURL('/output-media',o.id))}" aria-label="${escapeHTML(o.created||o.id)} 成片"></video>${image}<strong>${escapeHTML(fields.title||o.source_title||project.title)}</strong><small>${escapeHTML(o.created||'')} · ${escapeHTML(o.id)}<br>${escapeHTML(o.name)} · ${escapeHTML(o.count)} 段 · ${escapeHTML(o.seconds)} 秒</small><p>${escapeHTML(fields.description||'还没有发布文案。')}</p><p class="tags">${escapeHTML((fields.tags||[]).map(t=>'#'+t).join(' '))}</p><div class="row wrap"><button data-edit-publication="${escapeHTML(o.id)}" class="primary">编辑封面与文案</button><button data-delete-output="${escapeHTML(o.id)}">删除成片</button>${isAndroid?`<button data-publish-save-video="${escapeHTML(o.id)}" data-video-name="${escapeHTML(o.name)}">保存视频</button>`:''}</div></article>`;
   }).join(''):'<p class="muted">先选择素材并合成视频，每条成片会在这里有自己的发布卡片。</p>';
 }
 $('publishList').onclick=e=>{
+  const remove=e.target.closest('[data-delete-output]');if(remove){deleteOutput(remove.dataset.deleteOutput);return}
   const edit=e.target.closest('[data-edit-publication]'),save=e.target.closest('[data-publish-save-video]');
   if(edit)openPublishOutput(edit.dataset.editPublication);
   if(save&&isAndroid)window.AndroidHost.saveVideo(save.dataset.publishSaveVideo,save.dataset.videoName);
@@ -339,3 +342,5 @@ function drawCover(){
 }
 
 renderPublishList();
+
+if(isAndroid){const back=document.createElement('button');back.id='mobilePublishBack';back.textContent='← 返回成片列表';back.onclick=()=>{if(mayDiscardPublishing()){closePublishEditor();renderPublishList()}};const head=document.createElement('div');head.className='mobile-publish-head';head.append(back,$('publishSaved'));$('publishEditor').prepend(head)}

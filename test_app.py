@@ -24,6 +24,62 @@ from PIL import Image
 
 
 class WorkflowTest(unittest.TestCase):
+    def test_recommendations_use_unseen_cached_candidates_across_restarts(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(app, 'PROJECTS', Path(directory)):
+            pid = '0123456789abcdef'
+            p = {'id': pid, 'video': 'source.mp4', 'title': 'test', 'clips': [],
+                 'subtitles': [{'start': i * 2, 'end': i * 2 + 1, 'text': 'Sentence {}.'.format(i)} for i in range(24)]}
+            app.save_project(p)
+            answer = {'segments': [{'start': i, 'end': i, 'chinese': '测试'} for i in (0, 4, 8, 12, 16, 20)]}
+            with patch.object(app, 'video_duration', return_value=48), patch.object(app, 'deepseek', return_value=(json.dumps(answer), {})) as ai:
+                results = [app.suggest_segments(pid, {'mode': 'highlights', 'count': 2, 'length': 'short'}, 'test', lambda text: None) for _ in range(3)]
+            self.assertEqual(ai.call_count, 1)
+            starts = [clip['start'] for result in results for clip in result['clips']]
+            self.assertEqual(len(starts), len(set(starts)))
+            self.assertTrue(results[1]['cached'])
+            self.assertEqual(app.read_project(pid)['clips'], [])
+            self.assertEqual(len(app.read_project(pid)['aiSuggestions']['highlights:short']['seen']), 6)
+
+    def test_delete_one_output_preserves_sources_other_outputs_and_clips(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with patch.multiple(app, PROJECTS=root / 'projects', OUTPUT=root / 'outputs'):
+                pid = '0123456789abcdef'
+                one, two = '20261106_120000_abcdef', '20261106_120001_abcdef'
+                for output in (one, two):
+                    folder = app.OUTPUT / output
+                    folder.mkdir(parents=True)
+                    for name in ('成片_横版.mp4', '成片_横版_英文字幕.mp4', '封面_横版.png', '发布文案.txt', '发布包.zip'):
+                        (folder / name).write_bytes(b'test')
+                p = {'id': pid, 'title': 'test', 'video': 'source.mp4', 'clips': [{'english': 'keep'}],
+                     'outputs': [{'id': oid, 'name': '成片_横版.mp4'} for oid in (one, two)]}
+                app.save_project(p)
+                (app.project_dir(pid) / 'source.mp4').write_bytes(b'original')
+                with self.assertRaises(ValueError):
+                    app.delete_output(pid, '../bad')
+                app.delete_output(pid, one)
+                self.assertFalse((app.OUTPUT / one).exists())
+                self.assertTrue((app.OUTPUT / two / '发布包.zip').exists())
+                self.assertEqual((app.project_dir(pid) / 'source.mp4').read_bytes(), b'original')
+                self.assertEqual(app.read_project(pid)['clips'], p['clips'])
+                self.assertEqual([item['id'] for item in app.read_project(pid)['outputs']], [two])
+
+    def test_refill_rejects_previously_recommended_sentences(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(app, 'PROJECTS', Path(directory)):
+            pid = '0123456789abcdef'
+            app.save_project({'id': pid, 'video': 'source.mp4', 'clips': [],
+                'subtitles': [{'start': i * 2, 'end': i * 2 + 1, 'text': 'Sentence {}.'.format(i)} for i in range(2)]})
+            one = {'start': 0, 'end': 0, 'chinese': '第一句'}
+            two = {'start': 1, 'end': 1, 'chinese': '第二句'}
+            with patch.object(app, 'video_duration', return_value=4), patch.object(app, 'deepseek', side_effect=[
+                    (json.dumps({'segments': [one]}), {}), (json.dumps({'segments': [one, two]}), {})]) as ai:
+                first = app.suggest_segments(pid, {'mode': 'highlights', 'count': 1}, 'test', lambda text: None)
+                second = app.suggest_segments(pid, {'mode': 'highlights', 'count': 1}, 'test', lambda text: None)
+                self.assertNotEqual(first['clips'][0]['start'], second['clips'][0]['start'])
+                with self.assertRaisesRegex(ValueError, '已推荐完'):
+                    app.suggest_segments(pid, {'mode': 'highlights', 'count': 1}, 'test', lambda text: None)
+                self.assertEqual(ai.call_count, 2)
+
     def ffmpeg_binary(self):
         configured = os.environ.get('TEST_FFMPEG')
         if configured:
