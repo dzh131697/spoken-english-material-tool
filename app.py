@@ -1611,8 +1611,10 @@ PUBLISH_PLATFORMS = {
     'xiaohongshu': {'name': '小红书', 'title': 20, 'description': 1000},
     'other': {'name': '其他平台', 'title': 60, 'description': 2000},
 }
-COVER_SIZES = {'landscape': (1920, 1080), 'portrait': (1080, 1920), 'portrait34': (1080, 1440)}
-COVER_FILES = {'landscape': '封面_横版.png', 'portrait': '封面_竖版.png', 'portrait34': '封面_3比4.png'}
+COVER_SIZES = {'landscape': (1920, 1080), 'portrait': (1080, 1920), 'portrait34': (1080, 1440),
+               'landscape43': (1440, 1080), 'landscape1610': (1920, 1200), 'square': (1080, 1080)}
+COVER_FILES = {'landscape': '封面_横版.png', 'portrait': '封面_竖版.png', 'portrait34': '封面_3比4.png',
+               'landscape43': '封面_4比3.png', 'landscape1610': '封面_16比10.png', 'square': '封面_1比1.png'}
 
 
 def find_output(p, output_id):

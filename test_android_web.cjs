@@ -54,6 +54,7 @@ async function openPage(browser, android, width = 390) {
       return route.fulfill({ json: { outputs } });
     }
     if (url.pathname === '/media') return route.fulfill({ status: 204 });
+    if (url.pathname === '/publish-asset') return route.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="1440"><rect width="1080" height="1440" fill="#d8e6d9"/><text x="80" y="700" fill="#254c36" font-size="100">口语练习</text></svg>'});
     if (url.pathname === '/api/waveform') {
       const body = request.postDataJSON();
       return route.fulfill({ json: { from: body.from, to: body.to, peaks: [0,.2,.8,.4,0], threshold: .3 } });
@@ -181,14 +182,21 @@ async function openPage(browser, android, width = 390) {
       await page.locator('#compose').click();
       await page.locator('#outputNotice').filter({ hasText: '合成完成' }).waitFor();
       assert.equal(await page.locator('#outputSection').isVisible(), true);
+      assert.equal(await page.locator('#outputList #outputVideo').isVisible(), true);
+      await page.screenshot({path:`qa/成片卡片_${width}.png`});
       await page.locator('[data-save-output]').first().click();
       assert.deepEqual(await page.evaluate(() => window.saved.find(item => item.id)), {
         id: '20261104_123456_abcdef', name: '成片_横版.mp4',
       });
+      await page.evaluate(()=>{project.outputs[0].files=[{name:'成片_横版.mp4',label:'无字幕'},{name:'成片_横版_双语字幕.mp4',label:'双语字幕'}];renderOutputs()});
+      await page.locator('[data-version-select]').first().selectOption('成片_横版_双语字幕.mp4');
+      assert.equal(new URL(await page.locator('#outputVideo').getAttribute('src'),'http://local').searchParams.get('file'),'成片_横版_双语字幕.mp4');
+      await page.locator('[data-save-output]').first().click();
+      assert.equal(await page.evaluate(()=>window.saved.at(-1).name),'成片_横版_双语字幕.mp4');
       await page.locator('#mobileSettings').click();
       await page.locator('#mobileCheckUpdates').click();
       assert.deepEqual(await page.evaluate(() => window.saved.find(item => item.checked)), { checked: true });
-      await page.evaluate(() => project.outputs.push({ ...project.outputs[0], id: '20261105_111111_abcdef' }));
+      await page.evaluate(() => {project.outputs.push({ ...project.outputs[0], id: '20261105_111111_abcdef' });renderOutputs()});
       await page.locator('[data-publish-output]').first().click();
       await page.waitForFunction(() => !busy && publishingFrame !== null);
       assert.equal(await page.locator('[data-publish-panel]:visible').count(), 1);
@@ -197,19 +205,17 @@ async function openPage(browser, android, width = 390) {
       await page.locator('#coverFrameMode').selectOption('random');
       await page.waitForFunction(() => !busy);
       assert.equal(state.frames.at(-1).mode, 'random');
-      await page.locator('[data-publish-tab="title"]').click();
+      await page.locator('[data-publish-tab="copy"]').click();
       await page.locator('#publishTitle').fill('第一条视频标题');
       await page.locator('#copyPublishTitle').click();
       await page.waitForFunction(() => window.copied.includes('第一条视频标题'));
-      await page.locator('[data-publish-tab="description"]').click();
       await page.locator('#publishDescription').fill('第一条视频的简介');
-      await page.locator('[data-publish-tab="tags"]').click();
       await page.locator('#publishTags').fill('#英语口语 #真实表达');
       await page.locator('[data-publish-tab="reference"]').click();
       await page.locator('#publishSourceDescription').fill('这一条成片的参考内容');
       await page.locator('#publishPlatform').selectOption('xiaohongshu');
       assert.equal(await page.locator('#publishTitle').inputValue(), '');
-      await page.locator('[data-publish-tab="title"]').click();
+      await page.locator('[data-publish-tab="copy"]').click();
       await page.locator('#publishTitle').fill('小红书标题');
       await page.locator('#publishPlatform').selectOption('bilibili');
       assert.equal(await page.locator('#publishTitle').inputValue(), '第一条视频标题');
@@ -233,6 +239,12 @@ async function openPage(browser, android, width = 390) {
       await page.locator('#coverShowTitle').uncheck();
       assert.equal(await page.evaluate(() => activeCover().show_title), false);
       await page.locator('#coverShowTitle').check();
+      for (const [ratio,size] of Object.entries({landscape:[1920,1080],landscape43:[1440,1080],landscape1610:[1920,1200],square:[1080,1080],portrait:[1080,1920]})) {
+        await page.locator('#coverRatio').selectOption(ratio);
+        await page.waitForFunction(() => !busy);
+        assert.deepEqual(await page.locator('#coverCanvas').evaluate(node=>[node.width,node.height]), size);
+        assert.equal(await page.evaluate(()=>coverLayoutValid),true);
+      }
       await page.locator('#coverRatio').selectOption('portrait34');
       await page.waitForFunction(() => !busy);
       assert.deepEqual(await page.evaluate(() => [document.querySelector('#coverCanvas').width, document.querySelector('#coverCanvas').height]), [1080, 1440]);
@@ -243,8 +255,8 @@ async function openPage(browser, android, width = 390) {
       assert.equal(state.publicationSaves[firstID].body.publication.platforms.xiaohongshu.title, '小红书标题');
       assert.equal(state.publicationSaves[firstID].body.publication.platforms.bilibili.description, '第一条视频的简介');
       assert.deepEqual(state.publicationSaves[firstID].body.publication.platforms.bilibili.tags, ['英语口语', '真实表达']);
-      assert.deepEqual(Object.keys(state.publicationSaves[firstID].body.cover_images).sort(), ['landscape', 'portrait34']);
-      await page.locator('[data-publish-tab="title"]').click();
+      assert.deepEqual(Object.keys(state.publicationSaves[firstID].body.cover_images).sort(), ['landscape', 'landscape1610', 'landscape43', 'portrait', 'portrait34', 'square']);
+      await page.locator('[data-publish-tab="copy"]').click();
       page.once('dialog', dialog => dialog.accept());
       await page.locator('[data-generate-publication="title"]').click();
       await page.locator('#publishTitle').filter({ visible: true }).waitFor();
@@ -254,7 +266,7 @@ async function openPage(browser, android, width = 390) {
       await page.locator('#savePublication').click();
       await page.waitForFunction(() => !busy && !publishingDirty);
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
-      for (const tab of ['cover', 'title', 'description', 'tags', 'reference']) {
+      for (const tab of ['cover', 'copy', 'reference']) {
         await page.locator(`[data-publish-tab="${tab}"]`).click();
         assert.equal(await page.locator('[data-publish-panel]:visible').count(), 1);
         assert.equal(await page.locator(`[data-publish-panel="${tab}"]`).isVisible(), true);
@@ -262,12 +274,29 @@ async function openPage(browser, android, width = 390) {
         assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
         await page.screenshot({ path: `qa/发布准备_${tab}_${width}.png` });
       }
+      await page.locator('[data-publish-tab="copy"]').click();
+      await page.locator('#publishTags').scrollIntoViewIfNeeded();
+      assert.equal(await page.locator('#publishTags').isVisible(),true);
+      const tagBox=await page.locator('#publishTags').boundingBox();
+      const bottomNav=await page.locator('#mobileNav').boundingBox();
+      assert(tagBox.y+tagBox.height<=bottomNav.y,'滚动后标签编辑区应完整露出，不被底栏遮挡');
+      await page.locator('#publishPlatform').selectOption('xiaohongshu');
+      await page.locator('#publishTitle').fill('字'.repeat(21));
+      await page.locator('#savePublication').click();
+      await page.locator('#status').filter({hasText:'超出字数限制'}).waitFor();
+      await page.waitForFunction(()=>document.activeElement===document.querySelector('#publishTitle'));
+      await page.locator('#publishTitle').fill('小红书标题');
+      await page.locator('#savePublication').click();
+      await page.waitForFunction(()=>!busy&&!publishingDirty);
       await page.locator('#publishBack').click();
+      assert.equal(await page.locator('#publishList video').count(),0);
+      assert.equal(await page.locator('#publishList [data-delete-output]').count(),0);
+      await page.screenshot({path:`qa/发布卡片_${width}.png`});
       await page.locator('[data-edit-publication="20261105_111111_abcdef"]').click();
       await page.waitForFunction(() => !busy && publishingFrame !== null);
       assert.equal(await page.locator('#coverFrameMode').inputValue(), 'manual');
       assert.equal(await page.locator('#publishTitle').inputValue(), '');
-      await page.locator('[data-publish-tab="title"]').click();
+      await page.locator('[data-publish-tab="copy"]').click();
       await page.locator('#publishTitle').fill('第二条视频标题');
       page.once('dialog', dialog => dialog.dismiss());
       await page.locator('#publishBack').click();
@@ -279,12 +308,16 @@ async function openPage(browser, android, width = 390) {
       await page.locator('[data-publish-tab="cover"]').click();
       await page.locator('#downloadCover').click();
       await page.waitForFunction(() => window.saved.some(item => item.publication));
-      assert.deepEqual(await page.evaluate(() => window.saved.find(item => item.publication)), { publication: '20261105_111111_abcdef', name: '封面_横版.png' });
+      assert.deepEqual(await page.evaluate(() => window.saved.find(item => item.publication)), { publication: '20261105_111111_abcdef', name: '封面_4比3.png' });
       await page.locator('#downloadPublication').click();
       await page.waitForFunction(() => window.saved.some(item => item.folder?.endsWith('20261105_111111_abcdef')));
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
       await page.locator('#mobilePublishBack').click();
+      await page.locator('[data-publication-package="20261105_111111_abcdef"]').click();
+      await page.waitForFunction(()=>!busy);
+      await page.locator('[data-mobile-screen="outputs"]').click();
       const toDelete='20261105_111111_abcdef';
+      await page.locator(`[data-output-card="${toDelete}"] summary`).click();
       page.once('dialog',dialog=>dialog.dismiss());
       await page.locator(`[data-delete-output="${toDelete}"]`).click();
       assert.equal(state.deleted.length,0);

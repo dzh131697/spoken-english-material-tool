@@ -19,7 +19,8 @@ $('publishSection').innerHTML = `
   <div class="publish-layout">
     <div class="cover-preview"><div class="cover-canvas-wrap"><canvas id="coverCanvas" width="1920" height="1080" aria-label="封面实时预览"></canvas></div><p id="coverLayoutHint" class="hint" role="status"></p><button id="downloadCover">导出当前封面</button></div>
     <div class="publish-controls">
-      <div class="publish-grid"><label>封面画幅<select id="coverRatio"><option value="landscape">横版 16:9</option><option value="portrait">竖版 9:16</option><option value="portrait34">竖版 3:4</option></select></label><label>选帧方式<select id="coverFrameMode"><option value="manual">手动选帧</option><option value="random">自动随机选帧</option></select></label></div>
+      <div class="publish-grid"><label>封面画幅<select id="coverRatio"><option value="landscape43">横版 4:3 · B站首页</option><option value="landscape">横版 16:9 · 通用视频</option><option value="landscape1610">横版 16:10 · B站投稿参考</option><option value="portrait">竖版 9:16 · 抖音视频</option><option value="portrait34">竖版 3:4 · 小红书 / 抖音主页</option><option value="square">方形 1:1 · 小红书 / 通用</option></select></label><label>选帧方式<select id="coverFrameMode"><option value="manual">手动选帧</option><option value="random">自动随机选帧</option></select></label></div>
+      <p id="coverPlatformHint" class="hint"></p>
       <details id="manualFrameControls" class="publish-group"><summary>手动选择视频画面</summary><video id="coverSourceVideo" controls preload="metadata" aria-label="选择封面帧的原视频"></video><div class="row wrap"><label>时间 / 秒 <input id="coverFrameTime" type="number" min="0" step="0.01" value="0"></label><button id="captureCoverFrame">使用此刻画面</button></div></details>
       <button id="randomCoverFrame" class="hidden">随机选一帧 / 换一帧</button><p id="coverFrameHint" class="hint">选择画面后，可继续修改裁切、文字和装饰。</p>
       <details class="publish-group" open><summary>样式与封面文案</summary>
@@ -58,14 +59,34 @@ $('publishSection').innerHTML = `
   </section>
 </div>`;
 
+// 手机将文案集中在一页；沿用原来的输入、生成和复制入口。
+if(isAndroid){
+  const copyTab=$('publishTab-title');
+  copyTab.id='publishTab-copy';copyTab.dataset.publishTab='copy';copyTab.textContent='文案';copyTab.setAttribute('aria-controls','publishPanel-copy');
+  $('publishTab-description').remove();$('publishTab-tags').remove();
+  const copyPanel=document.createElement('section');
+  copyPanel.id='publishPanel-copy';copyPanel.className='publish-copy hidden';copyPanel.dataset.publishPanel='copy';
+  copyPanel.setAttribute('role','tabpanel');copyPanel.setAttribute('aria-labelledby','publishTab-copy');
+  for(const name of ['title','description','tags']){
+    const field=$('publishPanel-'+name);field.removeAttribute('data-publish-panel');field.removeAttribute('role');field.removeAttribute('aria-labelledby');
+    field.className='publish-copy-field';field.querySelector('.publish-panel-intro').remove();copyPanel.append(field);
+  }
+  const tools=document.createElement('div');tools.className='publish-copy-tools';
+  tools.append($('generateAllPublication'),$('copyPublication'));copyPanel.append(tools);
+  $('publishPanel-cover').after(copyPanel);
+  $('publishDescription').rows=5;$('publishTitle').rows=2;$('publishTags').rows=3;
+  $('publishBack').textContent='返回发布列表';
+}
+
 const tipSetting = document.createElement('div');
 tipSetting.className = 'card-tip-setting';
 tipSetting.innerHTML = '<label for="cardTip">题卡提示语 <small id="cardTipCount">0 / 24</small></label><input id="cardTip" placeholder="试试用英文讲出来吧"><small class="muted">留空使用默认提示语，最多 24 字。</small>';
 $('composeControls').after(tipSetting);
 
 const publishLimits = {bilibili:{title:80,description:2000},douyin:{title:30,description:1000},xiaohongshu:{title:20,description:1000},other:{title:60,description:2000}};
-const coverSizes = {landscape:[1920,1080],portrait:[1080,1920],portrait34:[1080,1440]};
-const coverFiles = {landscape:'封面_横版.png',portrait:'封面_竖版.png',portrait34:'封面_3比4.png'};
+const coverSizes = {landscape:[1920,1080],portrait:[1080,1920],portrait34:[1080,1440],landscape43:[1440,1080],landscape1610:[1920,1200],square:[1080,1080]};
+const coverFiles = {landscape:'封面_横版.png',portrait:'封面_竖版.png',portrait34:'封面_3比4.png',landscape43:'封面_4比3.png',landscape1610:'封面_16比10.png',square:'封面_1比1.png'};
+const coverPlatformHints={bilibili:'B站：首页展示可选 4:3；投稿封面也有 16:10 规格。不同入口可能裁切，请在发布页核对。',douyin:'抖音：视频封面常用 9:16，主页缩略图可选 3:4；重要文字放在中央，避开界面遮挡。',xiaohongshu:'小红书：推荐 3:4，也可选 1:1、4:3 等；视频与笔记的展示裁切可能不同。',other:'按目标平台发布入口选择画幅；16:9、9:16、4:3、3:4、16:10、1:1 均可独立编辑。'};
 const coverPresets = {
   viewfinder:{text_color:'#ffffff',accent:'#a8dfbd'},magazine:{text_color:'#fff5df',accent:'#e9a067'},
   note:{text_color:'#232b30',accent:'#ffe5a0'},pop:{text_color:'#ffffff',accent:'#fa6e9d'},minimal:{text_color:'#ffffff',accent:'#ffffff'},
@@ -110,6 +131,7 @@ $('productionTab').onclick=()=>{
 $('publishBack').onclick=()=>{if(!mayDiscardPublishing())return;closePublishEditor();renderPublishList()};
 
 function selectPublishTab(name, scrollToEditor=false){
+  if(isAndroid&&['title','description','tags'].includes(name))name='copy';
   const panel=$('publishPanel-'+name);
   if(!panel)return;
   document.querySelectorAll('[data-publish-panel]').forEach(item=>item.classList.toggle('hidden',item!==panel));
@@ -145,10 +167,16 @@ function renderPublishList(){
   $('publishList').innerHTML=items.length?items.map(o=>{
     const p=o.publication||{},fields=p.platforms?.[p.platform]||{},ratio=p.ratio||'landscape';
     const image=(p.images||[]).includes(ratio)?`<img src="${escapeHTML(publishURL('/publish-asset',o.id,coverFiles[ratio]))}&v=${p.updated||0}" alt="这条成片的封面">`:'';
+    if(isAndroid){
+      const platform={bilibili:'B站',douyin:'抖音',xiaohongshu:'小红书',other:'其他平台'}[p.platform]||'B站';
+      return `<article class="publish-card mobile-publication"><div class="publication-overview"><div class="publication-cover">${image||'<span>待添加<br>封面</span>'}</div><div class="publication-info"><span class="publication-state${o.publication?'':' pending'}">${o.publication?'已保存发布资料':'待准备发布资料'}</span><strong>${escapeHTML(fields.title||o.source_title||project.title||o.name)}</strong><small>${escapeHTML(o.created||'')} · ${escapeHTML(o.count)} 段 · ${escapeHTML(o.seconds)} 秒</small></div></div><div class="publication-summary"><div><span>${platform} · 当前平台</span><span>${(fields.tags||[]).length} 个标签</span></div><p>${escapeHTML(fields.description||'添加封面和适合平台的文案。')}</p></div><div class="publication-actions"><button data-edit-publication="${escapeHTML(o.id)}" class="primary">${o.publication?'编辑封面与文案':'开始准备'}</button>${o.publication?`<button data-publication-package="${escapeHTML(o.id)}">发布包</button>`:''}</div></article>`;
+    }
     return `<article class="publish-card"><video controls preload="none" src="${escapeHTML(publishURL('/output-media',o.id))}" aria-label="${escapeHTML(o.created||o.id)} 成片"></video>${image}<strong>${escapeHTML(fields.title||o.source_title||project.title)}</strong><small>${escapeHTML(o.created||'')} · ${escapeHTML(o.id)}<br>${escapeHTML(o.name)} · ${escapeHTML(o.count)} 段 · ${escapeHTML(o.seconds)} 秒</small><p>${escapeHTML(fields.description||'还没有发布文案。')}</p><p class="tags">${escapeHTML((fields.tags||[]).map(t=>'#'+t).join(' '))}</p><div class="row wrap"><button data-edit-publication="${escapeHTML(o.id)}" class="primary">编辑封面与文案</button><button data-delete-output="${escapeHTML(o.id)}">删除成片</button>${isAndroid?`<button data-publish-save-video="${escapeHTML(o.id)}" data-video-name="${escapeHTML(o.name)}">保存视频</button>`:''}</div></article>`;
   }).join(''):'<p class="muted">先选择素材并合成视频，每条成片会在这里有自己的发布卡片。</p>';
 }
 $('publishList').onclick=e=>{
+  const bundle=e.target.closest('[data-publication-package]');
+  if(bundle){action(async()=>{const r=await api('/api/publish-folder',{id:project.id,output:bundle.dataset.publicationPackage});window.AndroidHost.saveBatch(r.folder)});return}
   const remove=e.target.closest('[data-delete-output]');if(remove){deleteOutput(remove.dataset.deleteOutput);return}
   const edit=e.target.closest('[data-edit-publication]'),save=e.target.closest('[data-publish-save-video]');
   if(edit)openPublishOutput(edit.dataset.editPublication);
@@ -165,6 +193,7 @@ function loadCoverControls(){
 function loadPlatformControls(){
   const fields=publishingDraft.platforms[publishingDraft.platform]||{title:'',description:'',tags:[]};
   $('publishTitle').value=fields.title;$('publishDescription').value=fields.description;$('publishTags').value=fields.tags.map(t=>'#'+t).join(' ');updatePublishCounts();
+  $('coverPlatformHint').textContent=coverPlatformHints[publishingDraft.platform];
 }
 function parsePublishTags(){return [...new Set($('publishTags').value.split(/[#，,\n]+/).map(t=>t.trim()).filter(Boolean))]}
 function collectPublication(){
@@ -177,7 +206,7 @@ async function openPublishOutput(id){
   closePublishEditor();showPublishingPage();
   publishingOutput=output;publishingPid=project.id;
   publishingDraft=JSON.parse(JSON.stringify(output.publication||{platforms:{},covers:{},source:{url:output.source_url??project.url??'',title:output.source_title??project.title??'',description:output.source_description??project.description??''}}));
-  publishingDraft.platform=publishingDraft.platform||'bilibili';publishingDraft.ratio=publishingDraft.ratio||(output.portrait?'portrait':'landscape');
+  publishingDraft.platform=publishingDraft.platform||'bilibili';publishingDraft.ratio=publishingDraft.ratio||(isAndroid&&!output.publication?'landscape43':(output.portrait?'portrait':'landscape'));
   publishingDraft.covers[publishingDraft.ratio] ||= defaultCover(output);
   $('publishList').classList.add('hidden');$('publishEditor').classList.remove('hidden');$('publishBack').classList.remove('hidden');
   $('publishName').textContent=output.source_title||project.title;$('publishName').title=$('publishName').textContent;
@@ -248,7 +277,10 @@ function validatePublicationDraft(){
     else if(fields.tags.length>10||fields.tags.some(t=>characterCount(t)>20)){field='tags';message='标签最多 10 个，每个最多 20 字'}
     if(field){
       publishingDraft.platform=platform;$('publishPlatform').value=platform;loadPlatformControls();
-      selectPublishTab(field,true);throw Error(message);
+      selectPublishTab(field,true);
+      // action() 会在结束时解锁表单，再定位需要修正的输入。
+      setTimeout(()=>$({title:'publishTitle',description:'publishDescription',tags:'publishTags'}[field]).focus(),0);
+      throw Error(message);
     }
   }
   for(const cover of Object.values(publishingDraft.covers))if(characterCount(cover.title)>32||characterCount(cover.subtitle)>40||characterCount(cover.badge)>12){selectPublishTab('cover',true);throw Error('封面文案超过字数限制，请缩短')}
@@ -343,4 +375,4 @@ function drawCover(){
 
 renderPublishList();
 
-if(isAndroid){const back=document.createElement('button');back.id='mobilePublishBack';back.textContent='← 返回成片列表';back.onclick=()=>{if(mayDiscardPublishing()){closePublishEditor();renderPublishList()}};const head=document.createElement('div');head.className='mobile-publish-head';head.append(back,$('publishSaved'));$('publishEditor').prepend(head)}
+if(isAndroid){const back=document.createElement('button');back.id='mobilePublishBack';back.textContent='← 发布列表';back.onclick=()=>{if(mayDiscardPublishing()){closePublishEditor();renderPublishList()}};const head=document.createElement('div');head.className='mobile-publish-head';head.append(back,$('publishSaved'));$('publishEditor').prepend(head)}

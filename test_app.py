@@ -703,6 +703,20 @@ class WorkflowTest(unittest.TestCase):
             app.package_publication(pid, ids[0])
             with zipfile.ZipFile(app.OUTPUT / ids[0] / '发布包.zip') as archive:
                 self.assertEqual(set(archive.namelist()), {'成片_横版.mp4', '封面_横版.png', '发布文案.txt', '发布资料.json'})
+            for ratio, size, filename in [('landscape43', (1440, 1080), '封面_4比3.png'),
+                                          ('landscape1610', (1920, 1200), '封面_16比10.png'),
+                                          ('square', (1080, 1080), '封面_1比1.png')]:
+                draft['covers'][ratio] = dict(draft['covers']['landscape'])
+                buffer = io.BytesIO()
+                Image.new('RGB', size, '#234567').save(buffer, format='PNG')
+                saved = app.save_publication(pid, ids[0], draft,
+                                             {ratio: base64.b64encode(buffer.getvalue()).decode('ascii')}, ratio)
+                self.assertEqual(saved['publication']['ratio'], ratio)
+                with Image.open(app.OUTPUT / ids[0] / filename) as cover:
+                    self.assertEqual(cover.size, size)
+                app.package_publication(pid, ids[0])
+                with zipfile.ZipFile(app.OUTPUT / ids[0] / '发布包.zip') as archive:
+                    self.assertIn(filename, archive.namelist())
             self.assertEqual(app.card_tip('  '), '试试用英文讲出来吧')
             self.assertEqual(app.card_tip('现在轮到你啦'), '现在轮到你啦')
             with self.assertRaisesRegex(ValueError, '24'):

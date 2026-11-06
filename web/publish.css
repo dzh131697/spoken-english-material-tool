@@ -72,3 +72,53 @@
 .android .mobile-publish-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex:none}.android .mobile-publish-head #publishSaved{font-size:11px;max-width:55%;line-height:1.4}
 
 .android .mobile-publish-head #publishSaved.error{color:#9b4736}
+
+/* 安卓成片负责检查和保存，发布列表只展示封面与文案摘要。 */
+.android #outputSection>.sectionhead h2{font-size:22px;margin:0}
+.android #outputSection>.sectionhead{margin-bottom:20px}
+.android .output-row{display:block;background:#fff;border:1px solid #e2e9e4;border-radius:15px;padding:14px;margin:0 0 16px;min-width:0}
+.android .output-row .details{min-width:0;margin:0 0 16px}
+.android .output-row .details strong{display:block;font-size:16px;overflow-wrap:anywhere}
+.android .output-row .details small{font-size:12px;line-height:1.7;margin-top:6px}
+.android .output-preview-slot:empty{display:none}
+.android .output-row #outputVideo{position:static;max-height:30dvh;margin:0 0 15px;border-radius:10px}
+.android .output-version{display:flex;flex-direction:column;gap:7px;font-size:12px;color:#6e7f76}
+.android .output-version .version{width:100%;font-size:14px;background:#f9fbf9;border-radius:8px}
+.android .output-actions{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:14px}
+.android .output-actions button{min-width:0;border-radius:8px}
+.android .output-footer{display:flex;align-items:center;justify-content:space-between;margin-top:14px;padding-top:8px;border-top:1px solid #edf1ee}
+.android .output-footer>button{flex:none;padding:4px 0;font-size:12px;border:0;min-width:0}
+.android .output-more{position:relative;flex:none}.android .output-more summary{list-style:none;min-width:44px;min-height:40px;text-align:center;font-size:20px;color:#6e7f76;cursor:pointer}
+.android .output-more summary::-webkit-details-marker{display:none}
+.android .output-more button{position:absolute;right:0;top:100%;z-index:3;white-space:nowrap;box-shadow:0 4px 16px #20312b18;background:#fff}
+.android #publishSection>.sectionhead h2{font-size:22px;margin:0}
+.android #publishSection>.sectionhead p{font-size:12px;color:#738078;margin-top:5px}
+.android .publish-list{gap:16px}
+.android .mobile-publication{border-radius:15px;padding:14px;overflow:hidden}
+.android .publication-overview{display:flex;gap:14px;align-items:center}
+.android .publication-cover{width:104px;flex:none;aspect-ratio:3/4;border-radius:8px;background:#edf3ee;display:grid;place-items:center;overflow:hidden;color:#738078;text-align:center;font-size:12px}
+.android .publication-cover:has(img){aspect-ratio:auto;background:#eef2ee}
+.android .publication-cover img{width:100%;height:auto;float:none;margin:0;border-radius:0;display:block;background:transparent;max-height:160px;object-fit:contain}
+.android .publication-info{min-width:0;flex:1;display:flex;flex-direction:column;gap:9px}
+.android .publication-info strong{font-size:15px;line-height:1.6;overflow-wrap:anywhere;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.android .publication-info small{font-size:11px;line-height:1.7;color:#738078}
+.android .publication-state{align-self:flex-start;padding:2px 7px;background:#edf5ee;color:#236d50;border-radius:4px;font-size:11px}
+.android .publication-state.pending{background:#f5f0e4;color:#8a6e37}
+.android .publication-summary{margin-top:16px;padding-top:12px;border-top:1px solid #edf1ee}
+.android .publication-summary>div{display:flex;justify-content:space-between;gap:8px;font-size:11px;color:#738078}
+.android #publishSection .publication-summary p{margin:9px 0 0;font-size:12px;line-height:1.8;color:#6e7f76;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;max-height:none;white-space:normal}
+.android .publication-actions{display:flex;gap:9px;margin-top:16px}.android .publication-actions button{border-radius:8px;min-width:0}.android .publication-actions .primary{flex:1}
+.android .publish-tabs{grid-template-columns:repeat(3,minmax(0,1fr))}
+.android #publishPanel-copy{padding:0;border:0;background:transparent;box-shadow:none}
+.android .publish-copy-field{margin:22px 0 0;padding-bottom:22px;border-bottom:1px solid #e2e9e4}
+.android .publish-copy-field>.sectionhead{margin:0 0 12px;gap:8px;flex-wrap:wrap}
+.android .publish-copy-field .sectionhead label{font-size:14px;color:#385247}
+.android .publish-copy-field .sectionhead small{font-size:11px;color:#738078}
+.android .publish-copy-field .sectionhead button{font-size:12px;padding:5px 8px}
+.android .publish-copy-field textarea{padding:14px;line-height:1.8;font-size:16px;border-radius:10px}
+.android #publishTitle{font-size:16px}
+.android .publish-copy-field>button,.android .publish-copy-field>.row{margin:10px 0 0}
+.android .publish-copy-field>button,.android .publish-copy-field>.row button{padding:5px 0;border:0;background:transparent;min-height:36px;font-size:12px}
+.android .publish-copy-tools{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:22px}
+.android .publish-copy-tools button{min-width:0;padding:8px;font-size:12px}
+@media(max-width:360px){.android .publication-cover{width:82px}.android .publication-overview{gap:10px}.android .publish-toolbar{flex-wrap:wrap}.android .publish-toolbar .row{flex:1}.android .publish-toolbar button{flex:1}}

@@ -291,7 +291,9 @@ public class MainActivity extends Activity {
         public void savePublicationFile(String id, String name) {
             try {
                 if (!"封面_横版.png".equals(name) && !"封面_竖版.png".equals(name)
-                        && !"封面_3比4.png".equals(name) && !"发布文案.txt".equals(name)) {
+                        && !"封面_3比4.png".equals(name) && !"封面_4比3.png".equals(name)
+                        && !"封面_16比10.png".equals(name) && !"封面_1比1.png".equals(name)
+                        && !"发布文案.txt".equals(name)) {
                     throw new IOException("无效发布文件");
                 }
                 File file = new File(outputDirectory(id), name);
@@ -323,6 +325,8 @@ public class MainActivity extends Activity {
                                     && !name.matches("成片_(横版|竖版)(_英文字幕|_双语字幕)?\\.mp4")
                                     && !"封面_横版.png".equals(name) && !"封面_竖版.png".equals(name)
                                     && !"封面_3比4.png".equals(name)
+                                    && !"封面_4比3.png".equals(name) && !"封面_16比10.png".equals(name)
+                                    && !"封面_1比1.png".equals(name)
                                     && !"发布文案.txt".equals(name) && !"发布资料.json".equals(name)) continue;
                             zip.putNextEntry(new ZipEntry(name));
                             try (InputStream input = new FileInputStream(file)) { copy(input, zip); }
