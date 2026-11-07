@@ -923,7 +923,8 @@ def suggest_segments(pid, options, key, progress):
     rows = effective_subtitles(p)
     if not rows:
         raise ValueError('请先导入英文字幕')
-    duration = video_duration(project_dir(pid) / p['video'])
+    source = project_dir(pid) / p['video']
+    duration = video_duration(source)
     for i, row in enumerate(rows):
         if (not math.isfinite(row['start']) or not math.isfinite(row['end']) or row['start'] < 0
                 or row['end'] <= row['start'] or row['start'] >= duration or row['end'] > duration + .25
@@ -1064,8 +1065,10 @@ def suggest_segments(pid, options, key, progress):
             latest.setdefault('aiSuggestions', {})[cache_key] = {
                 'signature': signature, 'candidates': candidates, 'seen': sorted(seen)}
             save_project(latest)
+    clips, edges = refine_clip_edges(source, clips, duration, progress)
     return {'clips': clips, 'duration': duration, 'mode': mode, 'length': length,
-            'requested': count if mode != 'continuous' else len(clips), 'tokens': tokens, 'cached': cached}
+            'requested': count if mode != 'continuous' else len(clips), 'tokens': tokens, 'cached': cached,
+            'edges': edges}
 
 
 def validate_clip(c):
@@ -1537,6 +1540,75 @@ def snap_clip(pid, start, end):
     return {'start': round(new_start, 3), 'end': round(new_end, 3),
             'changed': abs(new_start - start) > .005 or abs(new_end - end) > .005,
             'warning': '、'.join(uncertain) + '附近没有可靠静音边界，已保留原切点，请试听确认。' if uncertain else ''}
+
+
+def refine_clip_edges(source, clips, duration, progress):
+    if not clips:
+        return clips, 'empty'
+    try:
+        if not has_audio(source):
+            return clips, 'no-audio'
+    except JobCancelled:
+        raise
+    except Exception:
+        return clips, 'no-audio'
+    roles = {}
+    for clip in clips:
+        for key, role in ((round(clip['start'], 3), 'start'), (round(clip['end'], 3), 'end')):
+            roles.setdefault(key, set()).add(role)
+    rate = 100
+    snapped = {}
+    for index, value in enumerate(sorted(roles)):
+        check_cancelled()
+        if progress:
+            progress('正在贴合语音切点 {}/{}'.format(index + 1, len(roles)))
+        if value <= .05 or value >= duration - .05:
+            snapped[value] = value
+            continue
+        window_from = max(0.0, value - 1.0)
+        window_to = min(duration, value + 1.0)
+        if window_to - window_from < .3:
+            snapped[value] = value
+            continue
+        try:
+            peaks = cached_envelope(source, window_from, window_to, rate)
+            onsets, offsets = speech_edges(peaks, speech_threshold(peaks), rate)
+        except JobCancelled:
+            raise
+        except Exception:
+            snapped[value] = value
+            continue
+        candidates = []
+        if 'start' in roles[value]:
+            times = [window_from + item / rate - .06 for item in onsets]
+            near = [moment for moment in times if abs(moment - value) <= .9]
+            if near:
+                candidates.append(min(near, key=lambda moment: abs(moment - value)))
+        if 'end' in roles[value]:
+            times = [window_from + item / rate + .08 for item in offsets]
+            near = [moment for moment in times if abs(moment - value) <= .9]
+            if near:
+                candidates.append(min(near, key=lambda moment: abs(moment - value)))
+        if len(candidates) == 2 and abs(candidates[0] - candidates[1]) <= .5:
+            chosen = sum(candidates) / 2
+        elif candidates:
+            chosen = min(candidates, key=lambda moment: abs(moment - value))
+        elif roles[value] == {'end'}:
+            chosen = value + .12
+        else:
+            chosen = value
+        snapped[value] = round(max(0.0, min(duration, chosen)), 3)
+    refined = []
+    for clip in clips:
+        start = snapped[round(clip['start'], 3)]
+        end = snapped[round(clip['end'], 3)]
+        if end - start < .2:
+            return clips, 'kept'
+        refined.append({**clip, 'start': start, 'end': end})
+    for index in range(len(refined) - 1):
+        if refined[index]['end'] > refined[index + 1]['start']:
+            return clips, 'kept'
+    return refined, 'applied'
 
 
 OUTPUT_VERSIONS = {'plain': ('无字幕', ''), 'en': ('英文字幕', '_英文字幕'),

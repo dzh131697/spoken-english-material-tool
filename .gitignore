@@ -20,3 +20,4 @@ android/local.properties
 *.keystore
 *.jks
 SHA256.txt
+.workbuddy/
