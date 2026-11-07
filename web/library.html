@@ -106,7 +106,7 @@ body[data-step=browse] .shell{padding-top:18px}body[data-step=browse] .workflow{
     <div class="page-heading"><div><div class="eyebrow">STEP 03 / PUT IT TOGETHER</div><h1 id="arrangeTitle">把好表达，编成这一期。</h1><p>调整例句顺序，起一个主题名，接着制作题卡与成片。</p></div><button id="continuePicking" class="text-button">← 继续挑选例句</button></div>
     <div class="arrange-layout">
       <section class="panel"><div class="basket-heading"><h2>播放顺序 <span id="arrangeCount" class="muted"></span></h2><button id="clearBasket" class="text-button">清空本期</button></div><div id="basket"></div><button id="addMore" class="add-more">＋ 继续添加例句</button></section>
-      <aside class="panel topic-card"><div class="eyebrow">YOUR NEXT VIDEO</div><h2>准备好这一期</h2><p>所选片段会按左侧顺序组成专题。</p><label for="topicTitle">本期主题</label><input id="topicTitle" placeholder="例如：现在完成时的真实表达"><div class="topic-stats"><span>原视频片段</span><strong id="topicDuration">0 段 · 0 秒</strong></div><button id="createTopic" class="primary" disabled>进入题卡与成片制作 <svg class="icon"><use href="#i-arrow"/></svg></button><p class="output-hint">下一步可编辑中文题卡、设置停留时间，导出素材或合成成片。</p><div id="topicReady"></div></aside>
+      <aside class="panel topic-card"><div class="eyebrow">YOUR NEXT VIDEO</div><h2>准备好这一期</h2><p>所选片段会按左侧顺序组成专题。</p><label for="topicTitle">本期主题</label><input id="topicTitle" placeholder="例如：现在完成时的真实表达"><div class="row"><input id="pickLimit" type="number" min="1" max="30" step="1" value="8" aria-label="挑选段数" style="max-width:90px"><button id="pickByTopic">AI 按主题挑选</button></div><p class="hint">从已分析例句里挑，会产生 API 用量；结果确认后再加入本期。</p><div id="pickResult"></div><div class="topic-stats"><span>原视频片段</span><strong id="topicDuration">0 段 · 0 秒</strong></div><button id="createTopic" class="primary" disabled>进入题卡与成片制作 <svg class="icon"><use href="#i-arrow"/></svg></button><p class="output-hint">下一步可编辑中文题卡、设置停留时间，导出素材或合成成片。</p><div id="topicReady"></div></aside>
     </div>
   </section>
 </main>
@@ -398,6 +398,25 @@ $('basket').onclick=event=>{
   renderBasket();action(search);
 };
 $('clearBasket').onclick=()=>{if(confirm('清空本期选择？素材库中的例句会保留。')){basket=[];renderBasket();action(search)}};
+let topicPick=null;
+function renderPick(){
+  const box=$('pickResult');
+  if(!topicPick){box.innerHTML='';return}
+  const rv=topicPick.review,items=topicPick.items;
+  const off=rv&&rv.off_topic||[],seq=rv&&rv.order||[];
+  const changed=seq.some((v,i)=>v!==i);
+  const note=!rv?'':rv.status==='unavailable'?'主题复查未完成，挑选结果不受影响。':'主题复查：'+(off.length?'第 '+off.map(i=>i+1).join('、')+' 段可能离题；':'未发现明显离题片段；')+(changed?'建议顺序 '+seq.map(i=>i+1).join('→')+'。':'顺序无需调整。')+(rv.note?' '+rv.note:'');
+  box.innerHTML=`<p class="hint">AI 挑出 ${items.length} 段${topicPick.tokens?'，共 '+topicPick.tokens+' Token':''}。${escapeHTML(note)}</p>`+items.map((x,i)=>`<div class="basket-item"><span class="basket-number">${String(i+1).padStart(2,'0')}</span><div class="grow"><p>${escapeHTML(x.english)}</p><p class="basket-zh">${escapeHTML(x.chinese)}</p><small>${escapeHTML(x.title)}</small></div></div>`).join('')+`<div class="row"><button id="applyPickReview" class="text-button ${off.length||changed?'':'hidden'}">按复查建议整理</button><button id="replaceBasket" class="primary">替换本期</button><button id="appendBasket">追加到本期</button></div>`;
+  $('applyPickReview').onclick=()=>{const src=topicPick.items,drop=new Set(off),order=changed?seq:src.map((_,i)=>i);topicPick.items=order.filter(i=>!drop.has(i)).map(i=>src[i]);topicPick.review=null;renderPick()};
+  $('replaceBasket').onclick=()=>{basket=topicPick.items.slice();renderBasket();status('已按主题替换本期 '+basket.length+' 段')};
+  $('appendBasket').onclick=()=>{const known=new Set(basket.map(x=>x.id));const added=topicPick.items.filter(x=>!known.has(x.id));basket=basket.concat(added);renderBasket();status('已追加 '+added.length+' 段')};
+}
+$('pickByTopic').onclick=()=>action(async()=>{
+  const topic=$('topicTitle').value.trim();
+  if(!topic)throw Error('请先填写本期主题');
+  const r=await job('/api/library/pick',{topic,limit:Number($('pickLimit').value)||8});
+  topicPick=r;renderPick();
+});
 $('createTopic').onclick=()=>action(async()=>{
   if(dirty){showStep('browse');throw Error('请先保存当前例句的修改，再进入制作。')}
   if(!basket.length)throw Error('请先加入本期素材');
