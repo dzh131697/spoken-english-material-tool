@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>口语素材工作台 · 大规模素材库进阶方案</title>
+<style>
+:root{--bg:#14181c;--panel:#1b2228;--panel2:#202930;--line:#2d3941;--text:#dde5e9;--muted:#93a4ae;--dim:#6f818c;--teal:#5dcaa5;--blue:#85b7eb;--amber:#efaa5a;--red:#e88f8f}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:"Microsoft YaHei","PingFang SC",system-ui,sans-serif;line-height:1.78;font-size:15px}
+.wrap{max-width:980px;margin:0 auto;padding:56px 40px 96px}
+header{border-bottom:1px solid var(--line);padding-bottom:28px;margin-bottom:36px}
+.eyebrow{font-size:12px;letter-spacing:.16em;color:var(--teal);margin:0 0 12px}
+h1{font-size:28px;font-weight:600;margin:0 0 14px;line-height:1.35}
+.lead{font-size:17px;color:var(--text);margin:0 0 10px}
+.sub{color:var(--muted);font-size:14px;margin:0}
+h2{font-size:20px;font-weight:600;margin:52px 0 18px;padding-left:14px;border-left:3px solid var(--teal)}
+h3{font-size:16px;font-weight:600;margin:28px 0 10px;color:var(--text)}
+p{margin:0 0 14px}
+ul,ol{margin:0 0 16px;padding-left:22px}
+li{margin:0 0 8px}
+code{font-family:Consolas,"Courier New",monospace;background:#11171b;border:1px solid var(--line);border-radius:4px;padding:1px 6px;font-size:13px;color:var(--blue)}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:22px 24px;margin:0 0 18px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px}
+.kpi{background:var(--panel2);border:1px solid var(--line);border-radius:10px;padding:16px 18px}
+.kpi .n{font-size:22px;font-weight:600;color:var(--teal);display:block;line-height:1.3}
+.kpi .l{font-size:13px;color:var(--muted);margin-top:4px;display:block}
+.tag{display:inline-block;font-size:12px;padding:2px 9px;border-radius:20px;border:1px solid var(--line);color:var(--muted);margin:0 6px 6px 0}
+.tag.t{border-color:#2c6a55;color:var(--teal)}
+.tag.b{border-color:#2c5479;color:var(--blue)}
+.tag.a{border-color:#7a5a2c;color:var(--amber)}
+.tag.r{border-color:#7a3c3c;color:var(--red)}
+table{width:100%;border-collapse:collapse;margin:8px 0 22px;font-size:14px}
+th,td{text-align:left;padding:11px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+th{color:var(--muted);font-weight:500;background:var(--panel2);font-size:13px}
+td:first-child{white-space:nowrap;color:var(--text)}
+.layer{background:var(--panel);border:1px solid var(--line);border-left:4px solid var(--teal);border-radius:10px;padding:16px 20px;margin:0 0 10px}
+.layer.exec{border-left-color:var(--blue)}
+.layer.check{border-left-color:var(--amber)}
+.layer h3{margin:0 0 6px;font-size:15px}
+.layer p{margin:0;color:var(--muted);font-size:14px}
+.arrow{text-align:center;color:var(--dim);font-size:18px;line-height:1;margin:2px 0 10px}
+.evidence{background:#11171b;border:1px solid var(--line);border-radius:8px;padding:12px 16px;font-family:Consolas,monospace;font-size:12.5px;color:var(--muted);margin:10px 0 18px;white-space:pre-wrap;line-height:1.65}
+.note{border-left:3px solid var(--amber);background:#241f18;padding:14px 18px;border-radius:0 8px 8px 0;margin:16px 0;font-size:14px}
+.good{border-left:3px solid var(--teal);background:#16251f;padding:14px 18px;border-radius:0 8px 8px 0;margin:16px 0;font-size:14px}
+.bad{border-left:3px solid var(--red);background:#261a1a;padding:14px 18px;border-radius:0 8px 8px 0;margin:16px 0;font-size:14px}
+.muted{color:var(--muted)}
+.dim{color:var(--dim);font-size:13px}
+.phase{display:flex;align-items:baseline;gap:12px;margin:26px 0 10px}
+.phase .p{font-size:12px;font-weight:600;letter-spacing:.08em;color:var(--bg);background:var(--teal);border-radius:5px;padding:3px 9px}
+.phase .p.b{background:var(--blue)}
+.phase .p.a{background:var(--amber)}
+.phase .p.r{background:var(--red)}
+.phase h3{margin:0}
+footer{margin-top:60px;border-top:1px solid var(--line);padding-top:22px;color:var(--dim);font-size:13px}
+@media(max-width:760px){.wrap{padding:32px 20px 64px}.grid,.grid3{grid-template-columns:1fr}h1{font-size:23px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <p class="eyebrow">DESIGN NOTE v2.1 · 2026-11-07 · P0① 已落地，其余为方案</p>
+  <h1>大规模素材库进阶方案</h1>
+  <p class="lead">核心结论：当素材从「几十条」变成「几百上千条 YouTube 视频」，瓶颈不再是模型够不够聪明，而是<strong>导入吞吐、检索是否偏斜、标注是否可维护</strong>。</p>
+  <p class="sub">适用前提：单机单盘 500G、原片长期保留、短期 50–100 条视频并向更大规模演进；目标仍是「我或 AI 定主题 → 自主合成视频」。硬约束：<strong>不改动现有 GUI</strong>，AI 能力放在新增的独立页面；视频不上传 AI、Key 本机加密、只监听 127.0.0.1。</p>
+</header>
+
+<h2>0 · 规模假设改变了什么</h2>
+<p>按你确认的规模分两档算（每条视频约 10 分钟、400 行英文字幕）：</p>
+<div class="grid3">
+  <div class="kpi"><span class="n">50–100 条</span><span class="l">短期实际规模：2–4 万行字幕，约 2000–8000 条例句</span></div>
+  <div class="kpi"><span class="n">约 700 次</span><span class="l">短期全量 AI 分析调用数（60 行/批）；串行约 1–3 小时，尚可接受</span></div>
+  <div class="kpi"><span class="n">500G 单盘</span><span class="l">长期上限：原片长期保留，按 100–300MB/条约可存 1000–3000 条，需给成片与中间文件留余量</span></div>
+</div>
+<div class="note"><strong>规模修正：</strong>短期 50–100 条下，吞吐压力明显小于 v1 假设的 500 条，P0 的紧迫度从「立刻会崩」降为「现在做最省事」。但<strong>检索偏斜依旧存在</strong>：<code>LIMIT 400</code> 在 2000–8000 条例句里只覆盖 5–20%，且按标题排序，仍会系统性偏向前几个视频。这一条不因规模缩小而消失。</div>
+<p>由此浮出三个和「小规模」完全不同的问题：</p>
+<ol>
+  <li><strong>检索偏斜（最致命）</strong>：<code>library_pick()</code> 用 <code>ORDER BY v.title, s.start, s.id LIMIT 400</code> 取候选。即使短期只有 2000 条例句，AI 也只看到按标题排序最靠前的 400 条。「做一期 I am going to 的」会系统性漏掉绝大多数素材，不是模型问题，是召回问题。</li>
+  <li><strong>无用功</strong>：全量 AI 分类意味着从未被使用的素材也等了时间；规则一改（比如句型归一方式变了），全库标注跟着漂移，重跑代价随规模线性增长。</li>
+  <li><strong>质量不可追溯</strong>：视频多到无法逐条试听时，「切点会不会缺头尾字」必须能在合成前被<strong>自动筛掉</strong>，而不能只靠事后听。现在没有可筛选的元信息。</li>
+</ol>
+<div class="note"><strong>一个诚实修正：</strong>按当前 DeepSeek 价格，短期 700 次、长期 3500 次调用的成本都在十几元量级，<strong>省钱不是主要动机</strong>。真正要优化的是吞吐时间、无效标注、以及标注漂移后的可追溯性。任何以「省 API 费用」为卖点的方案都抓错了重点。</div>
+
+<h2>0.5 · 已确认决策与界面边界</h2>
+<table>
+  <tr><th>项</th><th>决定</th><th>对方案的约束</th></tr>
+  <tr><td>存储</td><td>单机单盘 500G，原片长期保留</td><td>L0 只需单媒体根 + 相对路径，不做多根 / 外置盘；提供容量预警，清理策略只允许清成片与中间文件，绝不碰原片</td></tr>
+  <tr><td>规模</td><td>短期 50–100 条，按 P0→P3 顺序向更大规模推进</td><td>地基先做但不必一次做到极致；FTS5 可随规模增长再启用，不阻塞 P0</td></tr>
+  <tr><td>挑选口径</td><td><strong>软引导</strong>，且维度可扩展（不只句型，后续可按话题、场景、语法点等）</td><td>执行计划是「带权重的偏好集合」不是固定字段；召回用多维度打分，不用 SQL 硬过滤；新维度可插拔，不改执行链路</td></tr>
+  <tr><td>语音转写</td><td>短期不做（详见下方说明）</td><td>不引入本地 ASR 模型；继续用 <code>en-orig</code> 轨 + 人工抽检兜底文字错</td></tr>
+  <tr><td>界面</td><td><strong>不动现有 GUI</strong>，新增独立 AI 对话框页面</td><td>现有三套页面逐行保留；新页面是第四个入口，复用同一后端与同一资源池</td></tr>
+</table>
+
+<div class="card">
+  <h3>界面边界：新增，不替换</h3>
+  <p>现有三个入口全部保留、不做删改：<code>web/index.html</code>（制作）、<code>web/library.html</code>（素材库）、<code>web/publish.js/css</code>（发布准备）。新增 <code>web/studio.html</code> 作为第四个入口，只做「说需求 → 看计划 → 一键执行 → 看成片」。它复用同一份 <code>app.py</code> 后端、同一个素材库和同一个 <code>auto_produce()</code>，不复制数据、不另建一套选段逻辑。</p>
+  <p class="dim">Android 端需把新静态页复制进应用私有目录并加入口，按 <code>android/AGENTS.md</code> 的既有做法处理，不改动现有 WebView 加载逻辑。桌面与手机共用这套新页面，不写第二套实现。</p>
+  <p class="dim">这一点也回答了「对话框会不会让原页面多余」：不会。新页面负责意图与执行，老页面继续负责看、听、微调和发布，职责不重叠。</p>
+</div>
+
+<div class="card">
+  <h3>关于「AI 做语音转写」——它到底是什么</h3>
+  <p><strong>不是把音频发给 DeepSeek。</strong>语音转写（ASR）是一个<strong>在本机运行的语音识别模型</strong>（whisper.cpp / faster-whisper 一类），音频不出本机、不上传、不耗 API Token；代价是几百 MB 到几 GB 的模型文件、CPU/GPU 占用，一条 10 分钟视频通常要转写数分钟，Windows 便携包和 Android APK 体积都会明显变大，手机端尤其吃力。</p>
+  <p>它唯一能解决的是<strong>「字幕文字和画面里说的不一样」</strong>——YouTube <code>en</code> 自动轨会改写、丢词，历史实测与 <code>en-orig</code> 相似度仅 66.8%。这类错误靠音频包络、切点吸附、选轨优先级都修不了。</p>
+  <p><strong>建议短期不做。</strong>理由有三：你已确认当前痛点是切点时间不准（时间轴问题），不是文字错；短期 50–100 条下，选 <code>en-orig</code> 轨加人工抽检足够；引入本地 ASR 会同时冲击打包体积、Android 可行性与长任务耗时。若将来确实需要，建议只做 Windows 端<strong>可选的单句校对工具</strong>，不进主流程、不进 Android、不自动改写字幕。</p>
+</div>
+
+<div class="note"><strong>软引导的正确实现：</strong>计划里的每个维度（句型、话题、场景、语法点、来源视频、时长…）都是一条<strong>带权重的偏好</strong>，参与召回打分，不是 WHERE 硬条件。AI 精排可以保留少量「相关但不同句型」的表达做对照，这正是软引导相对硬筛的价值。维度定义放在可扩展配置里，加新维度不需要改执行链路。</div>
+
+<h2>1 · 五个结构性判断</h2>
+<div class="card">
+  <h3>判断一：导入只做「事实层」，AI 标注必须惰性化</h3>
+  <p>视频与字幕导入应当是<strong>本地、免费、秒级、可并行</strong>的：字幕轨来源、词级时间戳、完整句边界、语音起止、音轨有无、时长画幅、可独立使用性，全部是确定性计算，不需要模型。AI 只在<strong>用户主动分析</strong>或<strong>某批素材首次被检索召回</strong>时才触发，且只作用于召回的小集合。</p>
+  <p class="dim">项目约定已要求「AI 分段仅在用户主动点击时发送字幕」「素材库分析只补未完成批次」，这个方向不是新约束，是把既有约定贯彻到大规模场景。</p>
+</div>
+<div class="card">
+  <h3>判断二：先结构化召回，再 AI 精排，不能反过来</h3>
+  <p>现状是「把 400 条例句一次塞给 AI 让它挑」。正确形态是<strong>两段式</strong>：SQL / 全文索引按句型、话题、关键词、轨质量召回 Top-N（如 200 条）→ AI 只在这 200 条里排序、判离题、给建议顺序。<code>library_search()</code> 已有 <code>pattern</code> 参数与 <code>matches_pattern</code>，只是没接进 <code>library_pick()</code> / <code>auto_produce()</code>。</p>
+  <p class="dim">这一步同时解决「按句型做一期」以及后续按话题、场景等其他维度做一期：维度作为加权偏好参与召回，AI 精排再综合判断，既不会只靠提示词祈祷，也不会把相关但不同句型的对照表达全部排除（软引导）。</p>
+</div>
+<div class="card">
+  <h3>判断三：越想全自动，越需要结构化事实，而不是更全的分类</h3>
+  <p>值得结构化存储的，只有同时满足「AI 从原始文字推不出来」+「错了会毁掉成片」的信息。典型是<strong>字幕轨来源</strong>和<strong>切点可信度</strong>。反过来，情绪、场景、CEFR 难度、教学法分类这类推测性标签，AI 看文字八九不离十，猜错还会污染筛选——不该建。</p>
+</div>
+<div class="card">
+  <h3>判断四：稳定主键不能是文件路径</h3>
+  <p>现在 <code>register_project_source()</code> 用 <code>sha256(视频绝对路径)</code> 作素材 id。批量下载后会整理文件夹、换盘、归档，路径一变就是新素材，例句与出处全部断链。大规模下应改用 <strong>YouTube video id</strong> 作稳定主键，路径降级为「可重定位的属性」。</p>
+</div>
+<div class="card">
+  <h3>判断五：质量门禁比「更准的吸附」更重要</h3>
+  <p><code>refine_clip_edges()</code> 已经会在本地把切点吸到语音边缘，但它无法告诉你「这次吸附到底可不可信」。把「是否词级时间戳 / 轨来源 / 是否找到语音边缘 / 吸附改动量 / 切点是否落在有声处」记成片段元信息，一键成片就能<strong>默认只用低风险片段</strong>，把「低概率出错」从愿望变成可量化、可配置的阈值。</p>
+</div>
+
+<h2>2 · 目标架构：五层</h2>
+<div class="layer"><h3>L0 · 媒体归档层</h3><p>稳定视频 id、媒体根 + 相对路径、原片不复制、下载去重与断点、跨盘可重定位。对应 <code>download_playlist()</code> / <code>library_import()</code> / <code>sources</code> 表。</p></div>
+<div class="arrow">↓</div>
+<div class="layer"><h3>L1 · 导入事实层（本地、免费、必做）</h3><p>字幕轨优先级与来源记录、词级时间戳落盘、完整句边界、语音起止与静音段、音轨/画幅/时长、可独立使用性规则。对应 <code>pick_subtitle_file()</code> / <code>rolling_subtitles()</code> / <code>speech_edges()</code>。</p></div>
+<div class="arrow">↓</div>
+<div class="layer"><h3>L2 · 索引与召回层（大规模核心）</h3><p>SQLite FTS5 全文索引（英 + 中）、结构化列（句型 / 语法 / 话题 / 轨质量 / 切点可信度）、两段式召回。对应 <code>library_search()</code> / <code>library_pick()</code>。</p></div>
+<div class="arrow">↓</div>
+<div class="layer exec"><h3>L3 · 惰性 AI 标注层</h3><p>只标最小集：句型、语法、中文释义、话题；每次标注带 model + prompt_version + signature，规则升级可追溯、可增量重跑。对应 <code>library_analyze()</code> / <code>review_segments()</code>。</p></div>
+<div class="arrow">↓</div>
+<div class="layer check"><h3>L4 · 编排与验收层</h3><p>新增的 AI 工作室页面：自然语言 → 可编辑执行计划 → <code>auto_produce()</code> 执行；现有页面原样保留，继续承担看 / 听 / 微调与发布。不可逆动作显式确认，感知类动作保留人工入口。</p></div>
+<div class="good"><strong>顺序不可颠倒。</strong> L0–L2 是地基；没有稳定召回，L3 的标注再细也挑不到，L4 的对话框只会变成一个漂亮但经常猜错的壳。</div>
+
+<h2>3 · 现状证据（以下均为当前代码事实，非推测）</h2>
+<div class="evidence">改造前（P0① 已修复）  library_pick 的候选查询
+  SELECT ... ORDER BY v.title,s.start,s.id LIMIT 400
+
+改造前（P0① 已修复）  发给 AI 的字段
+  payload = [{'id', 'english', 'chinese'}]
+
+改造后  library_recall() 全库加权召回 + 来源视频配额
+  payload 增加 title / patterns；候选数 min(200, max(60, limit*20))
+
+app.py:2657  library_search(query, grammar, pattern, source, offset)
+  已有按句型匹配 matches_pattern，但用 instr 全表扫，无全文索引
+
+app.py:161  group_sentences：rows 只存 start / end / text
+  rolling_subtitles 解析出的 word_ends（词级结束时间）在此被丢弃
+
+app.py:413  pick_subtitle_file：人工 en > en-orig > en
+  优先级已实现，但「最终选了哪条轨」没有写进项目或素材记录
+
+app.py:2399  register_project_source：sid = sha256(视频绝对路径)[:16]
+
+app.py:749  subtitle_batches：每批 ≤60 行且 ≤8000 字符，串行逐批调用</div>
+
+<h2>4 · 分期路线</h2>
+<table>
+  <tr><th>期</th><th>做什么</th><th>为什么现在做</th><th>依赖 / 风险</th></tr>
+  <tr><td><span class="tag t">P0 · 地基</span></td><td>① <code>library_pick</code> 两段式加权召回 <span class="tag b">已完成</span><br>② 视频稳定 id 与路径解耦<br>③ 导入与分析彻底解耦</td><td>不做这三条，规模往上走时检索偏斜会放大、整理文件夹即断链、标注规则一改就要全库重算；短期做成本最低</td><td>需迁移旧 <code>sources</code> 记录；保持旧项目可读</td></tr>
+  <tr><td><span class="tag b">P1 · 降错</span></td><td>④ 词级时间戳落盘<br>⑤ 切点可信度元信息 + 合成前质量门禁<br>⑥ 字幕轨来源写入记录</td><td>本地免费、直接对应「缺头尾字 / 多一小段」，且让大量素材下无法逐条试听的问题可自动拦</td><td>字幕行结构新增可选字段，须向后兼容</td></tr>
+  <tr><td><span class="tag a">P2 · 按主题/句型</span></td><td>⑦ FTS5 + 结构化列<br>⑧ <code>patterns</code> 接进 <code>library_pick</code> / 一键成片<br>⑨ 话题标注（惰性、仅召回集）</td><td>兑现「做一期专门讲 I am going to」；让同类句型变体可归一召回</td><td>句型归一规则需人工抽样校准，别做成固定白名单</td></tr>
+  <tr><td><span class="tag r">P3 · 意图层</span></td><td>⑩ 自然语言 → 可编辑执行计划（来源 / 句型 / 话题 / 段数 / 模板 / 画幅）<br>⑪ 计划落盘、可存预设、可复现</td><td>前三层稳了才做；否则每次猜错只能在成片里发现</td><td>必须回显计划与调用预估，禁止直接执行不可逆动作</td></tr>
+</table>
+
+<h2>5 · 每层的关键取舍</h2>
+<h3>L1 事实层：只算「事实」，不算「画像」</h3>
+<p>导入时对每条字幕产出一份本地元数据：轨来源、是否词级时间戳、句边界类型（标点 / 停顿 / AI 兜底）、语音起止、静音段、句子长度、是否含方括号标注、是否可独立使用。全部规则判定，零 API 调用。其中<strong>词级时间戳最该先做</strong>——<code>rolling_subtitles()</code> 已经算出了 <code>word_ends</code>，只是生成 <code>rows</code> 时丢掉；把它留下等于免费获得更准的片段边界。</p>
+<div class="bad"><strong>明确不做：</strong>导入时全量 AI 分类、情绪/场景/难度评分、自动生成内容摘要、语音转写、逐帧画面理解。这些要么推测性强，要么违反项目约束，要么在大规模下成本随时间线性爆炸。</div>
+
+<h3>L2 召回：两段式，且索引要能增量</h3>
+<p>用 FTS5 建英文 + 中文全文索引，结构化列单独存（句型、语法、话题、轨质量、切点可信度、时长）。<code>library_pick</code> 改为：先按执行计划里的<strong>加权偏好</strong>做多路召回并合并打分（句型 / 话题 / 关键词 / 质量阈值各占权重，不设硬过滤），取 Top-N，再让 AI 在召回集里排序与复查。召回结果按<strong>视频 id 做配额</strong>，避免一期 8 段全来自同一个视频。索引随导入增量更新，不需要全库重建。</p>
+
+<h3>L3 标注：最小集 + 版本化</h3>
+<p>每条标注记录 <code>model</code> / <code>prompt_version</code> / <code>signature</code>。规则升级时只重跑受影响或 <code>pattern_version=0</code> 的行（现有表已有这个字段），不做全库重算。标注是<strong>惰性</strong>的：素材首次被召回或用户主动点「分析字幕」时才生成，未被使用的素材保持「已导入、未标注」状态。</p>
+
+<h3>L4 编排：计划先于执行</h3>
+<p>自然语言解析的产物不是动作，是一份<strong>可编辑、可落盘的执行计划</strong>：来源（单视频 / 素材库）、一组带权重的软偏好（句型、话题、场景、语法点…可增可减）、段数、长度、模板、画幅、字幕版本、是否生成封面文案。用户确认后交给现有 <code>auto_produce()</code>。计划落盘是为了可复现——同一句话两次跑出不同选段时，能复盘到底是哪个参数变了。</p>
+<p>维度用「权重表」表达而不是写死字段：今天按 <code>I am going to</code> 做一期，明天按「机场问路」「过去完成时」「某个 UP 主」做一期，加的只是新维度与权重，召回、精排、合成链路一行不改。这也是「软引导」和「硬筛」在工程上的真正差别。</p>
+
+<h2>6 · 风险与项目约束</h2>
+<table>
+  <tr><th>风险</th><th>说明与对策</th></tr>
+  <tr><td>字幕文字本身错</td><td>YouTube <code>en</code> 自动轨会改写 / 丢词（历史实测与 <code>en-orig</code> 相似度仅 66.8%）。选轨优先级已缓解，但在「不引入语音转写」的既定约束下<strong>无法自动消除</strong>。方案只能标记轨质量并降低高风险片段权重，不能承诺零错误。</td></tr>
+  <tr><td>YouTube 风控</td><td>批量下载会遇到登录验证 / Cookie 过期 / 出口 IP 标记。已有 Cookie 显式导入、失败列表与「仅重试失败项」；大规模下应加限速与失败退避，不能靠提高并发硬冲。</td></tr>
+  <tr><td>存储与路径</td><td>原片是最大开销。坚持「原片归档 + 项目引用，不复制」；代价是移动或删除原片后引用项目失效，需提供批量重定位，而不是静默重下。</td></tr>
+  <tr><td>兼容性</td><td>新增表与字段不得改变旧 <code>project.json</code> 和 <code>sources</code> 的既有语义；迁移脚本必须可逆、不触碰用户素材与已生成成片。</td></tr>
+  <tr><td>安全边界</td><td>视频 / 音频不发 AI，AI 只收字幕文字；Key 本机加密；只绑 127.0.0.1 + 随机令牌；不关 TLS 校验；Cookie 只来自用户显式导入且不入库、不进发行包。</td></tr>
+</table>
+
+<h2>7 · 验收标准（可量化，别用「感觉变好了」）</h2>
+<ul>
+  <li><strong>导入吞吐</strong>：批量导入 100 条视频完成事实层提取，零 AI 调用，耗时可测；重复导入不产生重复记录。</li>
+  <li><strong>召回覆盖</strong>：库内 2000 条例句时，「做一期 I am going to」能召回覆盖 ≥5 个不同视频的候选，而不是集中在标题最靠前的两三个；且允许保留少量对照表达（软引导）。</li>
+  <li><strong>切点质量</strong>：抽样人工试听 N 段，统计「缺头尾字 / 多出静音」发生率；质量门禁开启后该比例应明显下降，且可给出被拦截片段数。</li>
+  <li><strong>可复现</strong>：同一份执行计划跑两次，选段集合一致（AI 精排结果允许在计划里固定随机性或缓存）。</li>
+  <li><strong>成本可见</strong>：执行前显示本次预计 AI 调用次数，执行后显示实际 Token；与实际账单可对照。</li>
+</ul>
+
+<h2>8 · 决策状态</h2>
+<div class="card">
+  <p><strong>已确认：</strong>单机单盘 500G、原片长期保留、短期 50–100 条、软引导且维度可扩展、语音转写短期不做、按 P0→P3 顺序推进、现有 GUI 不动并新增独立 AI 工作室页面。</p>
+  <p><strong>剩余待定（不阻塞 P0）：</strong></p>
+  <ol>
+    <li>成片与中间文件的容量预警阈值，以及「只清成片、不动原片」的清理入口放哪。</li>
+    <li>软引导第一批维度清单与初始权重（建议先做句型、话题、来源视频、时长四个）。</li>
+    <li>AI 工作室页面在 Android 端是独立底部入口，还是收进设置菜单。</li>
+  </ol>
+</div>
+
+<div class="good"><strong>一句话原则：</strong>先把「事实」算准、把「召回」做对，再谈「分类」和「对话框」。大量素材不会让 AI 更聪明，只会让结构性缺陷暴露得更彻底。</div>
+
+<footer>口语素材工作台 · 设计文档 v2.1（已纳入用户确认的 5 项决策与界面边界；P0 第一项已落地，其余仍为方案）· 2026-11-07</footer>
+
+</div>
+</body>
+</html>
