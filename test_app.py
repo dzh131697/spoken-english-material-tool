@@ -593,6 +593,13 @@ class WorkflowTest(unittest.TestCase):
                 self.assertEqual(captured['cookiefile'], str(cookie_path))
                 self.assertIn('已过期', str(error.exception))
 
+    def test_readable_size(self):
+        self.assertEqual(app.readable_size(0), '0 B')
+        self.assertEqual(app.readable_size(512), '512 B')
+        self.assertEqual(app.readable_size(1024), '1.0 KB')
+        self.assertEqual(app.readable_size(1024 * 1024), '1.0 MB')
+        self.assertEqual(app.readable_size(2 * 1024 ** 3), '2.0 GB')
+
     def test_load_yt_dlp_ignores_incomplete_certifi(self):
         incomplete = types.ModuleType('certifi')  # 只有数据文件、没有 where()
         complete = types.ModuleType('certifi')
@@ -625,6 +632,8 @@ class WorkflowTest(unittest.TestCase):
 
             def download(self, urls):
                 vid = urls[0].rsplit('=', 1)[-1]
+                for hook in self.options.get('progress_hooks', []):
+                    hook({'status': 'downloading', 'downloaded_bytes': 512, 'total_bytes': 1024})
                 if vid in state['failed']:
                     raise RuntimeError('视频不可用')
                 state['downloaded'].append(vid)
@@ -639,9 +648,11 @@ class WorkflowTest(unittest.TestCase):
             root = Path(directory)
             with patch.object(app, 'COOKIES', root / 'cookies.txt'), \
                     patch.dict(sys.modules, {'yt_dlp': fake}):
+                messages = []
                 first = app.download_playlist('https://www.youtube.com/playlist?list=PLx',
-                                              str(root / 'videos'), 0, lambda message: None)
+                                              str(root / 'videos'), 0, messages.append)
                 self.assertEqual((first['total'], first['downloaded'], first['skipped']), (3, 2, 0))
+                self.assertTrue(any('512 B / 1.0 KB' in message for message in messages))
                 self.assertEqual(first['failedCount'], 1)
                 self.assertEqual(first['failed'][0]['title'], 'C')
                 self.assertEqual(first['failed'][0]['id'], 'ccc')
@@ -653,11 +664,21 @@ class WorkflowTest(unittest.TestCase):
                 self.assertEqual((retry['total'], retry['downloaded'], retry['skipped']), (2, 1, 0))
                 self.assertEqual(retry['failed'][0]['id'], 'missing')
                 self.assertNotIn('ddd', state['downloaded'])
+                (root / 'videos' / '收藏夹').mkdir(parents=True, exist_ok=True)
+                (root / 'videos' / '收藏夹' / 'A [aaa].mp4').write_bytes(b'x' * 2048)
+                (root / 'videos' / '收藏夹' / 'A [aaa].en.vtt').write_bytes(b'x' * 24)
                 state['entries'].pop()
                 second = app.download_playlist('https://www.youtube.com/playlist?list=PLx',
                                                str(root / 'videos'), 0, lambda message: None)
                 self.assertEqual((second['downloaded'], second['skipped']), (0, 3))
                 self.assertEqual(state['downloaded'], ['aaa', 'bbb', 'ccc'])
+                by_id = {item['id']: item for item in second['items']}
+                self.assertEqual(by_id['aaa']['size'], 2072)
+                self.assertEqual(by_id['aaa']['sizeText'], '2.0 KB')
+                self.assertEqual(by_id['bbb']['size'], 0)
+                self.assertEqual(second['totalBytes'], 2072)
+                self.assertEqual(second['totalSizeText'], '2.0 KB')
+                self.assertEqual([item['state'] for item in second['items']], ['skipped'] * 3)
                 for invalid in ([], ['../invalid'], [True]):
                     with self.assertRaises(ValueError):
                         app.download_playlist('https://www.youtube.com/playlist?list=PLx',

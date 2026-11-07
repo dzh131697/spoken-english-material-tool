@@ -625,6 +625,19 @@ def playlist_archive(path):
     return {line.rsplit(' ', 1)[-1] for line in lines if line.strip()}
 
 
+def readable_size(num):
+    """把字节数格式化成便于阅读的大小。"""
+    num = max(0, int(num or 0))
+    if num < 1024:
+        return '{} B'.format(num)
+    value = float(num) / 1024
+    for unit in ('KB', 'MB', 'GB', 'TB'):
+        if value < 1024 or unit == 'TB':
+            return '{:.1f} {}'.format(value, unit)
+        value /= 1024
+    return '{:.1f} TB'.format(value)
+
+
 def download_playlist(url, folder, limit, progress, retry_ids=None):
     """按列表顺序逐个下载视频和英文字幕，已下载的自动跳过。"""
     yt_dlp = load_yt_dlp()
@@ -660,7 +673,18 @@ def download_playlist(url, folder, limit, progress, retry_ids=None):
         'js_runtimes': {'node': {'path': str(ROOT / 'tools' / 'node.exe')}},
         'compat_opts': ['no-certifi'],
     }
-    options['progress_hooks'] = [lambda status: check_cancelled()]
+    current = {'label': ''}
+
+    def download_progress(status):
+        check_cancelled()
+        if status.get('status') != 'downloading' or not current['label']:
+            return
+        received = status.get('downloaded_bytes') or 0
+        expected = status.get('total_bytes') or status.get('total_bytes_estimate') or 0
+        if expected:
+            progress('{}（{} / {}）'.format(current['label'], readable_size(received), readable_size(expected)))
+
+    options['progress_hooks'] = [download_progress]
     options['postprocessor_hooks'] = [lambda status: check_cancelled()]
     if COOKIES.exists():
         options['cookiefile'] = str(COOKIES)
@@ -687,23 +711,48 @@ def download_playlist(url, folder, limit, progress, retry_ids=None):
         entries = entries[:limit]
     done = playlist_archive(archive)
     downloaded, skipped, failed = 0, 0, missing
+    items = [{'id': item['id'], 'title': item['title'], 'state': 'failed'} for item in missing]
     for index, entry in enumerate(entries, 1):
         vid = entry['id']
         title = str(entry.get('title') or vid)[:120]
+        label = '下载 {}/{}：{}'.format(index, total, title)
         if vid in done:
             skipped += 1
+            items.append({'id': vid, 'title': title, 'state': 'skipped'})
             progress('跳过 {}/{}（已下载）：{}'.format(index, total, title))
             continue
-        progress('下载 {}/{}：{}'.format(index, total, title))
+        current['label'] = label
+        progress(label)
         try:
             with yt_dlp.YoutubeDL(options) as ydl:
                 ydl.download(['https://www.youtube.com/watch?v=' + vid])
             downloaded += 1
             done.add(vid)
+            items.append({'id': vid, 'title': title, 'state': 'downloaded'})
         except yt_dlp.utils.DownloadError as error:
             failed.append({'id': vid, 'title': title, 'error': str(error)[:300]})
+            items.append({'id': vid, 'title': title, 'state': 'failed'})
+    current['label'] = ''
+    # 按文件名里的 [视频ID] 汇总实际落盘大小（视频 + 字幕），一次遍历即可。
+    sizes = {}
+    for path in target.rglob('*'):
+        if not path.is_file() or path.suffix.lower() not in ('.mp4', '.mkv', '.webm', '.mov', '.m4v', '.vtt', '.srt'):
+            continue
+        match = re.search(r'\[([A-Za-z0-9_-]{1,64})\]\.', path.name)
+        if not match:
+            continue
+        try:
+            sizes[match.group(1)] = sizes.get(match.group(1), 0) + path.stat().st_size
+        except OSError:
+            continue
+    for item in items:
+        item['size'] = sizes.get(item['id'], 0)
+        item['sizeText'] = readable_size(item['size'])
+    total_bytes = sum(item['size'] for item in items)
     return {'folder': str(target), 'total': total, 'downloaded': downloaded, 'skipped': skipped,
-            'failed': failed, 'failedCount': len(failed), 'hasCookies': COOKIES.exists()}
+            'failed': failed, 'failedCount': len(failed), 'items': items,
+            'totalBytes': total_bytes, 'totalSizeText': readable_size(total_bytes),
+            'hasCookies': COOKIES.exists()}
 
 
 def deepseek(messages, key, max_tokens, json_output=False):

@@ -89,7 +89,7 @@ body.android{color-scheme:light;--bg:#f7f9f7;--panel:#fff;--border:#dce6df;--mut
 <div id="importPanel" class="panel import"><input id="url" placeholder="粘贴 YouTube 视频链接"><button id="download" class="primary">获取视频与字幕</button><span class="muted">或</span><button id="local">导入本地视频</button><button id="playlistBtn">批量下载收藏夹</button><select id="projects"><option value="">打开历史素材…</option></select></div>
 <div id="status" class="status" role="status" aria-live="polite">准备就绪。视频保存在本地，只有翻译时才发送英文文字。</div>
 <div id="workflowGuide" class="row"><span id="workflowCurrent" class="muted"></span><span class="grow"></span><button id="workflowNext" class="quiet">导入视频 →</button></div>
-<section id="playlistResult" class="panel hidden"><div class="sectionhead"><h2>批量下载结果</h2><button id="retryPlaylist" class="quiet">仅重试失败项</button></div><p id="playlistResultSummary"></p><details><summary>查看失败原因</summary><ul id="playlistFailures"></ul></details></section>
+<section id="playlistResult" class="panel hidden"><div class="sectionhead"><h2>批量下载结果</h2><button id="retryPlaylist" class="quiet">仅重试失败项</button></div><p id="playlistResultSummary"></p><details><summary>查看每个视频大小</summary><ul id="playlistSizes"></ul></details><details><summary>查看失败原因</summary><ul id="playlistFailures"></ul></details></section>
 <div id="productionPage"><div class="workspace"><div class="left">
 <section id="videoSection" class="panel mobile-screen"><div class="sectionhead"><h2 id="title">01 / 视频预览</h2><button id="mobileSource" class="mobile-only quiet">切换素材</button><button id="loadSub">导入 SRT / VTT</button></div><div id="empty" class="video-empty">导入一个视频，开始选择口语素材<br><small>支持已有英文字幕；本版不包含语音转写</small></div><video id="video" controls class="hidden"></video><div class="hint">若本地视频只有声音或无法预览，请先转成 H.264 + AAC 编码的 MP4。</div></section>
 <section id="editorSection" class="panel mobile-screen"><div class="sectionhead"><h2>03 / 编辑选段</h2><span id="editLabel" class="badge">新选段</span></div>
@@ -441,10 +441,11 @@ $('playlistBtn').onclick=()=>$('playlistDialog').showModal();
 $('closePlaylist').onclick=()=>$('playlistDialog').close();
 $('pickPlaylistFolder').onclick=()=>action(async()=>{let r=await job('/api/library/folder',{});if(r.folder)$('playlistFolder').value=r.folder});
 function showPlaylistResult(result,request){
-  const failed=result.failed||[];
+  const failed=result.failed||[],items=result.items||[];
   playlistRetry=failed.length?{url:request.url,folder:result.folder,limit:0,retry_ids:failed.map(item=>item.id)}:null;
   $('playlistResult').classList.remove('hidden');
-  $('playlistResultSummary').textContent='新增 '+result.downloaded+' 个，跳过 '+result.skipped+' 个，失败 '+result.failedCount+' 个。保存到：'+result.folder;
+  $('playlistResultSummary').textContent='新增 '+result.downloaded+' 个，跳过 '+result.skipped+' 个，失败 '+result.failedCount+' 个，共 '+(result.totalSizeText||'0 B')+'。保存到：'+result.folder;
+  $('playlistSizes').innerHTML=items.length?items.map(item=>'<li>'+escapeHTML(item.title)+'：'+escapeHTML(item.sizeText||'0 B')+(item.state==='skipped'?'（已跳过）':item.state==='failed'?'（失败）':'')+'</li>').join(''):'<li>暂无大小信息</li>';
   $('playlistFailures').innerHTML=failed.map(item=>'<li>'+escapeHTML(item.title)+'：'+escapeHTML(item.error)+'</li>').join('');
   $('retryPlaylist').classList.toggle('hidden',!playlistRetry);
   status(result.failedCount?'下载已结束，失败项可单独重试，成功项不会重复下载。':'下载完成，可到语法素材库导入下载目录。',Boolean(result.failedCount));

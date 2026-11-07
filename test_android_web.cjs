@@ -573,19 +573,23 @@ async function openPage(browser, android, width = 390) {
       assert.equal(await page.locator('#english').inputValue(),'How was your weekend?');
       assert.deepEqual(await page.evaluate(()=>project.subtitleEdits),{});
       if(!android){
-        state.playlistResult={folder:'C:/qa-downloads',total:3,downloaded:2,skipped:0,failedCount:1,failed:[{id:'ccc',title:'Failed video',error:'<img src=x>unavailable'}]};
+        state.playlistResult={folder:'C:/qa-downloads',total:3,downloaded:2,skipped:0,failedCount:1,failed:[{id:'ccc',title:'Failed video',error:'<img src=x>unavailable'}],items:[{id:'aaa',title:'<img src=x>Clip A',sizeText:'12.3 MB',state:'downloaded'},{id:'bbb',title:'Clip B',sizeText:'8.1 MB',state:'skipped'}],totalSizeText:'20.4 MB'};
         await page.locator('#playlistBtn').click();
         await page.locator('#playlistUrl').fill('https://www.youtube.com/playlist?list=PLtest');
         await page.locator('#startPlaylist').click();
         await page.locator('#retryPlaylist').waitFor({state:'visible'});
         await page.waitForFunction(()=>!busy);
         assert.equal(await page.locator('#playlistFailures img').count(),0);
-        state.playlistResult={folder:'C:/qa-downloads',total:1,downloaded:1,skipped:0,failedCount:0,failed:[]};
+        assert.equal(await page.locator('#playlistSizes li').count(),2);
+        assert.equal(await page.locator('#playlistSizes img').count(),0);
+        assert.match(await page.locator('#playlistResultSummary').textContent(),/共 20.4 MB/);
+        state.playlistResult={folder:'C:/qa-downloads',total:1,downloaded:1,skipped:0,failedCount:0,failed:[],items:[{id:'ccc',title:'Failed video',sizeText:'5.0 MB',state:'downloaded'}],totalSizeText:'5.0 MB'};
         await page.locator('#retryPlaylist').click();
         await page.waitForFunction(()=>!busy);
         assert.equal(state.playlistRequests.length,2);
         assert.deepEqual(state.playlistRequests[1],{url:'https://www.youtube.com/playlist?list=PLtest',folder:'C:/qa-downloads',limit:0,retry_ids:['ccc']});
         assert.equal(await page.locator('#retryPlaylist').isVisible(),false);
+        assert.equal(await page.locator('#playlistSizes li').count(),1);
       }
       await page.locator('#workflowNext').click();
       assert.equal(await page.locator('#outputSection').isVisible(),true);
