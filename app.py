@@ -1731,6 +1731,47 @@ def save_production_preferences(value):
     return preferences
 
 
+def studio_presets():
+    try:
+        data = json.loads((DATA / 'studio-presets.json').read_text(encoding='utf-8'))
+        items = data.get('presets') if isinstance(data, dict) else None
+        if not isinstance(items, list):
+            return []
+        return [item for item in items
+                if isinstance(item, dict) and isinstance(item.get('id'), str)
+                and isinstance(item.get('name'), str) and isinstance(item.get('plan'), dict)][:20]
+    except (OSError, ValueError):
+        return []
+
+
+def save_studio_preset(body):
+    action = body.get('action')
+    with WORK_LOCK:
+        items = studio_presets()
+        if action == 'delete':
+            items = [item for item in items if item['id'] != body.get('id')]
+        elif action == 'save':
+            name = str(body.get('name') or '').strip()[:40]
+            if not name:
+                raise ValueError('请填写预设名称')
+            plan = body.get('plan') or {}
+            if not str(plan.get('topic') or '').strip():
+                raise ValueError('请先解析或填写本期主题，再保存预设')
+            item = {'id': secrets.token_hex(6), 'name': name,
+                    'plan': normalize_studio_plan(plan),
+                    'created': time.strftime('%Y-%m-%d %H:%M:%S')}
+            same = next((x for x in items if x['name'] == name), None)
+            if same:
+                item['id'] = same['id']
+                items = [x for x in items if x['id'] != same['id']]
+            items.insert(0, item)
+            items = items[:20]
+        else:
+            raise ValueError('无效操作')
+        atomic_json(DATA / 'studio-presets.json', {'presets': items})
+    return {'presets': items}
+
+
 def subtitle_font():
     return 'Microsoft YaHei'
 
@@ -3223,6 +3264,8 @@ class Handler(BaseHTTPRequestHandler):
             elif parsed.path == '/api/library/search':
                 self.reply(library_search(*(params.get(name, [''])[0] for name in ('q', 'grammar', 'pattern', 'source')),
                                           offset=params.get('offset', [0])[0]))
+            elif parsed.path == '/api/studio-presets':
+                self.reply({'presets': studio_presets()})
             elif parsed.path == '/api/cookies':
                 self.reply(cookies_status())
             elif parsed.path == '/api/project':
@@ -3377,6 +3420,8 @@ class Handler(BaseHTTPRequestHandler):
                     body['id'], body['clips'], body.get('portrait', False), body.get('card', 5), progress,
                     body.get('theme', 'midnight'), body.get('continuous', False),
                     body.get('versions') or ['plain'], body.get('sound', 'none'), key, body.get('tip', ''))))
+            elif self.path == '/api/studio-presets':
+                self.reply(save_studio_preset(body))
             elif self.path == '/api/studio/plan':
                 key = KEY
                 self.reply(job_start(lambda progress: studio_plan(body.get('text', ''), key)))

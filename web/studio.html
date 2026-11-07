@@ -43,6 +43,14 @@ label{display:block;font-size:12px;color:var(--muted);margin:12px 0 6px}
   <section class="panel">
     <h2>2 · 确认执行计划</h2>
     <p class="hint">下面是可以修改的计划。mode 为 video 时用当前视频、library 时从素材库混剪；preferences.terms 是软偏好，不是硬筛选；minCutQuality 为 0 表示关闭切点门禁。</p>
+    <div class="row" style="margin:14px 0 4px">
+      <select id="presetSelect" style="max-width:220px"><option value="">选择已保存的预设…</option></select>
+      <button id="applyPreset">应用</button>
+      <input id="presetName" placeholder="预设名称" style="max-width:170px">
+      <button id="savePreset">保存当前计划</button>
+      <button id="deletePreset">删除所选</button>
+      <span id="presetState" class="hint"></span>
+    </div>
     <div class="grid">
       <div><label>当前视频（mode=video 时生效）</label><select id="projectId"></select></div>
       <div><label>来源模式</label><select id="mode"><option value="library">素材库混剪</option><option value="video">当前视频</option></select></div>
@@ -96,6 +104,39 @@ async function loadProjects(){
   if(d.productionPreferences)p.prefs=d.productionPreferences;
   showPlan(p);
 }
+async function loadPresets(){
+  const d=await api('/api/studio-presets');
+  $('presetSelect').innerHTML='<option value="">选择已保存的预设…</option>'+d.presets.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.name)+'</option>').join('');
+}
+$('applyPreset').onclick=()=>{
+  const id=$('presetSelect').value;
+  if(!id){$('presetState').textContent='请先选择一个预设';return}
+  api('/api/studio-presets').then(d=>{
+    const item=d.presets.find(x=>x.id===id);
+    if(!item)throw Error('预设已不存在');
+    showPlan(item.plan);$('presetState').textContent='已应用预设：'+item.name;
+  }).catch(e=>{$('presetState').textContent=e.message});
+};
+$('savePreset').onclick=async()=>{
+  const name=$('presetName').value.trim();
+  if(!name){$('presetState').textContent='请填写预设名称';return}
+  try{
+    const plan=readPlan();
+    const d=await api('/api/studio-presets',{action:'save',name,plan});
+    await loadPresets();
+    $('presetSelect').value=(d.presets.find(x=>x.name===name)||{}).id||'';
+    $('presetState').textContent='已保存预设：'+name;
+  }catch(e){$('presetState').textContent=e.message}
+};
+$('deletePreset').onclick=async()=>{
+  const id=$('presetSelect').value;
+  if(!id){$('presetState').textContent='请先选择一个预设';return}
+  if(!confirm('删除这个预设？不会删除任何素材或成片。'))return;
+  try{
+    await api('/api/studio-presets',{action:'delete',id});
+    await loadPresets();$('presetState').textContent='已删除';
+  }catch(e){$('presetState').textContent=e.message}
+};
 $('parse').onclick=async()=>{
   const text=$('request').value.trim();
   if(!text){$('parseState').textContent='请先描述需求';return}
@@ -127,6 +168,7 @@ $('run').onclick=async()=>{
   finally{$('run').disabled=false}
 };
 loadProjects().catch(e=>{$('parseState').textContent=e.message});
+loadPresets().catch(e=>{$('presetState').textContent=e.message});
 </script>
 </body>
 </html>
