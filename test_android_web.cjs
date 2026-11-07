@@ -34,7 +34,7 @@ async function openPage(browser, android, width = 390) {
       };
     }
   }, android);
-  const state = { saves: [], failNextSave: false, suggestCalls: 0, publicationSaves: {}, frames: [], generations: [], cards: [], deleted: [] };
+  const state = { composeCalls: [], saves: [], failNextSave: false, suggestCalls: 0, publicationSaves: {}, frames: [], generations: [], cards: [], deleted: [] };
   await context.route('**/*', async route => {
     const request = route.request();
     const url = new URL(request.url());
@@ -86,7 +86,7 @@ async function openPage(browser, android, width = 390) {
       return route.fulfill({ json: { ok: true } });
     }
     if (url.pathname === '/api/export') return route.fulfill({ json: { job: 'export' } });
-    if (url.pathname === '/api/compose') return route.fulfill({ json: { job: 'compose' } });
+    if (url.pathname === '/api/compose') { state.composeCalls.push(request.postDataJSON()); return route.fulfill({ json: { job: 'compose' } }); }
     if (url.pathname === '/api/suggest') {
       state.suggestCalls++;
       return route.fulfill({ json: { job: 'suggest' } });
@@ -130,11 +130,15 @@ async function openPage(browser, android, width = 390) {
       assert.equal(await page.locator('#start').inputValue(), '0.500');
       assert.equal(await page.locator('#end').inputValue(), '4.500');
       await page.locator('#mobileEditSelection').click();
+      assert.equal(await page.locator('#cutDetails').evaluate(node=>node.open),false);
+      await page.locator('#cutDetails summary').click();
       await page.locator('#waveA').waitFor({ state: 'visible' });
+      assert((await page.locator('#waveA').boundingBox()).width>0);
       assert.equal(await page.locator('#video').isVisible(), true);
       await page.locator('#preview').click();
       assert.equal(await page.evaluate(() => window.played), 1);
       assert.equal(await page.evaluate(() => document.querySelector('#video').currentTime), 0.5);
+      await page.locator('#cutDetails summary').click();
       await page.locator('#chinese').fill('你周末过得怎么样？');
       await page.locator('#chinese').blur();
       await page.locator('#mobileNav [data-mobile-screen="source"]').click();
@@ -173,14 +177,23 @@ async function openPage(browser, android, width = 390) {
       await page.locator('#replaceSegments').click();
       await page.locator('#clipsSection').waitFor({ state: 'visible' });
       assert.equal(await page.locator('#fullCoverage').isChecked(), true);
+      await page.locator('#mobileComposeSettings summary').click();
       await page.locator('#cardTip').fill('现在轮到你啦');
       await page.locator('#cardTip').blur();
       await page.waitForFunction(() => !busy);
       assert.equal(state.saves.at(-1).card_tip, '现在轮到你啦');
       await page.locator('#export').click();
       await page.waitForFunction(() => window.saved.some(item => item.folder));
+      await page.evaluate(()=>Object.defineProperty(document.querySelector('#video'),'duration',{get:()=>5.5,configurable:true}));
       await page.locator('#compose').click();
+      assert.equal(state.composeCalls.length,0);
+      assert.equal(await page.locator('#startCompose').isEnabled(),true);
+      await page.locator('#startCompose').click();
       await page.locator('#outputNotice').filter({ hasText: '合成完成' }).waitFor();
+      assert.equal(state.composeCalls.length,1);
+      assert.deepEqual(state.composeCalls[0].versions,['plain']);
+      assert.equal(state.composeCalls[0].continuous,true);
+      assert.equal(state.composeCalls[0].tip,'现在轮到你啦');
       assert.equal(await page.locator('#outputSection').isVisible(), true);
       assert.equal(await page.locator('#outputList #outputVideo').isVisible(), true);
       await page.screenshot({path:`qa/成片卡片_${width}.png`});
@@ -338,7 +351,8 @@ async function openPage(browser, android, width = 390) {
       await context.close();
     }
 
-    const desktop = await openPage(browser, false);
+    const desktop = await openPage(browser, false, 1366);
+    await desktop.page.setViewportSize({width:1366,height:768});
     assert.match(await desktop.page.locator('#platformBadge').innerText(), /Windows/);
     assert.equal(await desktop.page.locator('#mobileNav').isVisible(), false);
     assert.equal(await desktop.page.locator('#openOutput').isVisible(), true);
@@ -354,6 +368,64 @@ async function openPage(browser, android, width = 390) {
     await desktop.page.locator('.sub').nth(0).click();
     await desktop.page.locator('.sub').nth(1).click({ modifiers: ['Shift'] });
     assert.equal(await desktop.page.locator('#english').inputValue(), 'How was your weekend? I had a great time.');
+    await desktop.page.evaluate(()=>clearEditor());
+    const editorBox=await desktop.page.locator('#editorSection').boundingBox();
+    const subtitleBox=await desktop.page.locator('#subtitleSection').boundingBox();
+    const videoBox=await desktop.page.locator('#videoSection').boundingBox();
+    assert(Math.abs(editorBox.y-subtitleBox.y)<2&&Math.abs(editorBox.y-videoBox.y)<2,'桌面视频、字幕和编辑应并排');
+    const saveBox=await desktop.page.locator('#add').boundingBox();
+    const chineseBox=await desktop.page.locator('#chinese').boundingBox();
+    assert(saveBox.y+saveBox.height<=768&&chineseBox.y+chineseBox.height<=768,'矮窗口应能看到中文和保存按钮');
+    await desktop.page.screenshot({path:'qa/制作布局_1366.png'});
+    await desktop.page.evaluate(()=>{project.clips[0].chinese='';renderClips()});
+    await desktop.page.locator('#compose').click();
+    assert.equal(await desktop.page.locator('#startCompose').isDisabled(),true);
+    assert.match(await desktop.page.locator('#composeCheckList').innerText(),/第 1 段缺少中文/);
+    assert.equal(desktop.state.composeCalls.length,0);
+    await desktop.page.locator('[data-check-edit="0"]').click();
+    assert.equal(await desktop.page.locator('#composeCheckDialog').isVisible(),false);
+    assert.equal(await desktop.page.locator('#editLabel').innerText(),'编辑第 1 段');
+    await desktop.page.evaluate(data=>{load(data);project.clips[0].end=101;renderClips()},structuredClone(sample));
+    await desktop.page.locator('#compose').click();
+    assert.equal(await desktop.page.locator('#startCompose').isDisabled(),true);
+    assert.match(await desktop.page.locator('#composeCheckList').innerText(),/超出原视频/);
+    await desktop.page.locator('#closeComposeCheck').click();
+    await desktop.page.evaluate(data=>{load(data);project.clips.push({...project.clips[0]});renderClips()},structuredClone(sample));
+    await desktop.page.locator('#compose').click();
+    assert.match(await desktop.page.locator('#composeCheckList').innerText(),/时间重叠/);
+    assert.equal(await desktop.page.locator('#startCompose').isEnabled(),true,'重复播放只提示，不阻止合成');
+    await desktop.page.locator('#closeComposeCheck').click();
+    await desktop.page.locator('#mobileComposeSettings summary').click();
+    await desktop.page.locator('#cardSeconds').fill('0');
+    await desktop.page.locator('#compose').click();
+    assert.equal(await desktop.page.locator('#startCompose').isDisabled(),true);
+    await desktop.page.locator('[data-check-settings]').first().click();
+    assert.equal(await desktop.page.locator('#mobileComposeSettings').evaluate(node=>node.open),true);
+    await desktop.page.locator('#cardSeconds').fill('7');
+    await desktop.page.locator('#theme').selectOption('paper');
+    await desktop.page.locator('#ratio').selectOption('portrait');
+    await desktop.page.locator('#mobileComposeSettings summary').click();
+    await desktop.page.locator('#mobileComposeSettings summary').click();
+    assert.equal(await desktop.page.locator('#cardSeconds').inputValue(),'7');
+    assert.equal(await desktop.page.locator('#theme').inputValue(),'paper');
+    assert.match(await desktop.page.locator('#composeSummary').innerText(),/竖版/);
+    await desktop.page.evaluate(data=>{load(data);document.querySelectorAll('[data-version-out]').forEach(input=>input.checked=false)},structuredClone(sample));
+    await desktop.page.locator('#compose').click();
+    assert.equal(await desktop.page.locator('#startCompose').isDisabled(),true);
+    assert.match(await desktop.page.locator('#composeCheckList').innerText(),/至少勾选一种输出/);
+    await desktop.page.locator('#closeComposeCheck').click();
+    await desktop.page.evaluate(()=>{$('verPlain').checked=true;$('fullCoverage').checked=true});
+    await desktop.page.locator('#compose').click();
+    assert.equal(await desktop.page.locator('#startCompose').isDisabled(),true);
+    assert.match(await desktop.page.locator('#composeCheckList').innerText(),/未连续覆盖/);
+    await desktop.page.locator('#closeComposeCheck').click();
+    await desktop.page.evaluate(data=>{load(data);editIndex=0},structuredClone(sample));
+    await desktop.page.locator('#compose').click();
+    assert.equal(await desktop.page.locator('#startCompose').isDisabled(),true);
+    assert.match(await desktop.page.locator('#composeCheckList').innerText(),/尚未保存/);
+    assert.equal(desktop.state.composeCalls.length,0);
+    await desktop.page.locator('#closeComposeCheck').click();
+    await desktop.page.evaluate(data=>load(data),structuredClone(sample));
     await desktop.page.locator('#publishingTab').click();
     await desktop.page.locator('[data-edit-publication]').click();
     await desktop.page.waitForFunction(() => !busy && publishingFrame !== null);
