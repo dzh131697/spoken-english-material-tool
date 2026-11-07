@@ -322,7 +322,7 @@ $('import').onclick=()=>action(async()=>{
   if(sources.some(source=>source.video?.toLowerCase().startsWith(folder.toLowerCase()+'\\'))&&!confirm('将重新检查这个文件夹。有变化的视频会清除旧分类并重新分析，是否继续？'))return;
   const result=await job('/api/library/import',{folder});
   await refreshSources(true);await search();
-  status(`已添加 / 更新 ${result.added} 个视频，跳过 ${result.skipped} 个未变化的视频。`+(result.missing.length?'\n以下视频缺少英文字幕：\n'+result.missing.join('\n'):'')+(result.errors.length?'\n导入失败：\n'+result.errors.map(x=>x.name+'：'+x.error).join('\n'):''),Boolean(result.errors.length));
+  status(`已添加 / 更新 ${result.added} 个视频，跳过 ${result.skipped} 个未变化的视频，重定位 ${result.relocated||0} 个已移动的视频。`+(result.missing.length?'\n以下视频缺少英文字幕：\n'+result.missing.join('\n'):'')+(result.errors.length?'\n导入失败：\n'+result.errors.map(x=>x.name+'：'+x.error).join('\n'):''),Boolean(result.errors.length));
   if(isAndroid){importFiles=[];$('libraryFiles').value='';$('folderValue').textContent='导入完成，文件保存在应用私有空间。'}
   current=null;dirty=false;$('editor').classList.add('hidden');$('video').pause();$('video').removeAttribute('src');$('video').load();$('videoEmpty').classList.remove('hidden');$('previewPlaceholder').classList.remove('hidden');
 });

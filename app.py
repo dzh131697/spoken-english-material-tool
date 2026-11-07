@@ -2334,7 +2334,8 @@ def library_db():
         db.executescript('''
             CREATE TABLE IF NOT EXISTS sources (
                 id TEXT PRIMARY KEY, video TEXT UNIQUE, subtitle TEXT, title TEXT,
-                signature TEXT, rows_json TEXT, error TEXT DEFAULT '');
+                signature TEXT, rows_json TEXT, error TEXT DEFAULT '',
+                media_key TEXT NOT NULL DEFAULT '');
             CREATE TABLE IF NOT EXISTS batches (
                 source_id TEXT, batch_index INTEGER, PRIMARY KEY(source_id, batch_index));
             CREATE TABLE IF NOT EXISTS sentences (
@@ -2343,10 +2344,23 @@ def library_db():
         ''')
         if 'pattern_version' not in {row[1] for row in db.execute('PRAGMA table_info(sentences)')}:
             db.execute('ALTER TABLE sentences ADD COLUMN pattern_version INTEGER NOT NULL DEFAULT 0')
+        if 'media_key' not in {row[1] for row in db.execute('PRAGMA table_info(sources)')}:
+            db.execute("ALTER TABLE sources ADD COLUMN media_key TEXT NOT NULL DEFAULT ''")
+        db.execute('CREATE INDEX IF NOT EXISTS idx_sources_media_key ON sources(media_key)')
         with db:
             yield db
     finally:
         db.close()
+
+
+def media_key_for(video, url=''):
+    video = Path(video)
+    match = re.search(r'(?:[?&]v=|youtu\.be/|/shorts/|/embed/)([A-Za-z0-9_-]{11})', str(url or ''))
+    if not match:
+        match = re.search(r'\[([A-Za-z0-9_-]{11})\]', video.name)
+    if match:
+        return 'yt:' + match.group(1)
+    return 'path:' + hashlib.sha256(str(video.resolve()).casefold().encode('utf-8')).hexdigest()[:16]
 
 
 def library_import(folder, progress):
@@ -2355,7 +2369,7 @@ def library_import(folder, progress):
         raise ValueError('请填写已下载视频所在文件夹的完整路径')
     videos = sorted(path for path in folder.rglob('*')
                     if path.is_file() and path.suffix.lower() in ('.mp4', '.mkv', '.webm', '.mov', '.m4v'))
-    added, skipped, missing, errors = 0, 0, [], []
+    added, skipped, relocated, missing, errors = 0, 0, 0, [], []
     for index, video in enumerate(videos, 1):
         progress('导入 {}/{}：{}'.format(index, len(videos), video.name))
         # 下载器通常生成 name.en.srt / name.en-orig.vtt，优先英文，其次无语言后缀。
@@ -2374,8 +2388,24 @@ def library_import(folder, progress):
             raw = subtitle.read_bytes()
             signature = hashlib.sha256(raw + str((video.stat().st_size, video.stat().st_mtime_ns)).encode()).hexdigest()
             sid = hashlib.sha256(str(video.resolve()).casefold().encode('utf-8')).hexdigest()[:16]
+            key = media_key_for(video)
             with library_db() as db:
-                old = db.execute('SELECT signature FROM sources WHERE id=?', (sid,)).fetchone()
+                previous = None
+                if key.startswith('yt:'):
+                    previous = db.execute('SELECT id,video,signature FROM sources WHERE media_key=?', (key,)).fetchone()
+                if previous and previous['video'] != str(video.resolve()):
+                    conflict = db.execute('SELECT id FROM sources WHERE video=? AND id<>?',
+                                          (str(video.resolve()), previous['id'])).fetchone()
+                    if conflict:
+                        errors.append({'name': video.name, 'error': '新路径已被其他素材占用，未重定位'})
+                        continue
+                    db.execute('UPDATE sources SET video=?,subtitle=?,signature=?,title=?,error=? WHERE id=?',
+                               (str(video.resolve()), str(subtitle.resolve()), signature, video.stem,
+                                '', previous['id']))
+                    relocated += 1
+                    continue
+                target = previous['id'] if previous else sid
+                old = db.execute('SELECT signature FROM sources WHERE id=?', (target,)).fetchone()
                 if old and old['signature'] == signature:
                     skipped += 1
                     continue
@@ -2383,15 +2413,18 @@ def library_import(folder, progress):
                 if any(not math.isfinite(row['start']) or not math.isfinite(row['end'])
                        or row['start'] < 0 for row in rows):
                     raise ValueError('字幕时间无效')
-                db.execute('DELETE FROM sentences WHERE source_id=?', (sid,))
-                db.execute('DELETE FROM batches WHERE source_id=?', (sid,))
-                db.execute('INSERT OR REPLACE INTO sources VALUES (?,?,?,?,?,?,?)',
-                           (sid, str(video.resolve()), str(subtitle.resolve()), video.stem,
-                            signature, json.dumps(rows, ensure_ascii=False), ''))
+                db.execute('DELETE FROM sentences WHERE source_id=?', (target,))
+                db.execute('DELETE FROM batches WHERE source_id=?', (target,))
+                db.execute('INSERT OR REPLACE INTO sources '
+                           '(id,video,subtitle,title,signature,rows_json,error,media_key) '
+                           'VALUES (?,?,?,?,?,?,?,?)',
+                           (target, str(video.resolve()), str(subtitle.resolve()), video.stem,
+                            signature, json.dumps(rows, ensure_ascii=False), '', key))
                 added += 1
         except (OSError, ValueError) as error:
             errors.append({'name': video.name, 'error': str(error)})
-    return {'added': added, 'skipped': skipped, 'missing': missing, 'errors': errors}
+    return {'added': added, 'skipped': skipped, 'relocated': relocated,
+            'missing': missing, 'errors': errors}
 
 
 def register_project_source(pid):
@@ -2407,14 +2440,18 @@ def register_project_source(pid):
     rows = json.dumps(p['subtitles'], ensure_ascii=False)
     signature = hashlib.sha256(
         (rows + str((video.stat().st_size, video.stat().st_mtime_ns))).encode('utf-8')).hexdigest()
+    key = media_key_for(video, p.get('url', ''))
     with library_db() as db:
         old = db.execute('SELECT id FROM sources WHERE id=?', (sid,)).fetchone()
         if old:
-            db.execute('UPDATE sources SET title=? WHERE id=?', (str(p['title'])[:200], sid))
+            db.execute('UPDATE sources SET title=?,media_key=? WHERE id=?',
+                       (str(p['title'])[:200], key, sid))
             return False
-        db.execute('INSERT OR REPLACE INTO sources VALUES (?,?,?,?,?,?,?)',
+        db.execute('INSERT OR REPLACE INTO sources '
+                   '(id,video,subtitle,title,signature,rows_json,error,media_key) '
+                   'VALUES (?,?,?,?,?,?,?,?)',
                    (sid, str(video.resolve()), str(subtitle.resolve()) if subtitle else '',
-                    str(p['title'])[:200], signature, rows, ''))
+                    str(p['title'])[:200], signature, rows, '', key))
     return True
 
 
@@ -2427,18 +2464,25 @@ def library_open_source(sid):
     video = Path(source['video'])
     if not video.is_file():
         raise ValueError('找不到原视频：' + source['video'] + '，请检查是否被移动或删除')
+    key = source.get('media_key') or ''
     for path in PROJECTS.glob('*/project.json'):
         try:
             existing = json.loads(path.read_text(encoding='utf-8'))
         except (OSError, ValueError):
             continue
-        if existing.get('library_video') == str(video) and existing.get('library_source') == sid:
+        if (key and existing.get('library_media_key') == key) or (
+                existing.get('library_video') == str(video) and existing.get('library_source') == sid):
+            if existing.get('library_video') != str(video):
+                existing['library_video'] = str(video)
+                existing['video'] = 'source' + video.suffix.lower()
+                save_project(existing)
             return existing
     pid = secrets.token_hex(8)
     project_dir(pid).mkdir(parents=True)
     p = {'id': pid, 'title': source['title'] or video.stem, 'url': '',
          'video': 'source' + video.suffix.lower(), 'library_video': str(video),
-         'library_source': sid, 'subtitles': json.loads(source['rows_json']),
+         'library_source': sid, 'library_media_key': key,
+         'subtitles': json.loads(source['rows_json']),
          'subZh': {}, 'clips': [], 'outputs': []}
     save_project(p)
     return p
