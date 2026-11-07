@@ -382,10 +382,17 @@ COOKIE_LOGIN_NAMES = ('SID', 'HSID', 'SSID', 'APISID', 'SAPISID', 'LOGIN_INFO')
 
 
 def cookie_rows(text):
-    """从 Netscape 格式的 cookie 文本里取出有效行（7 个制表符分隔字段）。"""
+    """从 Netscape 格式的 cookie 文本里取出有效行（7 个制表符分隔字段）。
+    HttpOnly Cookie 的行首是 #HttpOnly_ 而不是注释，去掉前缀后才是域名；
+    登录态 Cookie（SID 等）常是 HttpOnly，当成注释跳过会误报「未登录」。"""
     rows = []
     for line in text.splitlines():
-        if not line.strip() or line.lstrip().startswith('#'):
+        if not line.strip():
+            continue
+        stripped = line.lstrip()
+        if stripped.startswith('#HttpOnly_'):
+            line = stripped[len('#HttpOnly_'):]
+        elif stripped.startswith('#'):
             continue
         fields = line.split('\t')
         if len(fields) >= 7:

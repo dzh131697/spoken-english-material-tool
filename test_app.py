@@ -556,6 +556,24 @@ class WorkflowTest(unittest.TestCase):
                 cookie_path.unlink()
                 self.assertFalse(app.cookies_status()['enabled'])
 
+    def test_cookie_rows_keep_httponly_login_cookies(self):
+        sample = ('# Netscape HTTP Cookie File\n'
+                  '#HttpOnly_.youtube.com\tTRUE\t/\tTRUE\t1893456000\tSID\tabc\n'
+                  '#HttpOnly_.youtube.com\tTRUE\t/\tTRUE\t1893456000\tHSID\tdef\n'
+                  '.youtube.com\tTRUE\t/\tFALSE\t0\tYSC\tghi\n'
+                  '# 这是真正的注释\n')
+        rows = app.cookie_rows(sample)
+        self.assertEqual(len(rows), 3)
+        self.assertEqual(rows[0][0], '.youtube.com')
+        self.assertIn('SID', {row[5] for row in rows})
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.object(app, 'COOKIES', Path(directory) / 'cookies.txt'):
+                status = app.save_cookies(sample.encode('utf-8'))
+                self.assertEqual(status['cookies'], 3)
+                self.assertTrue(status['logged_in'])
+                # 前缀必须原样落盘，yt-dlp 才能识别 HttpOnly 行
+                self.assertIn('#HttpOnly_', app.COOKIES.read_text(encoding='utf-8'))
+
     def test_download_passes_cookie_file_only_when_present(self):
         captured = {}
         state = {'error': '网络错误'}
