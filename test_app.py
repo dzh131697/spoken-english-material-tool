@@ -80,6 +80,103 @@ class WorkflowTest(unittest.TestCase):
                     app.suggest_segments(pid, {'mode': 'highlights', 'count': 1}, 'test', lambda text: None)
                 self.assertEqual(ai.call_count, 2)
 
+    def test_edited_english_keeps_cue_times_and_all_inserted_words(self):
+        rows = [{'start': 1, 'end': 2, 'text': 'I has a plan.'},
+                {'start': 2.2, 'end': 4, 'text': 'We leave tomorrow.'}]
+        clip = {'start': 1, 'end': 4, 'english': 'Actually I have a plan. We leave early tomorrow.'}
+        cues = app.clip_cues(rows, clip)
+        self.assertEqual([cue['text'] for cue in cues],
+                         ['Actually I have a plan.', 'We leave early tomorrow.'])
+        self.assertEqual((cues[0]['start'], cues[0]['end'], cues[1]['end']), (0, 1, 3))
+        self.assertAlmostEqual(cues[1]['start'], 1.2)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'edited.ass'
+            app.write_ass(path, cues, False, 1920, 1080)
+            text = path.read_text(encoding='utf-8')
+            self.assertIn('Actually I have a plan.', text)
+            self.assertNotIn('I has', text)
+        clip['english'] = 'We leave tomorrow.'
+        self.assertEqual([cue['text'] for cue in app.clip_cues(rows, clip)], ['We leave tomorrow.'])
+        self.assertEqual(app.clip_cues([], {'start': 2, 'end': 5, 'english': 'Hello.'})[0]['end'], 3)
+        self.assertEqual(rows[0]['text'], 'I has a plan.')
+
+    def test_partial_chinese_is_reused_and_only_missing_or_edited_rows_are_translated(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(app, 'PROJECTS', Path(directory)):
+            pid = '0123456789abcdef'
+            rows = [{'start': i, 'end': i + .9, 'text': 'Sentence {}.'.format(i)} for i in range(5)]
+            p = {'id': pid, 'subtitles': rows, 'subZh': [
+                {'start': i, 'end': i + .9, 'text': '原中文{}'.format(i)} for i in range(3)], 'rowZh': {'3': '旧缓存'}}
+            app.save_project(p)
+            clips = [{'start': 0, 'end': 5, 'english': app.subtitle_text(rows)}]
+            with patch.object(app, 'translate_rows', return_value=({0: '补译'}, {})) as translate:
+                result = app.chinese_subtitles(pid, p, clips, 'fake-key', lambda text: None)
+            self.assertEqual(translate.call_args.args[0], [{'index': 0, 'text': 'Sentence 4.'}])
+            self.assertEqual(result[(0, 'Sentence 0.')], '原中文0')
+            self.assertEqual(result[(3, 'Sentence 3.')], '旧缓存')
+            self.assertEqual(result[(4, 'Sentence 4.')], '补译')
+            with patch.object(app, 'translate_rows') as translate:
+                self.assertEqual(app.chinese_subtitles(pid, app.read_project(pid), clips, '', lambda text: None), result)
+                translate.assert_not_called()
+            clips = [{'start': 0, 'end': .9, 'english': 'Corrected sentence.'}]
+            with self.assertRaisesRegex(ValueError, '1 行缺少中文'):
+                app.chinese_subtitles(pid, p, clips, '', lambda text: None)
+            with patch.object(app, 'translate_rows', return_value=({0: '修正后的中文'}, {})) as translate:
+                result = app.chinese_subtitles(pid, p, clips, 'fake-key', lambda text: None)
+            self.assertEqual(translate.call_args.args[0], [{'index': 0, 'text': 'Corrected sentence.'}])
+            self.assertEqual(app.clip_cues(rows, clips[0], result)[0]['chinese'], '修正后的中文')
+            repeated = {'subtitles': [{'start': 0, 'end': 1, 'text': 'Right.'},
+                                      {'start': 2, 'end': 3, 'text': 'Right.'}],
+                        'subZh': [{'start': 0, 'end': 1, 'text': '对。'},
+                                  {'start': 2, 'end': 3, 'text': '右边。'}]}
+            clips = [{'start': 0, 'end': 3, 'english': 'Right. Right.'}]
+            result = app.chinese_subtitles(pid, repeated, clips, '', lambda text: None)
+            self.assertEqual([cue['chinese'] for cue in app.clip_cues(repeated['subtitles'], clips[0], result)],
+                             ['对。', '右边。'])
+
+    def test_unpunctuated_sentence_boundaries_are_cached_and_keep_original_times(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(app, 'PROJECTS', Path(directory)):
+            pid = '0123456789abcdef'
+            rows = [{'start': i * 2, 'end': i * 2 + 1, 'text': text}
+                    for i, text in enumerate(['I wanted to tell you', 'something important', 'so I called you'])]
+            app.save_project({'id': pid, 'video': 'source.mp4', 'subtitles': rows, 'clips': []})
+            answer = {'segments': [{'start': 0, 'end': 0, 'chinese': '我想告诉你重要的事'},
+                                   {'start': 1, 'end': 1, 'chinese': '所以我打给你'}]}
+            with patch.object(app, 'video_duration', return_value=6), patch.object(app, 'deepseek', side_effect=[
+                    (json.dumps({'ends': [1, 2]}), {'total_tokens': 7}), (json.dumps(answer), {'total_tokens': 5})]) as ai:
+                result = app.suggest_segments(pid, {'count': 1}, 'fake-key', lambda text: None)
+                cached = app.suggest_segments(pid, {'count': 1}, 'fake-key', lambda text: None)
+            self.assertEqual(ai.call_count, 2)
+            self.assertEqual(result['tokens'], 12)
+            self.assertEqual(result['clips'][0]['english'], 'I wanted to tell you something important')
+            self.assertEqual((result['clips'][0]['start'], result['clips'][0]['end']), (0, 3))
+            self.assertTrue(cached['cached'])
+            self.assertEqual(app.read_project(pid)['subtitles'], rows)
+            for invalid in ([True], [0, 0], [3], '0', [1, 0]):
+                with patch.object(app, 'deepseek', return_value=(json.dumps({'ends': invalid}), {})):
+                    with self.assertRaisesRegex(ValueError, '句末索引无效'):
+                        app.recover_sentence_endings(rows, 'fake-key', lambda text: None)
+
+    def test_audio_edges_ignore_clicks_short_dips_and_window_edges(self):
+        peaks = [0] * 20 + [.5] * 20 + [0] * 5 + [.5] * 20 + [0] * 20
+        self.assertEqual(app.speech_edges(peaks, .1), ([20], [65]))
+        self.assertEqual(app.speech_edges([0] * 20 + [.8] * 2 + [0] * 20, .1), ([], []))
+        self.assertEqual(app.speech_edges([.5] * 100, .1), ([], []))
+        with patch.object(app, 'read_project', return_value={'video': 'source.mp4'}), \
+                patch.object(app, 'has_audio', return_value=True), patch.object(app, 'video_duration', return_value=10), \
+                patch.object(app, 'cached_envelope', return_value=[.5] * 400):
+            result = app.snap_clip('0123456789abcdef', 2, 4)
+        self.assertEqual((result['start'], result['end']), (2, 4))
+        self.assertFalse(result['changed'])
+        self.assertIn('请试听确认', result['warning'])
+
+    def test_rolling_subtitles_preserve_real_repetition_and_source_tail(self):
+        text = ('WEBVTT\n\n00:00:00.000 --> 00:00:01.000\n'
+                'very <00:00:00.500><c>good.</c>\n\n'
+                '00:00:01.200 --> 00:00:03.000\nvery <00:00:01.700><c>good.</c>\n')
+        rows = app.parse_subtitles(text)
+        self.assertEqual([row['text'] for row in rows], ['very good.', 'very good.'])
+        self.assertEqual(rows[-1]['end'], 3)
+
     def ffmpeg_binary(self):
         configured = os.environ.get('TEST_FFMPEG')
         if configured:

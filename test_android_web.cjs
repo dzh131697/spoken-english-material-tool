@@ -343,6 +343,14 @@ async function openPage(browser, android, width = 390) {
     assert.equal(await desktop.page.locator('#mobileNav').isVisible(), false);
     assert.equal(await desktop.page.locator('#openOutput').isVisible(), true);
     assert.equal(await desktop.page.locator('[data-save-output]').count(), 0);
+    await desktop.page.evaluate(data => {
+      data.subtitles = [{start:0,end:1,text:'Very good.'},{start:1.2,end:2,text:'Very good.'}];
+      load(data);
+    }, structuredClone(sample));
+    await desktop.page.locator('.sub').nth(0).click();
+    await desktop.page.locator('.sub').nth(1).click({ modifiers: ['Shift'] });
+    assert.equal(await desktop.page.locator('#english').inputValue(), 'Very good. Very good.');
+    await desktop.page.evaluate(data => load(data), structuredClone(sample));
     await desktop.page.locator('.sub').nth(0).click();
     await desktop.page.locator('.sub').nth(1).click({ modifiers: ['Shift'] });
     assert.equal(await desktop.page.locator('#english').inputValue(), 'How was your weekend? I had a great time.');
