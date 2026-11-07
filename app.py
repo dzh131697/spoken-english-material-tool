@@ -550,6 +550,11 @@ def download_video(url, progress):
              'video': source.name, 'subtitles': rows, 'subZh': parse_chinese_subtitles(folder), 'clips': []}
         check_cancelled()
         save_project(p)
+        try:
+            if register_project_source(pid) and progress:
+                progress('已同步到素材库，可在句型库勾选分析')
+        except Exception:
+            pass
         return p
     except JobCancelled:
         shutil.rmtree(folder, ignore_errors=True)
@@ -2382,6 +2387,28 @@ def library_import(folder, progress):
     return {'added': added, 'skipped': skipped, 'missing': missing, 'errors': errors}
 
 
+def register_project_source(pid):
+    p = read_project(pid)
+    folder = project_dir(pid)
+    video = folder / p['video']
+    if not p.get('subtitles') or not video.is_file():
+        return False
+    subtitle = pick_subtitle_file(folder)
+    sid = hashlib.sha256(str(video.resolve()).casefold().encode('utf-8')).hexdigest()[:16]
+    rows = json.dumps(p['subtitles'], ensure_ascii=False)
+    signature = hashlib.sha256(
+        (rows + str((video.stat().st_size, video.stat().st_mtime_ns))).encode('utf-8')).hexdigest()
+    with library_db() as db:
+        old = db.execute('SELECT id FROM sources WHERE id=?', (sid,)).fetchone()
+        if old:
+            db.execute('UPDATE sources SET title=? WHERE id=?', (str(p['title'])[:200], sid))
+            return False
+        db.execute('INSERT OR REPLACE INTO sources VALUES (?,?,?,?,?,?,?)',
+                   (sid, str(video.resolve()), str(subtitle.resolve()) if subtitle else '',
+                    str(p['title'])[:200], signature, rows, ''))
+    return True
+
+
 def library_pick_folder():
     if os.name != 'nt':
         raise ValueError('文件夹选择仅支持 Windows，请直接填写完整路径')
@@ -3208,6 +3235,10 @@ class Handler(BaseHTTPRequestHandler):
                 p['rowZh'] = {}
                 p.pop('subtitleEdits', None)
                 save_project(p)
+            try:
+                register_project_source(p['id'])
+            except Exception:
+                pass
             self.reply(p)
         else:
             raise ValueError('无效文件类型')

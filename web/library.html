@@ -70,6 +70,7 @@ body[data-step=browse] .shell{padding-top:18px}body[data-step=browse] .workflow{
       <section class="panel sources-card">
         <div class="sources-heading"><div class="section-top"><h2>待整理的素材</h2><span id="sourceSummary" class="muted">尚未导入</span></div></div>
         <div class="sources-toolbar"><button id="selectAll" class="text-button">选择待整理</button><button id="selectNone" class="text-button">取消选择</button><button id="refresh" class="text-button">刷新</button><span id="selectedSourceCount" class="selection-count">已选 0 个</span></div>
+        <p class="hint">主页面通过 YouTube 或本地导入的视频，带英文字幕时会自动出现在这里，直接勾选即可分析。</p>
         <div id="sources" class="sources"></div>
         <div class="analysis-footer"><div class="row"><span id="analysisHint" class="muted grow">导入后，勾选要分析的视频。</span><button id="retag" disabled>整理旧句型</button><button id="reanalyze" disabled>重跑所选</button><button id="analyze" class="primary" disabled>分析字幕</button></div><p>只向 DeepSeek 发送英文字幕，按 API 用量计费。只收录能独立练习的单句（英文不超过 16 词），不适合的句子会跳过；已完成批次自动跳过。「重跑所选」会清空该视频已有例句后按当前规则重做。</p></div>
       </section>
