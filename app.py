@@ -111,6 +111,13 @@ def save_project(p):
     atomic_json(project_dir(p['id']) / 'project.json', p)
 
 
+def project_video_path(p, pid):
+    external = p.get('library_video')
+    if external and Path(external).is_file():
+        return Path(external)
+    return project_dir(pid) / p['video']
+
+
 def timestamp(value):
     parts = value.replace(',', '.').split(':')
     return sum(float(x) * 60 ** i for i, x in enumerate(reversed(parts)))
@@ -963,7 +970,7 @@ def suggest_segments(pid, options, key, progress):
     rows = effective_subtitles(p)
     if not rows:
         raise ValueError('请先导入英文字幕')
-    source = project_dir(pid) / p['video']
+    source = project_video_path(p, pid)
     duration = video_duration(source)
     for i, row in enumerate(rows):
         if (not math.isfinite(row['start']) or not math.isfinite(row['end']) or row['start'] < 0
@@ -1424,7 +1431,7 @@ def export_clips(pid, clips, portrait, progress, theme='midnight', tip=''):
         raise ValueError('请先加入至少一个选段')
     if any(not c['chinese'] for c in clips):
         raise ValueError('部分选段缺少中文，请先翻译或手动填写')
-    source = project_dir(pid) / p['video']
+    source = project_video_path(p, pid)
     ffmpeg()
     folder = OUTPUT / (time.strftime('%Y%m%d_%H%M%S') + '_' + secrets.token_hex(3))
     folder.mkdir(parents=True)
@@ -1537,7 +1544,7 @@ def speech_edges(peaks, threshold, rate=100):
 def waveform(pid, start, end, per_second=50):
     """给编辑器返回一段音频的包络，用来画波形并判断切点是否落在语音中间。"""
     p = read_project(pid)
-    source = project_dir(pid) / p['video']
+    source = project_video_path(p, pid)
     if not has_audio(source):
         raise ValueError('这个视频没有音轨，无法显示波形，请手动填写时间或用播放位置设置')
     duration = video_duration(source)
@@ -1557,7 +1564,7 @@ def waveform(pid, start, end, per_second=50):
 def snap_clip(pid, start, end):
     """把两个切点吸到最近的语音起点/收尾。纯本地音频分析，不调用 AI。"""
     p = read_project(pid)
-    source = project_dir(pid) / p['video']
+    source = project_video_path(p, pid)
     if not has_audio(source):
         raise ValueError('这个视频没有音轨，无法自动贴合，请手动拖动或用播放位置设置')
     duration = video_duration(source)
@@ -1907,7 +1914,7 @@ def compose_video(pid, clips, portrait, card_seconds, progress, theme='midnight'
         raise ValueError('请至少选择一种输出格式')
     if sound not in CARD_SOUNDS:
         raise ValueError('请选择有效的提示音')
-    source = project_dir(pid) / p['video']
+    source = project_video_path(p, pid)
     ffmpeg()
     if continuous:
         duration = video_duration(source)
@@ -2101,7 +2108,7 @@ def output_source(p, output):
         name = output['source_video']
         if Path(name).name != name:
             raise ValueError('无效原视频路径')
-        return project_dir(p['id']) / name
+        return project_video_path(p, p['id'])
     return OUTPUT / output['id'] / output['name']
 
 
@@ -2389,8 +2396,10 @@ def library_import(folder, progress):
 
 def register_project_source(pid):
     p = read_project(pid)
+    if p.get('library_video'):
+        return False
     folder = project_dir(pid)
-    video = folder / p['video']
+    video = project_video_path(p, pid)
     if not p.get('subtitles') or not video.is_file():
         return False
     subtitle = pick_subtitle_file(folder)
@@ -2407,6 +2416,32 @@ def register_project_source(pid):
                    (sid, str(video.resolve()), str(subtitle.resolve()) if subtitle else '',
                     str(p['title'])[:200], signature, rows, ''))
     return True
+
+
+def library_open_source(sid):
+    with library_db() as db:
+        row = db.execute('SELECT * FROM sources WHERE id=?', (sid,)).fetchone()
+        if not row:
+            raise ValueError('素材不存在，请刷新列表')
+        source = dict(row)
+    video = Path(source['video'])
+    if not video.is_file():
+        raise ValueError('找不到原视频：' + source['video'] + '，请检查是否被移动或删除')
+    for path in PROJECTS.glob('*/project.json'):
+        try:
+            existing = json.loads(path.read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            continue
+        if existing.get('library_video') == str(video) and existing.get('library_source') == sid:
+            return existing
+    pid = secrets.token_hex(8)
+    project_dir(pid).mkdir(parents=True)
+    p = {'id': pid, 'title': source['title'] or video.stem, 'url': '',
+         'video': 'source' + video.suffix.lower(), 'library_video': str(video),
+         'library_source': sid, 'subtitles': json.loads(source['rows_json']),
+         'subZh': {}, 'clips': [], 'outputs': []}
+    save_project(p)
+    return p
 
 
 def library_pick_folder():
@@ -2909,8 +2944,7 @@ class Handler(BaseHTTPRequestHandler):
                 if params.get('token', [''])[0] != TOKEN:
                     return self.reply({'error': '禁止访问'}, 403)
                 p = read_project(params['id'][0])
-                path = project_dir(p['id']) / p['video']
-                self.send_media(path)
+                self.send_media(project_video_path(p, params['id'][0]))
             elif parsed.path == '/output-media':
                 if params.get('token', [''])[0] != TOKEN:
                     return self.reply({'error': '禁止访问'}, 403)
@@ -3046,6 +3080,8 @@ class Handler(BaseHTTPRequestHandler):
             elif self.path == '/api/library/pick':
                 key = KEY
                 self.reply(job_start(lambda progress: library_pick(body.get('topic', ''), body.get('limit', 8), key, progress)))
+            elif self.path == '/api/library/open':
+                self.reply(library_open_source(body.get('id', '')))
             elif self.path == '/api/library/topic':
                 self.reply(job_start(lambda progress: library_topic(body.get('ids'), body.get('title', ''), progress)))
             elif self.path == '/api/download':
