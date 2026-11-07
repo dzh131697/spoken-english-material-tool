@@ -495,7 +495,8 @@ class WorkflowTest(unittest.TestCase):
             self.assertEqual(result['chinese'], '你周末过得怎么样？')
             payload = json.loads(request.call_args[0][0].data)
             self.assertEqual(payload['messages'][1]['content'], 'How was your weekend?')
-            self.assertEqual(payload['model'], 'deepseek-chat')
+            self.assertEqual(payload['model'], 'deepseek-flash')
+            self.assertEqual(payload['thinking'], {'type': 'disabled'})
         with self.assertRaises(ValueError):
             app.translate('Hello', '')
 

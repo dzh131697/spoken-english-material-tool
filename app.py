@@ -674,7 +674,8 @@ def deepseek(messages, key, max_tokens, json_output=False):
     check_cancelled()
     if not key:
         raise ValueError('请先填写 DeepSeek API Key')
-    body = {'model': 'deepseek-chat', 'messages': messages, 'temperature': .2, 'max_tokens': max_tokens}
+    body = {'model': 'deepseek-flash', 'messages': messages, 'temperature': .2, 'max_tokens': max_tokens,
+            'thinking': {'type': 'disabled'}}
     if json_output:
         body['response_format'] = {'type': 'json_object'}
     request = urllib.request.Request('https://api.deepseek.com/chat/completions',
