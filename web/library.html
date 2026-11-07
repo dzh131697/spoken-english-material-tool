@@ -54,7 +54,7 @@ body[data-step=browse] .shell{padding-top:18px}body[data-step=browse] .workflow{
     <button class="step" data-step="browse"><span class="step-number">2</span><span><strong>挑选例句</strong><small>按语法与句型找到好表达</small></span><span class="step-arrow">›</span></button>
     <button class="step" data-step="arrange"><span class="step-number">3</span><span><strong>本期编排 <span id="navBasketCount"></span></strong><small>排好顺序，开始制作专题</small></span></button>
   </nav>
-  <div id="status" class="status" role="status" aria-live="polite"></div>
+  <div id="status" class="status" role="status" aria-live="polite"></div><button id="cancelLibraryJob" class="hidden">取消当前任务</button>
 
   <section id="step-import" aria-labelledby="importTitle">
     <div class="page-heading"><div><div class="eyebrow">STEP 01 / BUILD YOUR LIBRARY</div><h1 id="importTitle">先把好素材，收进来。</h1><p>选择已下载的视频文件夹，分析字幕，建立可以反复使用的例句库。</p></div><div class="summary">素材库已有 <strong id="sourceTotal">0</strong> 个视频</div></div>
@@ -159,7 +159,7 @@ async function action(fn){
   document.querySelectorAll('button,input,select,textarea').forEach(x=>x.disabled=true);
   $('status').classList.add('working');
   try{await fn()}catch(error){
-    status(error.message,true);
+    status(error.message,!error.cancelled);
     if($('settingsDialog').open)$('keyMessage').textContent=error.message;
   }finally{
     busy=false;
@@ -169,13 +169,23 @@ async function action(fn){
   }
 }
 async function pollJob(id){
-  for(;;){
-    const data=await api('/api/job?id='+encodeURIComponent(id));
-    status(data.message);
-    if(data.state==='error'){sessionStorage.removeItem('grammarJob');throw Error(data.message)}
-    if(data.state==='done'){sessionStorage.removeItem('grammarJob');return data.result}
-    await new Promise(resolve=>setTimeout(resolve,800));
-  }
+  $('cancelLibraryJob').classList.remove('hidden');$('cancelLibraryJob').disabled=false;
+  $('cancelLibraryJob').onclick=async()=>{
+    if(!confirm('取消只停止后续步骤，不撤销已完成操作；已完成批次保留，当前网络请求可能需等待返回，已提交 AI 用量仍可能计费。'))return;
+    $('cancelLibraryJob').disabled=true;
+    try{const result=await api('/api/job-cancel',{id});status(result.state==='cancelling'?'已请求取消，等待当前步骤安全停止…':'当前任务已经结束，无需取消。')}
+    catch(error){$('cancelLibraryJob').disabled=false;status('取消请求未确认，请恢复连接后重试。',true)}
+  };
+  try{
+    for(;;){
+      const data=await api('/api/job?id='+encodeURIComponent(id));status(data.message);
+      if(data.state==='error'||data.state==='cancelled'){
+        sessionStorage.removeItem('grammarJob');const error=Error(data.message);error.cancelled=data.state==='cancelled';throw error;
+      }
+      if(data.state==='done'){sessionStorage.removeItem('grammarJob');return data.result}
+      await new Promise(resolve=>setTimeout(resolve,800));
+    }
+  }finally{$('cancelLibraryJob').classList.add('hidden');$('cancelLibraryJob').onclick=null}
 }
 async function job(path,body){const {job:id}=await api(path,body);sessionStorage.setItem('grammarJob',id);return pollJob(id)}
 function home(pid=''){location.href='/?token='+encodeURIComponent(token)+(pid?'&project='+encodeURIComponent(pid):'')}

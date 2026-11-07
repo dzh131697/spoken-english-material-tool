@@ -36,7 +36,7 @@ async function openPage(browser, android, width = 390) {
       };
     }
   }, android);
-  const state = { preferences: structuredClone(defaultPreferences), preferenceWrites: [], exportCalls: 0, pollFailures: 0, polledJobs: [], jobError: null, composeCalls: [], saves: [], failNextSave: false, suggestCalls: 0, publicationSaves: {}, frames: [], generations: [], cards: [], deleted: [] };
+  const state = { subtitleEdits: {}, subtitleWrites: [], reparseCalls: 0, playlistRequests: [], playlistResult: null, jobRunning: false, jobCancelled: false, cancelCalls: [], preferences: structuredClone(defaultPreferences), preferenceWrites: [], exportCalls: 0, pollFailures: 0, polledJobs: [], jobError: null, composeCalls: [], saves: [], failNextSave: false, suggestCalls: 0, publicationSaves: {}, frames: [], generations: [], cards: [], deleted: [] };
   await context.route('**/*', async route => {
     const request = route.request();
     const url = new URL(request.url());
@@ -47,6 +47,15 @@ async function openPage(browser, android, width = 390) {
     });
     if (url.pathname === '/api/projects') return route.fulfill({ json: { projects: [], hasKey: false, productionPreferences: state.preferences } });
     if (url.pathname === '/api/production-preferences') { const body=request.postDataJSON(); state.preferenceWrites.push(body); state.preferences=Object.keys(body).length?body:structuredClone(defaultPreferences); return route.fulfill({json:state.preferences}); }
+    if(url.pathname==='/api/subtitle-edit'){
+      const body=request.postDataJSON();state.subtitleWrites.push(body);
+      if(body.english===body.source&&!body.chinese)delete state.subtitleEdits[body.index];
+      else state.subtitleEdits[body.index]={source:body.source,english:body.english,chinese:body.chinese};
+      return route.fulfill({json:{subtitleEdits:structuredClone(state.subtitleEdits)}});
+    }
+    if(url.pathname==='/api/reparse'){state.reparseCalls++;return route.fulfill({json:structuredClone(sample)})}
+    if(url.pathname==='/api/job-cancel'){state.cancelCalls.push(request.postDataJSON());state.jobCancelled=true;return route.fulfill({json:{state:'cancelling'}})}
+    if(url.pathname==='/api/download-playlist'){state.jobCancelled=false;state.playlistRequests.push(request.postDataJSON());return route.fulfill({json:{job:'playlist'}})}
     if (url.pathname === '/api/card-preview') {
       state.cards.push(request.postDataJSON());
       return route.fulfill({ contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360"><rect width="640" height="360" fill="#305b48"/></svg>' });
@@ -88,7 +97,7 @@ async function openPage(browser, android, width = 390) {
       state.saves.push(request.postDataJSON());
       return route.fulfill({ json: { ok: true } });
     }
-    if (url.pathname === '/api/export') { state.exportCalls++; return route.fulfill({ json: { job: 'export' } }); }
+    if (url.pathname === '/api/export') { state.jobCancelled=false;state.exportCalls++; return route.fulfill({ json: { job: 'export' } }); }
     if (url.pathname === '/api/compose') { state.composeCalls.push(request.postDataJSON()); return route.fulfill({ json: { job: 'compose' } }); }
     if (url.pathname === '/api/suggest') {
       state.suggestCalls++;
@@ -96,9 +105,12 @@ async function openPage(browser, android, width = 390) {
     }
     if (url.pathname === '/api/job') {
       state.polledJobs.push(url.searchParams.get('id'));
+      if(state.jobCancelled)return route.fulfill({json:{state:'cancelled',message:'任务已取消；原素材和已保存结果保留'}});
       if(state.pollFailures>0){state.pollFailures--;return route.abort('connectionrefused')}
       if(state.jobError)return route.fulfill({json:{state:'error',message:state.jobError}});
+      if(state.jobRunning)return route.fulfill({json:{state:'running',message:'正在处理当前片段'}});
       let result;
+      if(url.searchParams.get('id')==='playlist')result=state.playlistResult;
       if (url.searchParams.get('id') === 'export') result = { count: 1, folder: '/private/导出素材/20261104_123456_abcdef' };
       if (url.searchParams.get('id') === 'compose') result = { ...sample.outputs[0], file: '/private/成片.mp4' };
       if (url.searchParams.get('id') === 'suggest') result = {
@@ -517,6 +529,78 @@ async function openPage(browser, android, width = 390) {
       assert.equal(await page.locator('#taskDialog').isVisible(),false);
       assert.equal(state.exportCalls,before+2);
       assert.equal(await page.evaluate(()=>JSON.stringify(project.clips)),clips);
+      state.jobError=null;state.jobRunning=true;
+      await page.locator('#export').click();
+      await page.locator('#taskMessage').filter({hasText:'正在处理当前片段'}).waitFor();
+      page.once('dialog',dialog=>dialog.accept());
+      await page.locator('#cancelTask').click();
+      await page.locator('#taskDialog').waitFor({state:'hidden'});
+      await page.waitForFunction(()=>!busy);
+      assert.equal(state.cancelCalls.length,1);
+      assert.equal(state.cancelCalls[0].id,'export');
+      assert.match(await page.locator('#status').innerText(),/任务已取消/);
+      assert.equal(await page.locator('#status').evaluate(node=>node.classList.contains('error')),false);
+      assert.equal(await page.evaluate(()=>JSON.stringify(project.clips)),clips);
+      state.jobRunning=false;state.jobCancelled=false;
+      if(android)await page.evaluate(()=>showMobilePage('source'));
+      await page.locator('.sub').nth(0).click();
+      await page.locator('#editSubtitle').click();
+      await page.locator('#subtitleEnglish').fill('How was your holiday?');
+      await page.locator('#subtitleChinese').fill('假期过得怎么样？');
+      const played=await page.evaluate(()=>window.played);
+      await page.locator('#listenSubtitle').click();
+      assert.equal(await page.evaluate(()=>window.played),played+1);
+      await page.screenshot({path:android?'qa/逐行字幕修正_手机.png':'qa/逐行字幕修正_电脑.png'});
+      await page.locator('#saveSubtitleEdit').click();
+      await page.waitForFunction(()=>!busy);
+      assert.equal(await page.locator('#subtitleEditDialog').isVisible(),false);
+      assert.match(await page.locator('.sub').first().innerText(),/holiday/);
+      assert.equal(await page.locator('#english').inputValue(),'How was your holiday?');
+      assert.equal(await page.locator('#chinese').inputValue(),'');
+      assert.equal(await page.evaluate(()=>project.subtitles[0].text),'How was your weekend?');
+      assert.equal(await page.evaluate(()=>JSON.stringify(project.clips)),clips);
+      page.once('dialog',dialog=>dialog.dismiss());
+      await page.locator('#reparse').click();
+      assert.equal(state.reparseCalls,0);
+      await page.locator('#editSubtitle').click();
+      await page.locator('#subtitleChinese').fill('未保存的内容');
+      await page.locator('#closeSubtitleEdit').click();
+      assert.equal(await page.evaluate(()=>project.subtitleEdits[0].chinese),'假期过得怎么样？');
+      await page.locator('#editSubtitle').click();
+      page.once('dialog',dialog=>dialog.accept());
+      await page.locator('#resetSubtitleEdit').click();
+      await page.waitForFunction(()=>!busy);
+      assert.equal(await page.locator('#english').inputValue(),'How was your weekend?');
+      assert.deepEqual(await page.evaluate(()=>project.subtitleEdits),{});
+      if(!android){
+        state.playlistResult={folder:'C:/qa-downloads',total:3,downloaded:2,skipped:0,failedCount:1,failed:[{id:'ccc',title:'Failed video',error:'<img src=x>unavailable'}]};
+        await page.locator('#playlistBtn').click();
+        await page.locator('#playlistUrl').fill('https://www.youtube.com/playlist?list=PLtest');
+        await page.locator('#startPlaylist').click();
+        await page.locator('#retryPlaylist').waitFor({state:'visible'});
+        await page.waitForFunction(()=>!busy);
+        assert.equal(await page.locator('#playlistFailures img').count(),0);
+        state.playlistResult={folder:'C:/qa-downloads',total:1,downloaded:1,skipped:0,failedCount:0,failed:[]};
+        await page.locator('#retryPlaylist').click();
+        await page.waitForFunction(()=>!busy);
+        assert.equal(state.playlistRequests.length,2);
+        assert.deepEqual(state.playlistRequests[1],{url:'https://www.youtube.com/playlist?list=PLtest',folder:'C:/qa-downloads',limit:0,retry_ids:['ccc']});
+        assert.equal(await page.locator('#retryPlaylist').isVisible(),false);
+      }
+      await page.locator('#workflowNext').click();
+      assert.equal(await page.locator('#outputSection').isVisible(),true);
+      if(android){
+        await page.evaluate(()=>showMobilePage('source'));
+        await page.setViewportSize({width:320,height:560});
+        await page.locator('.sub').first().click();
+        await page.locator('#editSubtitle').click();
+        await page.locator('#subtitleEditDialog').evaluate(node=>node.scrollTop=180);
+        await page.locator('#subtitleChinese').scrollIntoViewIfNeeded();
+        const videoBox=await page.locator('#subtitleEditVideo').boundingBox(),textBox=await page.locator('#subtitleChinese').boundingBox();
+        assert(videoBox.y>=0&&videoBox.y+videoBox.height<textBox.y&&textBox.y+textBox.height<=560,'短屏滚动字幕编辑时应同时看见视频和中文');
+        await page.locator('#closeSubtitleEdit').click();
+      }
+
       assert.deepEqual(errors,[]);
       await context.close();
     }

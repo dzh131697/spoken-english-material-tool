@@ -9,6 +9,7 @@ import subprocess
 import sys
 import tempfile
 import threading
+import time
 import types
 import unittest
 import zipfile
@@ -24,6 +25,172 @@ from PIL import Image
 
 
 class WorkflowTest(unittest.TestCase):
+    def test_cancelled_download_removes_only_its_new_project(self):
+        class FakeDL:
+            def __init__(self, options):
+                pass
+            def __enter__(self):
+                return self
+            def __exit__(self, *args):
+                return False
+            def extract_info(self, *args, **kwargs):
+                raise app.JobCancelled('cancelled')
+        fake = types.SimpleNamespace(YoutubeDL=FakeDL, utils=types.SimpleNamespace(DownloadError=RuntimeError))
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            previous = root / '1111111111111111'
+            previous.mkdir()
+            (previous / 'source.mp4').write_bytes(b'keep source')
+            with patch.object(app, 'PROJECTS', root), patch.object(app, 'COOKIES', root / 'cookies.txt'), \
+                    patch.object(app, 'ffmpeg', return_value='unused'), patch.dict(sys.modules, {'yt_dlp': fake}):
+                with self.assertRaises(app.JobCancelled):
+                    app.download_video('https://www.youtube.com/watch?v=fixture', lambda text: None)
+            self.assertEqual(list(root.iterdir()), [previous])
+            self.assertEqual((previous / 'source.mp4').read_bytes(), b'keep source')
+
+    def test_http_subtitle_edit_and_cancel_require_token(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(app, 'PROJECTS', Path(directory)):
+            pid, jid = '0123456789abcdef', 'ffffffffffffffff'
+            app.save_project({'id': pid, 'subtitles': [{'start': 0, 'end': 1, 'text': 'Hello.'}], 'clips': []})
+            server = app.ThreadingHTTPServer(('127.0.0.1', 0), app.Handler)
+            thread = threading.Thread(target=server.serve_forever, daemon=True)
+            thread.start()
+            base = 'http://127.0.0.1:' + str(server.server_port)
+            try:
+                with patch.dict(app.JOBS, {jid: {'state': 'waiting', 'message': 'waiting'}}):
+                    for path, body in (('/api/subtitle-edit', {'id': pid, 'index': 0, 'source': 'Hello.',
+                                                              'english': 'Hello there.', 'chinese': '你好啊。'}),
+                                       ('/api/job-cancel', {'id': jid})):
+                        payload = json.dumps(body).encode('utf-8')
+                        with self.assertRaises(urllib.error.HTTPError) as denied:
+                            urllib.request.urlopen(urllib.request.Request(base + path, data=payload))
+                        self.assertEqual(denied.exception.code, 403)
+                        request = urllib.request.Request(base + path, data=payload, headers={'X-App-Token': app.TOKEN})
+                        with urllib.request.urlopen(request) as response:
+                            result = json.load(response)
+                        if path.endswith('subtitle-edit'):
+                            self.assertEqual(result['subtitleEdits']['0']['chinese'], '你好啊。')
+                        else:
+                            self.assertEqual(result['state'], 'cancelling')
+            finally:
+                server.shutdown()
+                server.server_close()
+                thread.join(timeout=2)
+
+    def wait_job(self, jid):
+        deadline = time.monotonic() + 5
+        while time.monotonic() < deadline:
+            with app.LOCK:
+                result = dict(app.JOBS[jid])
+            if result['state'] in ('done', 'error', 'cancelled'):
+                return result
+            time.sleep(.01)
+        self.fail('任务没有按时结束')
+
+    def test_cancel_waiting_job_does_not_run_or_keep_work_lock(self):
+        called = []
+        app.WORK_LOCK.acquire()
+        try:
+            jid = app.job_start(lambda progress: called.append(True))['job']
+            self.assertEqual(app.cancel_job(jid)['state'], 'cancelling')
+            self.assertEqual(self.wait_job(jid)['state'], 'cancelled')
+            self.assertEqual(called, [])
+        finally:
+            app.WORK_LOCK.release()
+        next_job = app.job_start(lambda progress: 'next')['job']
+        self.assertEqual(self.wait_job(next_job)['result'], 'next')
+        self.assertEqual(app.cancel_job(next_job)['state'], 'done')
+
+    def test_cancel_running_ffmpeg_terminates_only_its_process(self):
+        processes = []
+        original = subprocess.Popen
+        def start(*args, **kwargs):
+            process = original(*args, **kwargs)
+            processes.append(process)
+            return process
+        with patch.object(app, 'ffmpeg', return_value=str(self.ffmpeg_binary())), \
+                patch.object(app.subprocess, 'Popen', side_effect=start):
+            jid = app.job_start(lambda progress: app.run_ffmpeg([
+                '-re', '-f', 'lavfi', '-i', 'color=c=navy:s=160x90:r=10:d=30', '-f', 'null', '-']))['job']
+            deadline = time.monotonic() + 3
+            while not processes and time.monotonic() < deadline:
+                time.sleep(.01)
+            self.assertTrue(processes)
+            app.cancel_job(jid)
+            self.assertEqual(self.wait_job(jid)['state'], 'cancelled')
+            self.assertIsNotNone(processes[0].poll())
+
+    def test_cancel_ai_discards_response_and_does_not_submit_again(self):
+        started, finish = threading.Event(), threading.Event()
+        applied = []
+        def response(*args, **kwargs):
+            started.set()
+            finish.wait(3)
+            return io.BytesIO(json.dumps({'choices': [{'message': {'content': 'mock result'}}]}).encode())
+        def task(progress):
+            result = app.deepseek([{'role': 'user', 'content': 'test text'}], 'fake-key', 10)
+            applied.append(result)
+        with patch.object(app.urllib.request, 'urlopen', side_effect=response) as request:
+            jid = app.job_start(task)['job']
+            try:
+                self.assertTrue(started.wait(2))
+                app.cancel_job(jid)
+            finally:
+                finish.set()
+            self.assertEqual(self.wait_job(jid)['state'], 'cancelled')
+            self.assertEqual(request.call_count, 1)
+            self.assertEqual(applied, [])
+
+    def test_subtitle_row_edits_preserve_sources_and_respect_clip_overrides(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(app, 'PROJECTS', Path(directory)):
+            pid = '0123456789abcdef'
+            rows = [{'start': 1, 'end': 2, 'text': 'I has a plan.'}]
+            clip = {'start': 1, 'end': 2, 'english': rows[0]['text'], 'chinese': '题卡'}
+            p = {'id': pid, 'video': 'source.mp4', 'subtitles': rows, 'clips': [clip], 'rowZh': {'0': '旧中文'}}
+            app.save_project(p)
+            result = app.save_subtitle_edit(pid, 0, rows[0]['text'], 'I have a plan.', '我有一个计划。')
+            saved = app.read_project(pid)
+            self.assertEqual(saved['subtitles'], rows)
+            self.assertEqual(saved['clips'], [clip])
+            self.assertEqual(app.effective_subtitles(saved)[0], {**rows[0], 'text': 'I have a plan.'})
+            with patch.object(app, 'translate_rows') as translate:
+                chinese = app.chinese_subtitles(pid, saved, [clip], '', lambda text: None)
+                translate.assert_not_called()
+            cues = app.clip_cues(rows, clip, chinese, result['subtitleEdits'])
+            self.assertEqual((cues[0]['text'], cues[0]['chinese']), ('I have a plan.', '我有一个计划。'))
+            self.assertEqual((cues[0]['start'], cues[0]['end']), (0, 1))
+            manual = {**clip, 'english': 'We have another plan.'}
+            self.assertEqual(app.clip_cues(rows, manual, edits=result['subtitleEdits'])[0]['text'], manual['english'])
+            with self.assertRaisesRegex(ValueError, '缺少中文'):
+                app.chinese_subtitles(pid, saved, [manual], '', lambda text: None)
+            for args in ((0, 'stale', 'English.', ''), (True, rows[0]['text'], 'English.', ''),
+                         (0, rows[0]['text'], '', ''), (0, rows[0]['text'], 'English.', [])):
+                with self.assertRaises(ValueError):
+                    app.save_subtitle_edit(pid, *args)
+                self.assertEqual(app.read_project(pid), saved)
+            reset = app.save_subtitle_edit(pid, 0, rows[0]['text'], rows[0]['text'], '')
+            self.assertEqual(reset['subtitleEdits'], {})
+
+    def test_cancelled_composition_removes_only_its_unpublished_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with patch.multiple(app, PROJECTS=root / 'projects', OUTPUT=root / 'outputs'):
+                pid = '0123456789abcdef'
+                original = app.OUTPUT / 'previous' / 'finished.mp4'
+                original.parent.mkdir(parents=True)
+                original.write_bytes(b'previous output')
+                app.save_project({'id': pid, 'video': 'source.mp4', 'title': 'test', 'subtitles': [], 'clips': []})
+                def card(text, path, *args):
+                    path.write_bytes(b'new card')
+                with patch.object(app, 'has_audio', return_value=True), patch.object(app, 'make_card', side_effect=card), \
+                        patch.object(app, 'run_ffmpeg', side_effect=app.JobCancelled('cancelled')):
+                    with self.assertRaises(app.JobCancelled):
+                        app.compose_video(pid, [{'start': 0, 'end': 1, 'english': 'Hello.', 'chinese': '你好'}],
+                                          False, 1, lambda text: None)
+                self.assertEqual(list(app.OUTPUT.iterdir()), [original.parent])
+                self.assertEqual(original.read_bytes(), b'previous output')
+                self.assertEqual(app.read_project(pid).get('outputs', []), [])
+
     def test_production_preferences_persist_and_invalid_updates_preserve_saved_values(self):
         with tempfile.TemporaryDirectory() as directory, patch.object(app, 'DATA', Path(directory)):
             defaults = app.load_production_preferences()
@@ -464,12 +631,24 @@ class WorkflowTest(unittest.TestCase):
                 self.assertEqual((first['total'], first['downloaded'], first['skipped']), (3, 2, 0))
                 self.assertEqual(first['failedCount'], 1)
                 self.assertEqual(first['failed'][0]['title'], 'C')
+                self.assertEqual(first['failed'][0]['id'], 'ccc')
                 # 归档写入后重跑：已下载的跳过，失败的补下。
                 state['failed'] = set()
+                state['entries'].append({'id': 'ddd', 'title': 'new video'})
+                retry = app.download_playlist('https://www.youtube.com/playlist?list=PLx',
+                    str(root / 'videos'), 1, lambda message: None, retry_ids=['ccc', 'missing'])
+                self.assertEqual((retry['total'], retry['downloaded'], retry['skipped']), (2, 1, 0))
+                self.assertEqual(retry['failed'][0]['id'], 'missing')
+                self.assertNotIn('ddd', state['downloaded'])
+                state['entries'].pop()
                 second = app.download_playlist('https://www.youtube.com/playlist?list=PLx',
                                                str(root / 'videos'), 0, lambda message: None)
-                self.assertEqual((second['downloaded'], second['skipped']), (1, 2))
+                self.assertEqual((second['downloaded'], second['skipped']), (0, 3))
                 self.assertEqual(state['downloaded'], ['aaa', 'bbb', 'ccc'])
+                for invalid in ([], ['../invalid'], [True]):
+                    with self.assertRaises(ValueError):
+                        app.download_playlist('https://www.youtube.com/playlist?list=PLx',
+                            str(root / 'videos'), 0, lambda message: None, retry_ids=invalid)
                 with self.assertRaises(ValueError):
                     app.download_playlist('https://www.youtube.com/watch?v=aaa', str(root / 'v'), 0,
                                           lambda message: None)
@@ -759,9 +938,15 @@ class WorkflowTest(unittest.TestCase):
                     project = app.read_project(pid)
                     project['subZh'] = [{'start': .2, 'end': 1.4, 'text': '你周末过得怎么样？'},
                                         {'start': 1.4, 'end': 2.0, 'text': '我过得很开心。'}]
+                    project['subtitleEdits'] = {'0': {'source': rows[0]['text'], 'english': 'How was your holiday?', 'chinese': '假期过得怎么样？'}}
                     app.save_project(project)
-                    result = app.compose_video(pid, clips, False, 1, lambda message: None, 'midnight', False,
-                                               ['plain', 'en', 'bilingual'], 'tick')
+                    with patch.object(app, 'write_ass', wraps=app.write_ass) as write:
+                        result = app.compose_video(pid, clips, False, 1, lambda message: None, 'midnight', False,
+                                                   ['plain', 'en', 'bilingual'], 'tick')
+                    bilingual_cues = next(call.args[1] for call in write.call_args_list if call.args[2])
+                    self.assertEqual((bilingual_cues[0]['text'], bilingual_cues[0]['chinese']),
+                                     ('How was your holiday?', '假期过得怎么样？'))
+                    self.assertTrue(result['clips'][0]['english'].startswith('How was your holiday?'))
                     names = [item['name'] for item in result['files']]
                     self.assertEqual(names, ['成片_横版.mp4', '成片_横版_英文字幕.mp4', '成片_横版_双语字幕.mp4'])
                     self.assertEqual(app.read_project(pid)['outputs'][0]['files'], result['files'])

@@ -46,7 +46,9 @@ body.android{color-scheme:light;--bg:#f7f9f7;--panel:#fff;--border:#dce6df;--mut
 .cut-details summary,.compose-settings summary{cursor:pointer;font-weight:600;line-height:1.7}
 .cut-details summary small,.compose-settings summary small{font-weight:400;margin-left:8px}
 .cut-details[open] summary,.compose-settings[open] summary{margin-bottom:12px}
-.preference-actions{margin-top:14px;padding-top:12px;border-top:1px solid var(--border)}.preference-actions small{flex:1 1 100%}.android .preference-actions small{grid-column:1/-1}#taskDialog progress{width:100%;accent-color:var(--accent)}#taskMessage{overflow-wrap:anywhere}
+#subtitleSection>.sectionhead,#subtitleSection>.sectionhead .row{flex-wrap:wrap}#subtitleSection>.sectionhead h2,#subtitleSection>.sectionhead button{white-space:nowrap}#subtitleSection>.sectionhead button{padding:6px 10px}
+#workflowGuide{margin:0 0 12px;min-width:0;font-size:12px}#workflowCurrent{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;min-width:0}#workflowNext{flex:none;padding:4px 10px}.android #workflowNext{min-height:32px}
+.preference-actions{margin-top:14px;padding-top:12px;border-top:1px solid var(--border)}.preference-actions small{flex:1 1 100%}.android .preference-actions small{grid-column:1/-1}#taskDialog progress{width:100%;accent-color:var(--accent)}#taskMessage{overflow-wrap:anywhere}#subtitleEditSource{overflow-wrap:anywhere}#subtitleEditDialog{max-height:88dvh;overflow:auto}#subtitleEditVideo{position:sticky;top:0;max-height:22dvh;background:#10161e}#playlistResult{margin-bottom:16px}#playlistFailures{max-height:200px;overflow:auto;overflow-wrap:anywhere}
 .editor-actions{margin-top:12px;flex-wrap:wrap}.compose-actions{margin-top:16px;padding-top:14px;border-top:1px solid var(--border)}
 #composeControls{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;align-items:end;margin-top:14px}
 #composeControls>label{display:flex!important;flex-direction:column;align-items:stretch!important;gap:5px}
@@ -58,6 +60,7 @@ body.android{color-scheme:light;--bg:#f7f9f7;--panel:#fff;--border:#dce6df;--mut
 .android .cut-details,.android .compose-settings{border-color:#dce6df}
 .android #composeControls{grid-template-columns:repeat(2,minmax(0,1fr))}
 @media(max-width:650px){#composeControls{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-height:650px){.android .sub,.android #subtitleSection button{scroll-margin-top:calc(22dvh + 170px);scroll-margin-bottom:140px}.android #videoSection video{max-height:22dvh;object-fit:contain}.android #videoSection h2{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}}
 @media(min-width:951px){
  body:not(.android) header{padding:12px 24px}body:not(.android) main{padding:16px 24px}
  body:not(.android) #desktopPages{margin-bottom:12px}body:not(.android) .import{margin-bottom:12px;padding:12px}
@@ -85,6 +88,8 @@ body.android{color-scheme:light;--bg:#f7f9f7;--panel:#fff;--border:#dce6df;--mut
 <nav id="desktopPages" class="row" aria-label="工作区"><button id="productionTab" class="primary">素材制作</button><button id="publishingTab">发布准备</button></nav>
 <div id="importPanel" class="panel import"><input id="url" placeholder="粘贴 YouTube 视频链接"><button id="download" class="primary">获取视频与字幕</button><span class="muted">或</span><button id="local">导入本地视频</button><button id="playlistBtn">批量下载收藏夹</button><select id="projects"><option value="">打开历史素材…</option></select></div>
 <div id="status" class="status" role="status" aria-live="polite">准备就绪。视频保存在本地，只有翻译时才发送英文文字。</div>
+<div id="workflowGuide" class="row"><span id="workflowCurrent" class="muted"></span><span class="grow"></span><button id="workflowNext" class="quiet">导入视频 →</button></div>
+<section id="playlistResult" class="panel hidden"><div class="sectionhead"><h2>批量下载结果</h2><button id="retryPlaylist" class="quiet">仅重试失败项</button></div><p id="playlistResultSummary"></p><details><summary>查看失败原因</summary><ul id="playlistFailures"></ul></details></section>
 <div id="productionPage"><div class="workspace"><div class="left">
 <section id="videoSection" class="panel mobile-screen"><div class="sectionhead"><h2 id="title">01 / 视频预览</h2><button id="mobileSource" class="mobile-only quiet">切换素材</button><button id="loadSub">导入 SRT / VTT</button></div><div id="empty" class="video-empty">导入一个视频，开始选择口语素材<br><small>支持已有英文字幕；本版不包含语音转写</small></div><video id="video" controls class="hidden"></video><div class="hint">若本地视频只有声音或无法预览，请先转成 H.264 + AAC 编码的 MP4。</div></section>
 <section id="editorSection" class="panel mobile-screen"><div class="sectionhead"><h2>03 / 编辑选段</h2><span id="editLabel" class="badge">新选段</span></div>
@@ -98,7 +103,7 @@ body.android{color-scheme:light;--bg:#f7f9f7;--panel:#fff;--border:#dce6df;--mut
 <div class="row seek-controls" style="margin-top:9px"><button id="setStart" class="quiet">用播放位置设为开始</button><button id="setEnd" class="quiet">用播放位置设为结束</button><label class="muted"><input id="loop" type="checkbox"> 循环</label></div>
 </details>
 </section></div>
-<section id="subtitleSection" class="panel mobile-screen"><div class="sectionhead"><h2>02 / 英文字幕</h2><div class="row"><small id="subCount">0 条</small><button id="reparse" class="quiet" title="按项目里保留的原始字幕文件重新解析">重解析</button><button id="suggest">AI 智能分段</button></div></div><input id="search" class="wide" placeholder="搜索英文字幕"><div id="mobileMode" class="mobile-only"><button id="mobileSingle" class="active" aria-pressed="true">选择一句</button><button id="mobileRange" aria-pressed="false">连续多句</button></div><div id="subHint" class="hint">点击选一句；Shift + 点击另一句选连续范围。播放时自动标记当前字幕。</div><div id="subs" class="subs"><p class="muted">导入视频后，英文字幕会出现在这里。</p></div></section>
+<section id="subtitleSection" class="panel mobile-screen"><div class="sectionhead"><h2>02 / 英文字幕</h2><div class="row"><small id="subCount">0 条</small><button id="editSubtitle" class="quiet">修正一句字幕</button><button id="reparse" class="quiet" title="按项目里保留的原始字幕文件重新解析">重解析</button><button id="suggest">AI 智能分段</button></div></div><input id="search" class="wide" placeholder="搜索英文字幕"><div id="mobileMode" class="mobile-only"><button id="mobileSingle" class="active" aria-pressed="true">选择一句</button><button id="mobileRange" aria-pressed="false">连续多句</button></div><div id="subHint" class="hint">点击选一句；Shift + 点击另一句选连续范围。播放时自动标记当前字幕。</div><div id="subs" class="subs"><p class="muted">导入视频后，英文字幕会出现在这里。</p></div></section>
 </div>
 <section id="clipsSection" class="panel clips mobile-screen">
 <div class="sectionhead wrap"><h2>04 / 素材列表 <span id="clipCount" class="muted">0 段</span></h2><span id="composeSummary" class="muted" aria-live="polite"></span></div>
@@ -144,9 +149,10 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 <dialog id="mobileSettingsDialog"><h2>设置</h2><div class="row"><button id="mobileLibrary">语法与句型素材库</button><button id="mobileKeySettings">DeepSeek 翻译设置</button><button id="mobileCookieSettings">YouTube Cookie 设置</button><button id="mobileCheckUpdates">检查更新</button><button id="mobileQuit" class="quiet">退出工具</button><button id="closeMobileSettings" class="quiet">关闭</button></div></dialog>
 <dialog id="settingsDialog"><h2>DeepSeek 翻译设置</h2><p class="muted">翻译和智能分段只提交英文字幕，不上传视频。</p><p id="keyState" class="hint"></p><label class="label" for="key">API Key</label><input id="key" type="password" autocomplete="off" class="wide" placeholder="输入新的 API Key"><p id="keyHint" class="hint">密钥由 Windows 加密并保存在当前账户，重启后自动使用。复制工具文件夹不会带走密钥。</p><div class="row"><button id="saveKey" class="primary">保存密钥</button><button id="clearKey">删除密钥</button><button id="closeSettings">关闭</button></div></dialog>
 <dialog id="cookieDialog"><h2>YouTube Cookie</h2><p class="muted">YouTube 要求登录验证时，可以导入浏览器登录后的 cookies.txt 重试。工具将它保存在本机，并在请求 YouTube 时使用。</p><div id="cookieState" class="hint">读取中…</div><input id="cookieFile" type="file" accept=".txt" hidden><div class="row"><button id="pickCookie" class="primary">选择 cookies.txt</button><button id="clearCookie" class="quiet">删除已导入的 Cookie</button></div><p class="hint">导出方式：在浏览器安装 “Get cookies.txt LOCALLY” 一类扩展，登录 YouTube 后于 youtube.com 页面导出，格式选 Netscape。Cookie 等同于登录凭证，分享工具文件夹前请先删除。</p><div class="row"><button id="closeCookie">关闭</button></div></dialog>
-<dialog id="taskDialog" aria-labelledby="taskTitle"><h2 id="taskTitle">正在处理</h2><p id="taskMessage" role="status">正在提交任务…</p><progress aria-label="任务处理中"></progress><p class="hint">已等待 <span id="taskElapsed">0 秒</span> · 处理完成前请保持工具运行。</p><button id="reconnectJob" class="hidden">重新连接当前任务</button></dialog>
+<dialog id="taskDialog" aria-labelledby="taskTitle"><h2 id="taskTitle">正在处理</h2><p id="taskMessage" role="status">正在提交任务…</p><progress aria-label="任务处理中"></progress><p class="hint">已等待 <span id="taskElapsed">0 秒</span> · 处理完成前请保持工具运行。</p><div class="row wrap"><button id="reconnectJob" class="hidden">重新连接当前任务</button><button id="cancelTask" class="quiet" disabled>取消任务</button></div><p class="hint">取消会停止后续步骤；当前网络请求可能需等待返回，已提交的 AI 请求可能仍计费。</p></dialog>
 <dialog id="composeCheckDialog" aria-labelledby="composeCheckTitle"><h2 id="composeCheckTitle">合成前检查</h2><p id="composeCheckSummary" class="muted"></p><ul id="composeCheckList" class="compose-check-list"></ul><p class="hint">音频切点和翻译质量仍需试听、检查；这里不会调用 AI 或修改选段。</p><div class="row"><button id="closeComposeCheck" class="quiet">返回修改</button><button id="startCompose" class="primary">开始合成</button></div></dialog>
 <dialog id="cardDialog"><h2>中文题卡预览</h2><img id="cardPreview" alt="中文题卡预览"><button id="closeCard">关闭</button></dialog>
+<dialog id="subtitleEditDialog" aria-labelledby="subtitleEditTitle"><h2 id="subtitleEditTitle">修正一句字幕</h2><video id="subtitleEditVideo" controls></video><p id="subtitleEditSource" class="hint"></p><button id="listenSubtitle">试听这一句</button><label class="label" for="subtitleEnglish">视频英文字幕</label><textarea id="subtitleEnglish" rows="2"></textarea><label class="label" for="subtitleChinese">视频中文字幕 · 留空沿用已有字幕或补译</label><textarea id="subtitleChinese" rows="2"></textarea><p class="hint">用于本素材后续分段与成片字幕；选段内另行修改的英文优先。中文题卡单独编辑，已生成成片保持原样。</p><div class="row wrap"><button id="resetSubtitleEdit" class="quiet">还原这一句</button><span class="grow"></span><button id="closeSubtitleEdit">取消</button><button id="saveSubtitleEdit" class="primary">保存字幕修正</button></div></dialog>
 <dialog id="playlistDialog"><h2>批量下载播放列表</h2><p class="muted">粘贴你收藏的播放列表链接，工具按列表顺序逐个下载视频和英文字幕；已下载的自动跳过。</p><label class="label" for="playlistUrl">播放列表链接</label><input id="playlistUrl" class="wide" placeholder="https://www.youtube.com/playlist?list=..."><label class="label" for="playlistFolder">保存到</label><div class="row"><input id="playlistFolder" class="wide" placeholder="留空保存到工具目录 data\下载素材"><button id="pickPlaylistFolder">选择文件夹</button></div><label class="label" for="playlistLimit">最多下载</label><input id="playlistLimit" type="number" min="1" max="5000" step="1" placeholder="留空表示全部"><p id="playlistState" class="hint">需要先通过顶部「Cookie 设置」导入 cookies.txt，否则下载不了自己的收藏和「稍后观看」。</p><div class="row"><button id="startPlaylist" class="primary">开始下载</button><button id="closePlaylist">关闭</button></div><p class="hint">成批下载耗时较长，单个视频失败不会中断整批。下载完成后到「语法素材库 → 选择文件夹」导入这个目录即可分析。</p></dialog>
 <dialog id="aiDialog" class="ai-dialog"><h2>AI 智能分段</h2><p class="muted">向 DeepSeek 发送英文字幕并生成中文，会产生 API 用量。生成后可检查再加入素材列表。</p><div class="modes"><label><input type="radio" name="aiMode" value="highlights" checked> 精选片段</label><label><input type="radio" name="aiMode" value="adjacent"> 连续对话</label><label><input type="radio" name="aiMode" value="continuous"> 整片覆盖</label></div><div class="row wrap ai-options"><label class="muted">段数 <input id="aiCount" type="number" min="1" max="12" step="1" value="4"></label><label class="muted">每段长度 <select id="aiLength"><option value="short">短 · 1 句</option><option value="medium" selected>中 · 约 2 句</option><option value="long">长 · 3 至 4 句</option></select></label></div><p id="aiModeHint" class="hint"></p><div class="row"><button id="generateSegments" class="primary">生成分段和翻译</button><button id="closeAI">关闭</button></div><p id="aiProgress" class="hint" role="status"></p><div id="aiResults" class="ai-results"></div><div id="aiActions" class="row hidden"><button id="appendSegments" class="primary">追加所选</button><button id="replaceSegments">替换素材列表</button></div><p id="aiHint" class="hint"></p></dialog>
 <script>
@@ -154,7 +160,7 @@ const $=id=>document.getElementById(id), token=new URLSearchParams(location.sear
 const isAndroid=typeof window.AndroidHost!=='undefined';
 if(isAndroid){document.body.classList.add('android');$('platformBadge').textContent='本地处理 · Android';$('storageHint').textContent='素材保存在应用私有空间，可将成片或素材包保存到手机。';$('keyHint').textContent='密钥使用 Android 系统加密保存在本机，重启后自动使用。';$('openOutput').classList.add('hidden');$('playlistBtn').classList.add('hidden')}
 let project=null,selected=[],anchor=null,editIndex=-1,busy=false,stopAt=null,cardURL=null,hasKey=false,aiDraft=null,soundURL=null,soundAudio=null,currentHint=null;
-let burnSubtitles=true,reconnectJob=null;
+let burnSubtitles=true,reconnectJob=null,playlistRetry=null;
 let mobileRange=false,mobileWaiting=false,mobileDirty=false,mobilePage='source',mobileStatusTimer=null;
 const escapeHTML=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 function status(message,error=false){$('status').textContent=message;$('status').classList.toggle('error',error);if(isAndroid){if(document.body.classList.contains('mobile-cover-editor')&&$('publishSaved')){$('publishSaved').textContent=message;$('publishSaved').classList.toggle('error',error)}clearTimeout(mobileStatusTimer);if(!error)mobileStatusTimer=setTimeout(()=>{if(!busy&&$('status').textContent===message)$('status').textContent=''},5000);let modal=document.querySelector('dialog[open]:not(#taskDialog)');if(modal){let note=modal.querySelector('.dialog-status');if(!note){note=document.createElement('p');note.className='status dialog-status';note.setAttribute('role','status');modal.querySelector('h2').after(note)}note.textContent=message;note.classList.toggle('error',error)}}}
@@ -165,18 +171,29 @@ async function api(path,body,signal){
   if(!r.ok||d.error){const error=Error(d.error||'请求失败');error.status=r.status;throw error}
   return d;
 }
-async function action(fn){if(busy)return;lock(true);try{await fn()}catch(e){status(e.message,true)}finally{lock(false)}}
+async function action(fn){if(busy)return;lock(true);try{await fn()}catch(e){status(e.message,!e.cancelled)}finally{lock(false)}}
 $('taskDialog').oncancel=e=>e.preventDefault();
 $('reconnectJob').onclick=()=>{if(reconnectJob){const resume=reconnectJob;reconnectJob=null;resume()}};
 async function job(path,body,onProgress){
   const names={'/api/download':'获取视频与字幕','/api/download-playlist':'批量下载','/api/compose':'合成成片','/api/export':'导出散件','/api/suggest':'AI 智能分段','/api/translate':'翻译中文','/api/hint':'生成题卡提示','/api/publish-generate':'生成发布文案','/api/publish-source':'读取参考来源','/api/publish-package':'生成发布包'};
   const started=Date.now();
-  $('taskTitle').textContent=names[path]||'正在处理';$('taskMessage').textContent='正在提交任务…';$('taskElapsed').textContent='0 秒';$('reconnectJob').classList.add('hidden');
+  $('taskTitle').textContent=names[path]||'正在处理';$('taskMessage').textContent='正在提交任务…';$('taskElapsed').textContent='0 秒';$('reconnectJob').classList.add('hidden');$('cancelTask').disabled=true;$('cancelTask').textContent='取消任务';
   $('taskDialog').showModal();
   const timer=setInterval(()=>{const seconds=Math.floor((Date.now()-started)/1000);$('taskElapsed').textContent=seconds<60?seconds+' 秒':Math.floor(seconds/60)+' 分 '+seconds%60+' 秒'},1000);
   try{
     let id;
     try{({job:id}=await api(path,body))}catch(error){if(error instanceof TypeError)throw Error('未能确认任务是否提交，后台可能已开始处理。请先检查服务和已有结果，避免重复提交。');throw error}
+    $('cancelTask').disabled=false;
+    $('cancelTask').onclick=async()=>{
+      if(!confirm('取消只停止后续步骤，不撤销已完成操作。原素材和已保存结果保留；当前网络请求可能需等待返回，已提交的 AI 请求可能仍计费。'))return;
+      $('cancelTask').disabled=true;$('cancelTask').textContent='正在取消…';
+      try{
+        const result=await api('/api/job-cancel',{id});
+        if(result.state==='cancelling')$('taskMessage').textContent='已请求取消，正在等待当前步骤安全停止…';
+        else status('当前任务已经结束，无需取消。');
+        if(reconnectJob){const resume=reconnectJob;reconnectJob=null;resume()}
+      }catch(error){$('cancelTask').disabled=false;$('cancelTask').textContent='重试取消';$('taskMessage').textContent='取消请求未确认，后台任务可能继续执行。请恢复连接后重试。'}
+    };
     let failures=0,lastMessage='';
     for(;;){
       await new Promise(resolve=>setTimeout(resolve,650));
@@ -198,16 +215,30 @@ async function job(path,body,onProgress){
       failures=0;
       $('taskMessage').textContent=d.message;
       if(d.message!==lastMessage){status(d.message);if(onProgress)onProgress(d.message);lastMessage=d.message}
+      if(d.state==='cancelled'){const error=Error(d.message);error.cancelled=true;throw error}
       if(d.state==='error')throw Error(d.message);
       if(d.state==='done')return d.result;
     }
-  }finally{clearInterval(timer);reconnectJob=null;$('taskDialog').close();$('reconnectJob').classList.add('hidden')}
+  }finally{clearInterval(timer);reconnectJob=null;$('cancelTask').onclick=null;$('taskDialog').close();$('reconnectJob').classList.add('hidden')}
 }
 async function refreshProjects(){let d=await api('/api/projects');hasKey=d.hasKey;burnSubtitles=d.burnSubtitles!==false;$('keyState').textContent=d.keyError||(hasKey?'已保存密钥，可直接使用。':'尚未保存密钥。');$('projects').innerHTML='<option value="">打开历史素材…</option>'+d.projects.map(p=>`<option value="${p.id}">${escapeHTML(p.title)}</option>`).join('');if(project)$('projects').value=project.id;renderVersionOptions();return d}
 function renderVersionOptions(){for(let id of ['verEn','verBi']){$(id).closest('label').classList.toggle('hidden',!burnSubtitles);if(!burnSubtitles)$(id).checked=false}if(!burnSubtitles&&!$('verPlain').checked)$('verPlain').checked=true;$('burnHint').classList.toggle('hidden',burnSubtitles);if(!burnSubtitles)$('burnHint').textContent='当前 FFmpeg 不支持烧录字幕，只能输出无字幕版。'}
 function load(p){if(isAndroid&&$('mobileCardPreview'))$('closeMobileCard').click();project=p;selected=[];anchor=null;editIndex=-1;stopAt=null;aiDraft=null;$('fullCoverage').checked=Boolean(p.continuous);if($('cardTip')){$('cardTip').value=p.card_tip||'';updateCardTipCount()}$('outputVideo').pause();$('outputVideo').removeAttribute('src');$('outputVideo').classList.add('hidden');$('outputNotice').classList.add('hidden');$('video').pause();$('video').src='/media?id='+p.id+'&token='+encodeURIComponent(token);$('video').classList.remove('hidden');$('empty').classList.add('hidden');$('title').textContent=p.title;$('title').title=p.title;clearEditor();renderSubs();renderClips();renderOutputs();status(p.subtitles.length?(isAndroid?'字幕已载入，可选择一句或连续多句。':'字幕已载入。点击选择，Shift + 点击选择连续多句。'):'视频已载入，但没有英文字幕。请导入 SRT / VTT。');if(isAndroid){if($('mobileSourceDialog').open)$('mobileSourceDialog').close();showMobilePage('source')}}
 function fmt(t){return Math.floor(t/60).toString().padStart(2,'0')+':'+(t%60).toFixed(2).padStart(5,'0')}
-function renderSubs(){let q=$('search').value.toLowerCase();$('subCount').textContent=(project?.subtitles.length||0)+' 条';$('subs').innerHTML=project?project.subtitles.map((s,i)=>({s,i})).filter(({s})=>s.text.toLowerCase().includes(q)).map(({s,i})=>`<div class="sub ${selected.includes(i)?'selected':''}" data-index="${i}" ${isAndroid?`role="button" tabindex="0" aria-pressed="${selected.includes(i)}"`:''}><time>${fmt(s.start)}</time><span>${escapeHTML(s.text)}</span></div>`).join(''):'';if(!$('subs').children.length)$('subs').innerHTML='<p class="muted">没有字幕。可导入英文 SRT / VTT 文件。</p>';if(isAndroid)renderMobileSelection()}
+function subtitleRow(index){
+  const row=project.subtitles[index],edit=project.subtitleEdits?.[index];
+  return edit&&edit.source===row.text?{...row,text:edit.english}:row;
+}
+function subtitleSelectionText(indices){
+  let text='',previousRow=null;
+  for(const index of indices){
+    const row=subtitleRow(index),words=row.text.split(' '),previous=text.split(' ');let overlap=0;
+    if(previousRow&&row.start<previousRow.end){for(let n=1;n<=Math.min(words.length,previous.length);n++){if(previous.slice(-n).join(' ')===words.slice(0,n).join(' '))overlap=n}}
+    const tail=words.slice(overlap).join(' ');if(tail)text+=(text?' ':'')+tail;previousRow=row;
+  }
+  return text;
+}
+function renderSubs(){let q=$('search').value.toLowerCase();$('subCount').textContent=(project?.subtitles.length||0)+' 条';$('subs').innerHTML=project?project.subtitles.map((s,i)=>({s:subtitleRow(i),i})).filter(({s})=>s.text.toLowerCase().includes(q)).map(({s,i})=>`<div class="sub ${selected.includes(i)?'selected':''}" data-index="${i}" ${isAndroid?`role="button" tabindex="0" aria-pressed="${selected.includes(i)}"`:''}><time>${fmt(s.start)}</time><span>${escapeHTML(s.text)}</span></div>`).join(''):'';if(!$('subs').children.length)$('subs').innerHTML='<p class="muted">没有字幕。可导入英文 SRT / VTT 文件。</p>';if(isAndroid)renderMobileSelection()}
 function clearEditor(){if(isAndroid&&$('mobileCardPreview')&&!$('mobileCardPreview').classList.contains('hidden'))$('closeMobileCard').click();editIndex=-1;selected=[];anchor=null;mobileWaiting=false;mobileDirty=false;$('start').value=0;$('end').value=0;$('english').value='';$('chinese').value='';$('editLabel').textContent='新选段';$('add').textContent='加入素材列表';stopAt=null;renderSubs();resetWave('选一句字幕后显示波形');currentHint=null;renderHint();if(isAndroid)$('mobileSave').textContent=$('add').textContent}
 
 let waveA=null,waveB=null,waveToken=0,waveTimer=null,timeHistory=[],drag=null;
@@ -366,8 +397,9 @@ bindWave($('waveA'));bindWave($('waveB'));
 $('cutDetails').ontoggle=()=>{if($('cutDetails').open){drawWave();if(project&&!waveA)loadWave()}};
 function getClip(){let start=Number($('start').value),end=Number($('end').value);if(!Number.isFinite(start)||!Number.isFinite(end)||start<0||end<=start)throw Error('请设置有效的起止时间');if(end-start>600)throw Error('单段最多 10 分钟');let duration=$('video').duration;if(Number.isFinite(duration)&&end>duration+.1)throw Error('结束时间超出视频长度');let english=$('english').value.trim(),chinese=$('chinese').value.trim();let clip={start,end,english,chinese};if(currentHint)clip.hint=currentHint;return clip}
 async function save(clips=project.clips){let continuous=$('fullCoverage').checked,tip=$('cardTip').value.trim();if(Array.from(tip).length>24||/[\r\n]/.test(tip))throw Error('题卡提示语最多 24 个字，使用单行文案');await api('/api/save',{id:project.id,clips,continuous,card_tip:tip});project.clips=clips;project.continuous=continuous;project.card_tip=tip}
-function renderClips(){updateComposeSummary();$('clipCount').textContent=(project?.clips.length||0)+' 段';if(isAndroid)$('mobileClipCount').textContent='素材 '+(project?.clips.length||0);$('clips').innerHTML=project?.clips.length?project.clips.map((c,i)=>{let actions=`<button data-edit="${i}">编辑</button><button class="quiet" data-delete="${i}">移除</button>`;return `<div class="clip"><span class="number">${String(i+1).padStart(3,'0')}</span><div class="cliptext"><p>${escapeHTML(c.chinese||'（尚未填写中文）')}</p><small>${escapeHTML(c.english)}</small><small>${fmt(c.start)} → ${fmt(c.end)}${c.hint?' · 题卡带提示':''}</small></div>${isAndroid?`<div class="clip-actions">${actions}</div>`:actions}</div>`}).join(''):'<p class="muted">还没有选段。编辑后点击“加入素材列表”。</p>'}
+function renderClips(){updateWorkflowGuide();updateComposeSummary();$('clipCount').textContent=(project?.clips.length||0)+' 段';if(isAndroid)$('mobileClipCount').textContent='素材 '+(project?.clips.length||0);$('clips').innerHTML=project?.clips.length?project.clips.map((c,i)=>{let actions=`<button data-edit="${i}">编辑</button><button class="quiet" data-delete="${i}">移除</button>`;return `<div class="clip"><span class="number">${String(i+1).padStart(3,'0')}</span><div class="cliptext"><p>${escapeHTML(c.chinese||'（尚未填写中文）')}</p><small>${escapeHTML(c.english)}</small><small>${fmt(c.start)} → ${fmt(c.end)}${c.hint?' · 题卡带提示':''}</small></div>${isAndroid?`<div class="clip-actions">${actions}</div>`:actions}</div>`}).join(''):'<p class="muted">还没有选段。编辑后点击“加入素材列表”。</p>'}
 function renderOutputs(){
+  updateWorkflowGuide();
   const items=project?.outputs||[],video=$('outputVideo');
   // 播放器会放进当前卡片；重绘列表前先移出，保留现有播放控件。
   if(isAndroid){video.pause();video.classList.add('hidden');$('outputSection').append(video)}
@@ -408,12 +440,51 @@ $('local').onclick=()=>{if(mayDiscardMobileDraft())$('videoFile').click()};$('vi
 $('playlistBtn').onclick=()=>$('playlistDialog').showModal();
 $('closePlaylist').onclick=()=>$('playlistDialog').close();
 $('pickPlaylistFolder').onclick=()=>action(async()=>{let r=await job('/api/library/folder',{});if(r.folder)$('playlistFolder').value=r.folder});
-$('startPlaylist').onclick=()=>{let url=$('playlistUrl').value.trim();if(!url)return $('playlistState').textContent='请填写播放列表链接';let folder=$('playlistFolder').value.trim(),limit=Number($('playlistLimit').value)||0;$('playlistDialog').close();action(async()=>{let r=await job('/api/download-playlist',{url,folder,limit});let text=`下载完成：新增 ${r.downloaded} 个，跳过 ${r.skipped} 个，列表共 ${r.total} 个。文件在 ${r.folder}。下一步：打开「语法素材库」，选择这个文件夹导入。`;if(r.failedCount)text+=`\n${r.failedCount} 个失败：`+r.failed.slice(0,3).map(x=>`${x.title} → ${String(x.error||'未知原因').replace(/^ERROR:\s*/,'').slice(0,200)}`).join('；')+(r.failedCount>3?'（更多同类错误已省略）':'');status(text,Boolean(r.failedCount))})};
-$('loadSub').onclick=()=>{if(!project)return status('请先导入视频',true);if(mayDiscardMobileDraft())$('subFile').click()};$('subFile').onchange=e=>{let f=e.target.files[0];if(f)action(()=>upload(f,'subtitle'));e.target.value=''};
+function showPlaylistResult(result,request){
+  const failed=result.failed||[];
+  playlistRetry=failed.length?{url:request.url,folder:result.folder,limit:0,retry_ids:failed.map(item=>item.id)}:null;
+  $('playlistResult').classList.remove('hidden');
+  $('playlistResultSummary').textContent='新增 '+result.downloaded+' 个，跳过 '+result.skipped+' 个，失败 '+result.failedCount+' 个。保存到：'+result.folder;
+  $('playlistFailures').innerHTML=failed.map(item=>'<li>'+escapeHTML(item.title)+'：'+escapeHTML(item.error)+'</li>').join('');
+  $('retryPlaylist').classList.toggle('hidden',!playlistRetry);
+  status(result.failedCount?'下载已结束，失败项可单独重试，成功项不会重复下载。':'下载完成，可到语法素材库导入下载目录。',Boolean(result.failedCount));
+}
+$('startPlaylist').onclick=()=>{
+  const url=$('playlistUrl').value.trim();if(!url)return $('playlistState').textContent='请填写播放列表链接';
+  const request={url,folder:$('playlistFolder').value.trim(),limit:Number($('playlistLimit').value)||0};
+  $('playlistDialog').close();action(async()=>showPlaylistResult(await job('/api/download-playlist',request),request));
+};
+$('retryPlaylist').onclick=()=>action(async()=>{
+  if(!playlistRetry)throw Error('没有需要重试的失败项');
+  const request={...playlistRetry,retry_ids:[...playlistRetry.retry_ids]};
+  showPlaylistResult(await job('/api/download-playlist',request),request);
+});
+$('loadSub').onclick=()=>{if(!project)return status('请先导入视频',true);if(mayDiscardMobileDraft()&&(!Object.keys(project.subtitleEdits||{}).length||confirm('导入新字幕会清除本素材逐行字幕修正，已保存选段和成片保留。继续？')))$('subFile').click()};$('subFile').onchange=e=>{let f=e.target.files[0];if(f)action(()=>upload(f,'subtitle'));e.target.value=''};
 $('projects').onchange=e=>{if(!e.target.value)return;if(!mayDiscardMobileDraft()){e.target.value=project?.id||'';return}action(async()=>load(await api('/api/project?id='+e.target.value)))};
 $('search').oninput=renderSubs;
-$('reparse').onclick=()=>{if(!mayDiscardMobileDraft())return;action(async()=>{needProject();load(await api('/api/reparse',{id:project.id}));status('已按原始字幕文件重新解析，共 '+project.subtitles.length+' 条。')})};
-$('subs').onclick=e=>{if(busy)return;let row=e.target.closest('[data-index]');if(!row||!mayDiscardMobileDraft())return;mobileDirty=false;let i=Number(row.dataset.index);if(isAndroid&&mobileRange){if(!mobileWaiting){anchor=i;selected=[i];mobileWaiting=true}else{selected=Array.from({length:Math.abs(i-anchor)+1},(_,n)=>Math.min(i,anchor)+n);mobileWaiting=false}}else if(e.shiftKey&&anchor!==null){selected=Array.from({length:Math.abs(i-anchor)+1},(_,n)=>Math.min(i,anchor)+n)}else{anchor=i;selected=[i]}let rows=selected.map(i=>project.subtitles[i]);$('start').value=rows[0].start.toFixed(3);$('end').value=Math.max(...rows.map(x=>x.end)).toFixed(3);let text='',previousRow=null;for(let r of rows){let words=r.text.split(' '),previous=text.split(' '),overlap=0;if(previousRow&&r.start<previousRow.end){for(let n=1;n<=Math.min(words.length,previous.length);n++){if(previous.slice(-n).join(' ')===words.slice(0,n).join(' '))overlap=n}}let tail=words.slice(overlap).join(' ');if(tail)text+=(text?' ':'')+tail;previousRow=r}$('english').value=text;$('chinese').value='';editIndex=-1;$('editLabel').textContent=selected.length+' 条字幕';$('add').textContent='加入素材列表';if(isAndroid)$('mobileSave').textContent=$('add').textContent;stopAt=null;$('video').currentTime=Number($('start').value);renderSubs();loadWave()};
+$('editSubtitle').onclick=()=>{
+  if(busy)return;if(!project||selected.length!==1)return status('请先选择一句字幕，再打开修正。',true);
+  const index=selected[0],row=project.subtitles[index],edit=project.subtitleEdits?.[index];
+  $('video').pause();$('subtitleEditDialog').dataset.index=index;
+  $('subtitleEditSource').textContent=fmt(row.start)+' → '+fmt(row.end)+' · 原文：'+row.text;
+  $('subtitleEnglish').value=subtitleRow(index).text;$('subtitleChinese').value=edit?.source===row.text?edit.chinese:'';
+  $('subtitleEditVideo').src=$('video').src;$('subtitleEditVideo').currentTime=row.start;$('subtitleEditDialog').showModal();
+};
+$('listenSubtitle').onclick=()=>{const row=project.subtitles[Number($('subtitleEditDialog').dataset.index)];$('subtitleEditVideo').currentTime=row.start;$('subtitleEditVideo').play().catch(()=>status('请点击播放器试听。',true))};
+$('subtitleEditVideo').ontimeupdate=()=>{const row=project?.subtitles[Number($('subtitleEditDialog').dataset.index)];if(row&&$('subtitleEditVideo').currentTime>=row.end)$('subtitleEditVideo').pause()};
+$('subtitleEditDialog').onclose=()=>$('subtitleEditVideo').pause();
+$('closeSubtitleEdit').onclick=()=>$('subtitleEditDialog').close();
+async function persistSubtitleEdit(reset=false){
+  const index=Number($('subtitleEditDialog').dataset.index),row=project.subtitles[index],previous=subtitleSelectionText(selected);
+  const result=await api('/api/subtitle-edit',{id:project.id,index,source:row.text,english:reset?row.text:$('subtitleEnglish').value,chinese:reset?'':$('subtitleChinese').value});
+  project.subtitleEdits=result.subtitleEdits;
+  if(editIndex<0&&$('english').value===previous)$('english').value=subtitleSelectionText(selected);
+  renderSubs();$('subtitleEditDialog').close();status('逐行字幕修正已保存，用于后续分段与合成；已生成成片保持原样。');
+}
+$('saveSubtitleEdit').onclick=()=>action(()=>persistSubtitleEdit());
+$('resetSubtitleEdit').onclick=()=>{if(confirm('清除这一句的人工英文和中文字幕修正？选段内另行编辑的文字及已生成成片保留。'))action(()=>persistSubtitleEdit(true))};
+$('reparse').onclick=()=>{if(!mayDiscardMobileDraft())return;if(Object.keys(project?.subtitleEdits||{}).length&&!confirm('重解析会清除本素材逐行字幕修正，已保存选段和成片保留。继续？'))return;action(async()=>{needProject();load(await api('/api/reparse',{id:project.id}));status('已按原始字幕文件重新解析，共 '+project.subtitles.length+' 条。')})};
+$('subs').onclick=e=>{if(busy)return;let row=e.target.closest('[data-index]');if(!row||!mayDiscardMobileDraft())return;mobileDirty=false;let i=Number(row.dataset.index);if(isAndroid&&mobileRange){if(!mobileWaiting){anchor=i;selected=[i];mobileWaiting=true}else{selected=Array.from({length:Math.abs(i-anchor)+1},(_,n)=>Math.min(i,anchor)+n);mobileWaiting=false}}else if(e.shiftKey&&anchor!==null){selected=Array.from({length:Math.abs(i-anchor)+1},(_,n)=>Math.min(i,anchor)+n)}else{anchor=i;selected=[i]}let rows=selected.map(i=>project.subtitles[i]);$('start').value=rows[0].start.toFixed(3);$('end').value=Math.max(...rows.map(x=>x.end)).toFixed(3);let text=subtitleSelectionText(selected);$('english').value=text;$('chinese').value='';editIndex=-1;$('editLabel').textContent=selected.length+' 条字幕';$('add').textContent='加入素材列表';if(isAndroid)$('mobileSave').textContent=$('add').textContent;stopAt=null;$('video').currentTime=Number($('start').value);renderSubs();loadWave()};
 $('preview').onclick=()=>action(async()=>{needProject();let c=getClip();stopAt=c.end;$('video').currentTime=c.start;await $('video').play()});
 $('video').ontimeupdate=()=>{let v=$('video');if(stopAt!==null&&v.currentTime>=stopAt){if($('loop').checked){v.currentTime=Number($('start').value);v.play().catch(()=>{})}else{v.pause();stopAt=null}}for(let row of $('subs').querySelectorAll('[data-index]')){let s=project.subtitles[Number(row.dataset.index)];row.classList.toggle('current',v.currentTime>=s.start&&v.currentTime<s.end)}};
 $('video').onerror=()=>{if(project)status('浏览器无法解码此视频。可更换 H.264 MP4；已有选段仍可尝试导出。',true)};
@@ -443,6 +514,18 @@ $('resetProductionPreferences').onclick=()=>action(async()=>{
   applyProductionPreferences(await api('/api/production-preferences',{}));
   status('已恢复初始制作设置；素材、选段和题卡文案保持原样。');
 });
+function updateWorkflowGuide(){
+  $('workflowCurrent').textContent=project?'当前素材：'+project.title+' · '+project.clips.length+' 段 · '+(project.outputs||[]).length+' 条成片':'导入视频，或从句型库挑选本期素材';
+  $('workflowCurrent').title=project?.title||'';
+  $('workflowNext').textContent=!project?'导入视频 →':project.outputs?.length?'查看成片 →':project.clips.length?'检查并合成 →':'选择字幕 →';
+}
+$('workflowNext').onclick=()=>{
+  if(busy)return;if(!project){$('local').click();return}
+  if(!isAndroid)$('productionTab').click();
+  if(project.outputs?.length){if(isAndroid)showMobilePage('outputs');else $('outputSection').scrollIntoView({block:'start'})}
+  else if(project.clips.length){if(isAndroid)showMobilePage('clips');$('compose').click()}
+  else{if(isAndroid)showMobilePage('source');else $('subtitleSection').scrollIntoView({block:'start'})}
+};
 function updateComposeSummary(){
   const clips=project?.clips||[],card=Number($('cardSeconds').value);
   const seconds=clips.reduce((sum,c)=>sum+(Number.isFinite(c.end-c.start)?Math.max(0,c.end-c.start):0),0)+clips.length*(Number.isFinite(card)?card:0);
@@ -501,7 +584,7 @@ $('composeCheckList').onclick=e=>{
 };
 $('composeControls').addEventListener('input',updateComposeSummary);
 $('video').addEventListener('loadedmetadata',updateComposeSummary);
-$('startCompose').onclick=()=>action(async()=>{needProject();if(compositionIssues().some(item=>!item.warning)){showComposeCheck();return}$('composeCheckDialog').close();let card=Number($('cardSeconds').value);let versions=[...document.querySelectorAll('input[data-version-out]')].filter(x=>x.checked).map(x=>x.dataset.versionOut);$('outputNotice').classList.remove('hidden');$('outputNotice').textContent='准备合成';if(isAndroid)showMobilePage('outputs');else $('outputSection').scrollIntoView({behavior:'smooth',block:'start'});try{let r=await job('/api/compose',{id:project.id,clips:project.clips,portrait:$('ratio').value==='portrait',card,theme:$('theme').value,tip:$('cardTip').value,continuous:$('fullCoverage').checked,versions,sound:$('cardSound').value},message=>$('outputNotice').textContent=message);project.outputs=project.outputs||[];project.outputs.unshift(r);renderOutputs();$('outputNotice').textContent='合成完成';status('成片已生成（'+(r.files||[{label:'成片'}]).map(f=>f.label).join('、')+'），共 '+r.count+' 题、约 '+r.seconds+' 秒。'+(isAndroid?' 可在下方预览或保存到手机。':'\n'+r.folder))}catch(e){$('outputNotice').textContent='合成失败：'+e.message;throw e}});
+$('startCompose').onclick=()=>action(async()=>{needProject();if(compositionIssues().some(item=>!item.warning)){showComposeCheck();return}$('composeCheckDialog').close();let card=Number($('cardSeconds').value);let versions=[...document.querySelectorAll('input[data-version-out]')].filter(x=>x.checked).map(x=>x.dataset.versionOut);$('outputNotice').classList.remove('hidden');$('outputNotice').textContent='准备合成';if(isAndroid)showMobilePage('outputs');else $('outputSection').scrollIntoView({behavior:'smooth',block:'start'});try{let r=await job('/api/compose',{id:project.id,clips:project.clips,portrait:$('ratio').value==='portrait',card,theme:$('theme').value,tip:$('cardTip').value,continuous:$('fullCoverage').checked,versions,sound:$('cardSound').value},message=>$('outputNotice').textContent=message);project.outputs=project.outputs||[];project.outputs.unshift(r);renderOutputs();$('outputNotice').textContent='合成完成';status('成片已生成（'+(r.files||[{label:'成片'}]).map(f=>f.label).join('、')+'），共 '+r.count+' 题、约 '+r.seconds+' 秒。'+(isAndroid?' 可在下方预览或保存到手机。':'\n'+r.folder))}catch(e){$('outputNotice').textContent=e.cancelled?'合成已取消':'合成失败：'+e.message;throw e}});
 $('outputList').onclick=e=>{
   const publish=e.target.closest('[data-publish-output]');if(publish){openPublishOutput(publish.dataset.publishOutput);return}
   const save=e.target.closest('[data-save-output]');
@@ -605,7 +688,7 @@ else {
   $('desktopPages').append(libraryButton);
 }
 refreshProjects().then(async data=>{
-  applyProductionPreferences(data.productionPreferences||{});
+  applyProductionPreferences(data.productionPreferences||{});updateWorkflowGuide();
   const pid=new URLSearchParams(location.search).get('project');
   if(pid){load(await api('/api/project?id='+encodeURIComponent(pid)));if(isAndroid)showMobilePage('clips')}
 }).catch(e=>status(e.message,true));

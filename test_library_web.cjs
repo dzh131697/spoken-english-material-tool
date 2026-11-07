@@ -18,7 +18,7 @@ const {execFileSync}=require('node:child_process');
     if(android)await page.addInitScript(()=>{window.AndroidHost={}});
     const errors=[];
     page.on('pageerror',error=>errors.push(error.message));
-    const state={key:false,imported:false,analyzed:false,saved:[],topic:null,analyze:null,reanalyze:null};
+    const state={running:false,cancelled:false,cancelCalls:[],key:false,imported:false,analyzed:false,saved:[],topic:null,analyze:null,reanalyze:null};
     const source={id:'0123456789abcdef',title:'Weekend in London',done:0,batches:2,sentences:0,available:true,error:''};
     let items=[
       {id:1,source_id:source.id,title:source.title,start:1.2,end:4.5,english:'Have you ever been to London?',chinese:'你去过伦敦吗？',grammar:['现在完成时','疑问句'],patterns:['Have you ever…?']},
@@ -54,7 +54,10 @@ const {execFileSync}=require('node:child_process');
       if(path==='/api/library/upload')return route.fulfill({json:{folder:'/private/imports/test'}});
       if(path==='/api/library/import'){state.imported=true;return route.fulfill({json:{job:'import'}})}
       if(path==='/api/library/topic'){state.topic=route.request().postDataJSON();return route.fulfill({json:{job:'topic'}})}
+      if(path==='/api/job-cancel'){state.cancelled=true;state.cancelCalls.push(route.request().postDataJSON());return route.fulfill({json:{state:'cancelling'}})}
       if(path==='/api/job'){
+        if(state.cancelled)return route.fulfill({json:{state:'cancelled',message:'任务已取消'}});
+        if(state.running)return route.fulfill({json:{state:'running',message:'正在分析字幕'}});
         if(url.searchParams.get('id')==='retag'){source.patterns_pending=0;return route.fulfill({json:{state:'done',message:'完成',result:{updated:2,tokens:10,errors:[]}}})}
         if(url.searchParams.get('id')==='reanalyze')return route.fulfill({json:{state:'done',message:'完成',result:{errors:[],tokens:20,added:2,skipped:1}}});
         if(url.searchParams.get('id')==='folder')return route.fulfill({json:{state:'done',message:'完成',result:{folder:'D:\\EnglishVlogs'}}});
@@ -197,6 +200,16 @@ const {execFileSync}=require('node:child_process');
     await page.locator('#reanalyze').click();
     await page.locator('#status').filter({hasText:'重跑完成'}).waitFor();
     assert.deepEqual(state.reanalyze.ids,[source.id]);
+    state.running=true;
+    await page.locator('#analyze').click();
+    await page.locator('#cancelLibraryJob').waitFor({state:'visible'});
+    await page.locator('#cancelLibraryJob').click();
+    await page.locator('#status').filter({hasText:'任务已取消'}).waitFor();
+    await page.waitForFunction(()=>!busy);
+    assert.equal(state.cancelCalls.length,1);
+    assert.equal(state.cancelCalls[0].id,'analysis');
+    assert.equal(await page.locator('#cancelLibraryJob').isVisible(),false);
+    assert.equal(await page.evaluate(()=>sessionStorage.getItem('grammarJob')),null);
     assert.deepEqual(errors,[]);
     console.log('Library GUI passed: guided import, key setup, analysis, cancelable re-run, retag, edits, filters, arrangement, topic navigation and responsive layout.');
   }finally{await browser.close();fs.rmSync(mediaFolder,{recursive:true,force:true})}

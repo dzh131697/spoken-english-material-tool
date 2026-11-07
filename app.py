@@ -23,7 +23,7 @@ from array import array
 import zipfile
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from contextlib import contextmanager, nullcontext
+from contextlib import contextmanager
 
 from PIL import Image, ImageDraw, ImageFont
 
@@ -35,6 +35,7 @@ OUTPUT = ROOT / '导出素材'
 COOKIES = ROOT / 'cookies.txt'
 TOKEN = secrets.token_urlsafe(32)
 JOBS = {}
+JOB_CONTEXT = threading.local()
 LOCK = threading.Lock()
 WORK_LOCK = threading.Lock()
 KEY = ''
@@ -261,11 +262,41 @@ def ffmpeg():
     raise ValueError('缺少 FFmpeg，请使用完整便携包，或将 ffmpeg.exe 放进 tools 文件夹')
 
 
+class JobCancelled(Exception):
+    pass
+
+
+def check_cancelled():
+    jid = getattr(JOB_CONTEXT, 'jid', None)
+    if jid:
+        with LOCK:
+            if JOBS[jid].get('cancel_requested'):
+                raise JobCancelled('任务已取消；原素材和已保存结果保留')
+
+
 def run_ffmpeg(args, cwd=None):
-    result = subprocess.run([ffmpeg(), '-hide_banner', '-loglevel', 'error', '-nostdin', '-y'] + args,
-                            capture_output=True, creationflags=CREATE_NO_WINDOW, cwd=cwd)
-    if result.returncode:
-        raise ValueError('视频处理失败：' + result.stderr.decode('utf-8', errors='replace')[-1800:])
+    check_cancelled()
+    with subprocess.Popen([ffmpeg(), '-hide_banner', '-loglevel', 'error', '-nostdin', '-y'] + args,
+                          stdout=subprocess.PIPE, stderr=subprocess.PIPE, creationflags=CREATE_NO_WINDOW, cwd=cwd) as process:
+        try:
+            while True:
+                try:
+                    _, stderr = process.communicate(timeout=.2)
+                    break
+                except subprocess.TimeoutExpired:
+                    check_cancelled()
+            check_cancelled()
+        except JobCancelled:
+            if process.poll() is None:
+                process.terminate()
+            try:
+                process.communicate(timeout=3)
+            except subprocess.TimeoutExpired:
+                process.kill()
+                process.communicate()
+            raise
+        if process.returncode:
+            raise ValueError('视频处理失败：' + stderr.decode('utf-8', errors='replace')[-1800:])
 
 
 FILTER_CACHE = {}
@@ -291,20 +322,44 @@ def job_start(fn, exclusive=True):
         JOBS[jid] = {'state': 'waiting', 'message': '等待处理'}
 
     def worker():
-        with (WORK_LOCK if exclusive else nullcontext()):
+        JOB_CONTEXT.jid = jid
+        acquired = False
+        try:
+            if exclusive:
+                while not WORK_LOCK.acquire(timeout=.1):
+                    check_cancelled()
+                acquired = True
             def progress(message):
                 with LOCK:
-                    JOBS[jid] = {'state': 'running', 'message': message}
-            try:
-                progress('正在处理')
-                result = fn(progress)
-                with LOCK:
-                    JOBS[jid] = {'state': 'done', 'message': '完成', 'result': result}
-            except Exception as error:
-                with LOCK:
-                    JOBS[jid] = {'state': 'error', 'message': str(error)}
+                    if JOBS[jid].get('cancel_requested'):
+                        raise JobCancelled('任务已取消；原素材和已保存结果保留')
+                    JOBS[jid].update(state='running', message=message)
+            progress('正在处理')
+            result = fn(progress)
+            check_cancelled()
+            with LOCK:
+                JOBS[jid] = {'state': 'done', 'message': '完成', 'result': result}
+        except Exception as error:
+            with LOCK:
+                cancelled = isinstance(error, JobCancelled) or JOBS[jid].get('cancel_requested')
+                JOBS[jid] = {'state': 'cancelled' if cancelled else 'error',
+                             'message': '任务已取消；原素材和已保存结果保留' if cancelled else str(error)}
+        finally:
+            if acquired:
+                WORK_LOCK.release()
+            del JOB_CONTEXT.jid
     threading.Thread(target=worker, daemon=True).start()
     return {'job': jid}
+
+
+def cancel_job(jid):
+    with LOCK:
+        if not isinstance(jid, str) or jid not in JOBS:
+            raise ValueError('任务不存在')
+        if JOBS[jid]['state'] in ('waiting', 'running', 'cancelling'):
+            JOBS[jid].update(cancel_requested=True, state='cancelling',
+                             message='正在取消，等待当前步骤安全停止；已提交的 AI 请求可能仍计费')
+        return {'state': JOBS[jid]['state']}
 
 
 COOKIE_LOGIN_NAMES = ('SID', 'HSID', 'SSID', 'APISID', 'SAPISID', 'LOGIN_INFO')
@@ -383,6 +438,7 @@ def reparse_subtitles(pid):
     p['subtitles'] = parse_subtitles(sub.read_text(encoding='utf-8'))
     p['subZh'] = parse_chinese_subtitles(folder)
     p['rowZh'] = {}
+    p.pop('subtitleEdits', None)
     save_project(p)
     return p
 
@@ -433,63 +489,72 @@ def download_video(url, progress):
     folder = project_dir(pid)
     folder.mkdir(parents=True)
 
-    class Logger:
-        def debug(self, msg):
-            pass
-        def warning(self, msg):
-            progress('下载提示：' + msg[:250])
-        def error(self, msg):
-            pass
-
-    def hook(status):
-        if status['status'] == 'downloading':
-            total = status.get('total_bytes') or status.get('total_bytes_estimate')
-            if total:
-                progress('下载视频 {:.0%}'.format(status.get('downloaded_bytes', 0) / total))
-        elif status['status'] == 'finished':
-            progress('下载完成，正在合并和整理')
-
-    options = {
-        'outtmpl': str(folder / 'source.%(ext)s'), 'noplaylist': True,
-        'format': 'bv*[ext=mp4][vcodec^=avc1][height<=1080]+ba[ext=m4a]/b[ext=mp4]/best[height<=1080]',
-        'merge_output_format': 'mp4', 'writesubtitles': True, 'writeautomaticsub': True,
-        'subtitleslangs': ['en', 'en-US', 'en-GB', 'en-orig', 'zh-Hans', 'zh-CN', 'zh', 'zh-Hant', 'zh-TW'],
-        'subtitlesformat': 'vtt',
-        'ffmpeg_location': ffmpeg(), 'logger': Logger(), 'progress_hooks': [hook],
-        'socket_timeout': 30, 'retries': 10, 'fragment_retries': 10,
-        'http_chunk_size': 1048576, 'quiet': True,
-        'js_runtimes': {'node': {'path': str(ROOT / 'tools' / 'node.exe')}},
-        'compat_opts': ['no-certifi'],
-    }
-    progress('读取 YouTube 视频信息和英文字幕')
-    if COOKIES.exists():
-        options['cookiefile'] = str(COOKIES)
     try:
-        with yt_dlp.YoutubeDL(options) as ydl:
-            info = ydl.extract_info(url, download=True)
-    except yt_dlp.utils.DownloadError as error:
-        detail = str(error)
-        bot_check = 'Sign in to confirm' in detail or 'not a bot' in detail
-        if bot_check and not COOKIES.exists():
-            hint = ('YouTube 要求验证登录身份（风控）。请点击顶部「Cookie 设置」导入 cookies.txt 后重试；'
-                    '也可以先导入本地视频和字幕。')
-        elif bot_check:
-            hint = ('YouTube 仍要求验证登录身份：cookies.txt 可能已过期，或当前网络出口 IP 被标记。'
-                    '请重新导出 Cookie 或更换网络节点；也可以先导入本地视频和字幕。')
-        else:
-            hint = 'YouTube 获取失败。请确认网络可访问 YouTube，且视频无需登录。也可以导入本地视频和字幕。'
-        raise ValueError(hint + '\n' + detail[-700:]) from None
-    videos = [x for x in folder.glob('source.*') if x.suffix.lower() in ('.mp4', '.mkv', '.webm', '.mov')]
-    if not videos:
-        raise ValueError('没有找到下载的视频文件')
-    source = max(videos, key=lambda x: x.stat().st_size)
-    sub = pick_subtitle_file(folder)
-    rows = parse_subtitles(sub.read_text(encoding='utf-8')) if sub else []
-    p = {'id': pid, 'title': info.get('title', 'YouTube 视频'), 'url': url,
-         'description': str(info.get('description') or '')[:12000],
-         'video': source.name, 'subtitles': rows, 'subZh': parse_chinese_subtitles(folder), 'clips': []}
-    save_project(p)
-    return p
+        class Logger:
+            def debug(self, msg):
+                pass
+            def warning(self, msg):
+                progress('下载提示：' + msg[:250])
+            def error(self, msg):
+                pass
+
+        def hook(status):
+            check_cancelled()
+            if status['status'] == 'downloading':
+                total = status.get('total_bytes') or status.get('total_bytes_estimate')
+                if total:
+                    progress('下载视频 {:.0%}'.format(status.get('downloaded_bytes', 0) / total))
+            elif status['status'] == 'finished':
+                progress('下载完成，正在合并和整理')
+
+        options = {
+            'outtmpl': str(folder / 'source.%(ext)s'), 'noplaylist': True,
+            'format': 'bv*[ext=mp4][vcodec^=avc1][height<=1080]+ba[ext=m4a]/b[ext=mp4]/best[height<=1080]',
+            'merge_output_format': 'mp4', 'writesubtitles': True, 'writeautomaticsub': True,
+            'subtitleslangs': ['en', 'en-US', 'en-GB', 'en-orig', 'zh-Hans', 'zh-CN', 'zh', 'zh-Hant', 'zh-TW'],
+            'subtitlesformat': 'vtt',
+            'ffmpeg_location': ffmpeg(), 'logger': Logger(), 'progress_hooks': [hook],
+            'socket_timeout': 30, 'retries': 10, 'fragment_retries': 10,
+            'http_chunk_size': 1048576, 'quiet': True,
+            'js_runtimes': {'node': {'path': str(ROOT / 'tools' / 'node.exe')}},
+            'compat_opts': ['no-certifi'],
+        }
+        options['postprocessor_hooks'] = [lambda status: check_cancelled()]
+        progress('读取 YouTube 视频信息和英文字幕')
+        if COOKIES.exists():
+            options['cookiefile'] = str(COOKIES)
+        try:
+            with yt_dlp.YoutubeDL(options) as ydl:
+                info = ydl.extract_info(url, download=True)
+        except yt_dlp.utils.DownloadError as error:
+            check_cancelled()
+            detail = str(error)
+            bot_check = 'Sign in to confirm' in detail or 'not a bot' in detail
+            if bot_check and not COOKIES.exists():
+                hint = ('YouTube 要求验证登录身份（风控）。请点击顶部「Cookie 设置」导入 cookies.txt 后重试；'
+                        '也可以先导入本地视频和字幕。')
+            elif bot_check:
+                hint = ('YouTube 仍要求验证登录身份：cookies.txt 可能已过期，或当前网络出口 IP 被标记。'
+                        '请重新导出 Cookie 或更换网络节点；也可以先导入本地视频和字幕。')
+            else:
+                hint = 'YouTube 获取失败。请确认网络可访问 YouTube，且视频无需登录。也可以导入本地视频和字幕。'
+            raise ValueError(hint + '\n' + detail[-700:]) from None
+        videos = [x for x in folder.glob('source.*') if x.suffix.lower() in ('.mp4', '.mkv', '.webm', '.mov')]
+        if not videos:
+            raise ValueError('没有找到下载的视频文件')
+        source = max(videos, key=lambda x: x.stat().st_size)
+        sub = pick_subtitle_file(folder)
+        rows = parse_subtitles(sub.read_text(encoding='utf-8')) if sub else []
+        p = {'id': pid, 'title': info.get('title', 'YouTube 视频'), 'url': url,
+             'description': str(info.get('description') or '')[:12000],
+             'video': source.name, 'subtitles': rows, 'subZh': parse_chinese_subtitles(folder), 'clips': []}
+        check_cancelled()
+        save_project(p)
+        return p
+    except JobCancelled:
+        shutil.rmtree(folder, ignore_errors=True)
+        raise
+
 
 
 PLAYLIST_DIR = DATA / '下载素材'
@@ -524,12 +589,17 @@ def playlist_archive(path):
     return {line.rsplit(' ', 1)[-1] for line in lines if line.strip()}
 
 
-def download_playlist(url, folder, limit, progress):
+def download_playlist(url, folder, limit, progress, retry_ids=None):
     """按列表顺序逐个下载视频和英文字幕，已下载的自动跳过。"""
     import yt_dlp
     parsed = youtube_check(url)
     if not urllib.parse.parse_qs(parsed.query).get('list'):
         raise ValueError('请粘贴带 list= 参数的播放列表链接（例如「稍后观看」或自建收藏夹页面地址）')
+    if retry_ids is not None:
+        if (not isinstance(retry_ids, list) or not 1 <= len(retry_ids) <= 5000
+                or any(not isinstance(vid, str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,64}', vid) for vid in retry_ids)):
+            raise ValueError('失败项编号无效，请重新读取下载结果')
+        retry_ids = list(dict.fromkeys(retry_ids))
     target = Path(str(folder or '').strip() or PLAYLIST_DIR).expanduser()
     if not target.is_absolute():
         raise ValueError('请填写保存文件夹的完整路径')
@@ -554,6 +624,8 @@ def download_playlist(url, folder, limit, progress):
         'js_runtimes': {'node': {'path': str(ROOT / 'tools' / 'node.exe')}},
         'compat_opts': ['no-certifi'],
     }
+    options['progress_hooks'] = [lambda status: check_cancelled()]
+    options['postprocessor_hooks'] = [lambda status: check_cancelled()]
     if COOKIES.exists():
         options['cookiefile'] = str(COOKIES)
     progress('读取播放列表信息')
@@ -568,10 +640,17 @@ def download_playlist(url, folder, limit, progress):
     if not entries:
         raise ValueError('播放列表没有可下载的视频（私有列表请先导入 cookies.txt）')
     total = len(entries)
-    if limit:
+    missing = []
+    if retry_ids is not None:
+        available = {entry['id']: entry for entry in entries}
+        missing = [{'id': vid, 'title': vid, 'error': '该视频已不在播放列表中，请检查来源'}
+                   for vid in retry_ids if vid not in available]
+        entries = [available[vid] for vid in retry_ids if vid in available]
+        total = len(retry_ids)
+    elif limit:
         entries = entries[:limit]
     done = playlist_archive(archive)
-    downloaded, skipped, failed = 0, 0, []
+    downloaded, skipped, failed = 0, 0, missing
     for index, entry in enumerate(entries, 1):
         vid = entry['id']
         title = str(entry.get('title') or vid)[:120]
@@ -586,12 +665,13 @@ def download_playlist(url, folder, limit, progress):
             downloaded += 1
             done.add(vid)
         except yt_dlp.utils.DownloadError as error:
-            failed.append({'title': title, 'error': str(error)[:300]})
+            failed.append({'id': vid, 'title': title, 'error': str(error)[:300]})
     return {'folder': str(target), 'total': total, 'downloaded': downloaded, 'skipped': skipped,
-            'failed': failed[:20], 'failedCount': len(failed), 'hasCookies': COOKIES.exists()}
+            'failed': failed, 'failedCount': len(failed), 'hasCookies': COOKIES.exists()}
 
 
 def deepseek(messages, key, max_tokens, json_output=False):
+    check_cancelled()
     if not key:
         raise ValueError('请先填写 DeepSeek API Key')
     body = {'model': 'deepseek-chat', 'messages': messages, 'temperature': .2, 'max_tokens': max_tokens}
@@ -606,6 +686,7 @@ def deepseek(messages, key, max_tokens, json_output=False):
     except urllib.error.HTTPError as error:
         messages = {401: 'API Key 无效', 402: 'DeepSeek 余额不足', 429: '请求过于频繁，请稍后重试'}
         raise ValueError(messages.get(error.code, 'DeepSeek 请求失败，HTTP ' + str(error.code))) from None
+    check_cancelled()
     content = result['choices'][0]['message']['content'].strip()
     if not content:
         raise ValueError('DeepSeek 返回内容为空，请重试')
@@ -725,6 +806,34 @@ def sentence_units(rows, endings=None):
     return [unit for unit in units if unit['text'].strip()]
 
 
+def effective_subtitles(p):
+    edits = p.get('subtitleEdits', {})
+    rows = []
+    for index, row in enumerate(p.get('subtitles', [])):
+        edit = edits.get(str(index), {})
+        text = edit['english'] if edit.get('source') == row['text'] else row['text']
+        rows.append({**row, 'text': text})
+    return rows
+
+
+def save_subtitle_edit(pid, index, source, english, chinese):
+    p = read_project(pid)
+    rows = p.get('subtitles', [])
+    if type(index) is not int or not 0 <= index < len(rows) or source != rows[index]['text']:
+        raise ValueError('字幕已经变化，请重新打开这一句')
+    if (not isinstance(english, str) or not english.strip() or len(english) > 5000
+            or not isinstance(chinese, str) or len(chinese) > 5000):
+        raise ValueError('请填写英文，单句英文和中文均不超过 5000 字')
+    edit = {'source': source, 'english': tidy_text(english), 'chinese': tidy_text(chinese)}
+    edits = p.setdefault('subtitleEdits', {})
+    if edit['english'] == source and not edit['chinese']:
+        edits.pop(str(index), None)
+    else:
+        edits[str(index)] = edit
+    save_project(p)
+    return {'subtitleEdits': edits}
+
+
 def recover_sentence_endings(rows, key, progress):
     """缺少标点时只让 AI 判断字幕行边界，不改原文或生成时间。"""
     endings, tokens = [], 0
@@ -810,7 +919,7 @@ def suggest_segments(pid, options, key, progress):
     if not key:
         raise ValueError('请先填写 DeepSeek API Key')
     p = read_project(pid)
-    rows = p.get('subtitles', [])
+    rows = effective_subtitles(p)
     if not rows:
         raise ValueError('请先导入英文字幕')
     duration = video_duration(project_dir(pid) / p['video'])
@@ -1261,19 +1370,24 @@ def export_clips(pid, clips, portrait, progress, theme='midnight', tip=''):
     ffmpeg()
     folder = OUTPUT / (time.strftime('%Y%m%d_%H%M%S') + '_' + secrets.token_hex(3))
     folder.mkdir(parents=True)
-    for index, clip in enumerate(clips, 1):
-        progress('正在导出 {}/{}：中文题卡和视频'.format(index, len(clips)))
-        stem = '{:03d}'.format(index)
-        make_card(clip['chinese'], folder / (stem + '_中文题卡.png'), portrait, theme, clip.get('hint'), tip)
-        run_ffmpeg(['-ss', str(clip['start']), '-i', str(source), '-t', str(clip['end'] - clip['start']),
-                    '-map', '0:v:0', '-map', '0:a:0?', '-c:v', 'libx264', '-preset', 'fast', '-crf', '20',
-                    '-pix_fmt', 'yuv420p', '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2',
-                    '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', str(folder / (stem + '_原视频.mp4'))])
-        text = '中文：\n{}\n\n英文：\n{}\n\n来源：{}\n链接：{}\n时间：{:.3f} → {:.3f} 秒\n'.format(
-            clip['chinese'], clip['english'], p['title'], p.get('url', ''), clip['start'], clip['end'])
-        (folder / (stem + '_中英文本.txt')).write_text(text, encoding='utf-8-sig')
-    atomic_json(folder / '素材清单.json', {'source': p['title'], 'url': p.get('url', ''), 'clips': clips})
-    return {'folder': str(folder), 'count': len(clips)}
+    try:
+        for index, clip in enumerate(clips, 1):
+            progress('正在导出 {}/{}：中文题卡和视频'.format(index, len(clips)))
+            stem = '{:03d}'.format(index)
+            make_card(clip['chinese'], folder / (stem + '_中文题卡.png'), portrait, theme, clip.get('hint'), tip)
+            run_ffmpeg(['-ss', str(clip['start']), '-i', str(source), '-t', str(clip['end'] - clip['start']),
+                        '-map', '0:v:0', '-map', '0:a:0?', '-c:v', 'libx264', '-preset', 'fast', '-crf', '20',
+                        '-pix_fmt', 'yuv420p', '-vf', 'scale=trunc(iw/2)*2:trunc(ih/2)*2',
+                        '-c:a', 'aac', '-b:a', '192k', '-movflags', '+faststart', str(folder / (stem + '_原视频.mp4'))])
+            text = '中文：\n{}\n\n英文：\n{}\n\n来源：{}\n链接：{}\n时间：{:.3f} → {:.3f} 秒\n'.format(
+                clip['chinese'], clip['english'], p['title'], p.get('url', ''), clip['start'], clip['end'])
+            (folder / (stem + '_中英文本.txt')).write_text(text, encoding='utf-8-sig')
+        atomic_json(folder / '素材清单.json', {'source': p['title'], 'url': p.get('url', ''), 'clips': clips})
+        return {'folder': str(folder), 'count': len(clips)}
+    except JobCancelled:
+        shutil.rmtree(folder, ignore_errors=True)
+        raise
+
 
 
 def has_audio(path):
@@ -1524,7 +1638,7 @@ def write_ass(path, cues, bilingual, width, height):
     path.write_text(header + ''.join(lines), encoding='utf-8')
 
 
-def clip_cues(rows, clip, chinese=None):
+def clip_cues(rows, clip, chinese=None, edits=None):
     """沿用逐行时间，将人工修正的英文按原词对应回字幕行。"""
     cues = []
     for index, row in enumerate(rows):
@@ -1557,7 +1671,14 @@ def clip_cues(rows, clip, chinese=None):
                 cue['text'] = tidy_text(' '.join(words))
             cues = [cue for cue in cues if cue['text']]
     for cue in cues:
+        index = cue['index']
+        edit = (edits or {}).get(str(index), {})
+        valid = index >= 0 and edit.get('source') == rows[index]['text']
+        if valid and cue['text'] == rows[index]['text']:
+            cue['text'] = edit['english']
         cue['chinese'] = (chinese or {}).get((cue['index'], cue['text']), '')
+        if valid and cue['text'] == edit['english'] and edit.get('chinese'):
+            cue['chinese'] = edit['chinese']
     return cues
 
 
@@ -1602,14 +1723,17 @@ def translate_rows(items, key):
 def chinese_subtitles(pid, p, clips, key, progress):
     """复用已有中文，仅补译缺失或英文已修正的字幕行。"""
     rows = p.get('subtitles', [])
-    selected = list(dict.fromkeys((cue['index'], cue['text']) for clip in clips for cue in clip_cues(rows, clip)))
+    cues = [cue for clip in clips for cue in clip_cues(rows, clip, edits=p.get('subtitleEdits'))]
+    selected = list(dict.fromkeys((cue['index'], cue['text']) for cue in cues))
     if not selected:
         return {}
     cache = dict(p.get('subtitleZh') or {})
     old_cache = p.get('rowZh') or {}
     aligned = align_chinese(rows, p.get('subZh', []))
-    mapping = {}
+    mapping = {(cue['index'], cue['text']): cue['chinese'] for cue in cues if cue['chinese']}
     for index, text in selected:
+        if (index, text) in mapping:
+            continue
         if index >= 0 and text == rows[index]['text']:
             chinese = aligned.get(index) or old_cache.get(str(index)) or cache.get(text)
         else:
@@ -1670,79 +1794,89 @@ def compose_video(pid, clips, portrait, card_seconds, progress, theme='midnight'
     fit = 'scale={0}:{1}:force_original_aspect_ratio=decrease,pad={0}:{1}:(ow-iw)/2:(oh-ih)/2,setsar=1'.format(width, height)
     folder = OUTPUT / (time.strftime('%Y%m%d_%H%M%S') + '_' + secrets.token_hex(3))
     temp = folder / 'parts'
-    temp.mkdir(parents=True)
-    source_audio = has_audio(source)
-    sound_file = None
-    if sound != 'none':
-        sound_file = temp / 'card_sound.wav'
-        sound_file.write_bytes(card_sound(sound, card_seconds))
-    parts = {name: [] for name in chosen}
-    for index, clip in enumerate(clips, 1):
-        stem = '{:03d}'.format(index)
-        card = temp / (stem + '_card.png')
-        make_card(clip['chinese'], card, portrait, theme, clip.get('hint'), tip)
-        progress('合成 {}/{}：中文题卡停留 {:.0f} 秒{}'.format(
-            index, len(clips), card_seconds, '' if sound == 'none' else '（带提示音）'))
-        card_part = temp / (stem + '_card.mp4')
-        command = ['-loop', '1', '-framerate', '30', '-t', str(card_seconds), '-i', str(card)]
-        if sound_file:
-            command += ['-t', str(card_seconds), '-i', str(sound_file)]
-        else:
-            command += ['-f', 'lavfi', '-t', str(card_seconds), '-i', 'anullsrc=channel_layout=stereo:sample_rate=48000']
-        command += ['-vf', fit, '-r', '30', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20',
-                    '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '128k', '-ar', '48000', '-ac', '2',
-                    '-shortest', str(card_part)]
-        run_ffmpeg(command)
-        for name in chosen:
-            parts[name].append(card_part)
-        for name in chosen:
-            progress('合成 {}/{}：{}'.format(index, len(clips), OUTPUT_VERSIONS[name][0]))
-            part = temp / '{}_{}.mp4'.format(stem, name)
-            command = ['-ss', str(clip['start']), '-i', str(source), '-t', str(clip['end'] - clip['start'])]
-            if source_audio:
-                command += ['-map', '0:v:0', '-map', '0:a:0', '-c:a', 'aac', '-b:a', '192k', '-ar', '48000', '-ac', '2']
-            else:
-                command += ['-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=48000',
-                            '-map', '0:v:0', '-map', '1:a:0', '-c:a', 'aac', '-b:a', '128k', '-shortest']
-            filters = fit
-            if name != 'plain':
-                ass_name = '{}_{}.ass'.format(stem, name)
-                write_ass(temp / ass_name, clip_cues(p.get('subtitles', []), clip, chinese),
-                          name == 'bilingual', width, height)
-                filters += ',' + ass_filter(ass_name)
-            command += ['-vf', filters + ',fps=30', '-r', '30', '-c:v', 'libx264', '-preset', 'veryfast',
-                        '-crf', '20', '-pix_fmt', 'yuv420p', str(part)]
-            run_ffmpeg(command, cwd=temp)
-            parts[name].append(part)
     files = []
-    for name in chosen:
-        label, suffix = OUTPUT_VERSIONS[name]
-        progress('正在拼接成片：' + label)
-        listing = 'list_{}.txt'.format(name)
-        (temp / listing).write_text(''.join("file '{}'\n".format(x.name) for x in parts[name]), encoding='utf-8')
-        result = subprocess.run([ffmpeg(), '-hide_banner', '-loglevel', 'error', '-y', '-f', 'concat', '-safe', '0',
-                                 '-i', listing, '-c', 'copy', '-movflags', '+faststart', 'final_{}.mp4'.format(name)],
-                                cwd=str(temp), capture_output=True, creationflags=CREATE_NO_WINDOW)
-        if result.returncode != 0:
-            raise ValueError('拼接成片失败：' + result.stderr.decode('utf-8', errors='replace').strip()[-300:])
-        final = temp / 'final_{}.mp4'.format(name)
-        if not final.exists() or final.stat().st_size == 0:
-            raise ValueError('成片生成失败，请检查显卡与磁盘空间')
-        filename = '成片_{}{}.mp4'.format('竖版' if portrait else '横版', suffix)
-        final.replace(folder / filename)
-        files.append({'name': filename, 'label': label})
-    shutil.rmtree(temp, ignore_errors=True)
-    output = {'id': folder.name, 'name': files[0]['name'], 'files': files, 'count': len(clips),
-              'seconds': round(len(clips) * card_seconds + sum(c['end'] - c['start'] for c in clips), 1),
-              'created': time.strftime('%Y-%m-%d %H:%M:%S'),
-              'clips': clips, 'source_video': p['video'], 'source_title': p['title'],
-              'source_url': p.get('url', ''), 'source_description': p.get('description', ''),
-              'portrait': bool(portrait), 'card_tip': tip}
-    with LOCK:
-        p = read_project(pid)
-        p.setdefault('outputs', []).insert(0, output)
-        save_project(p)
-    return {'folder': str(folder), 'file': str(folder / files[0]['name']), **output}
+    try:
+        temp.mkdir(parents=True)
+        source_audio = has_audio(source)
+        sound_file = None
+        if sound != 'none':
+            sound_file = temp / 'card_sound.wav'
+            sound_file.write_bytes(card_sound(sound, card_seconds))
+        parts = {name: [] for name in chosen}
+        for index, clip in enumerate(clips, 1):
+            stem = '{:03d}'.format(index)
+            card = temp / (stem + '_card.png')
+            make_card(clip['chinese'], card, portrait, theme, clip.get('hint'), tip)
+            progress('合成 {}/{}：中文题卡停留 {:.0f} 秒{}'.format(
+                index, len(clips), card_seconds, '' if sound == 'none' else '（带提示音）'))
+            card_part = temp / (stem + '_card.mp4')
+            command = ['-loop', '1', '-framerate', '30', '-t', str(card_seconds), '-i', str(card)]
+            if sound_file:
+                command += ['-t', str(card_seconds), '-i', str(sound_file)]
+            else:
+                command += ['-f', 'lavfi', '-t', str(card_seconds), '-i', 'anullsrc=channel_layout=stereo:sample_rate=48000']
+            command += ['-vf', fit, '-r', '30', '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '20',
+                        '-pix_fmt', 'yuv420p', '-c:a', 'aac', '-b:a', '128k', '-ar', '48000', '-ac', '2',
+                        '-shortest', str(card_part)]
+            run_ffmpeg(command)
+            for name in chosen:
+                parts[name].append(card_part)
+            for name in chosen:
+                progress('合成 {}/{}：{}'.format(index, len(clips), OUTPUT_VERSIONS[name][0]))
+                part = temp / '{}_{}.mp4'.format(stem, name)
+                command = ['-ss', str(clip['start']), '-i', str(source), '-t', str(clip['end'] - clip['start'])]
+                if source_audio:
+                    command += ['-map', '0:v:0', '-map', '0:a:0', '-c:a', 'aac', '-b:a', '192k', '-ar', '48000', '-ac', '2']
+                else:
+                    command += ['-f', 'lavfi', '-i', 'anullsrc=channel_layout=stereo:sample_rate=48000',
+                                '-map', '0:v:0', '-map', '1:a:0', '-c:a', 'aac', '-b:a', '128k', '-shortest']
+                filters = fit
+                if name != 'plain':
+                    ass_name = '{}_{}.ass'.format(stem, name)
+                    write_ass(temp / ass_name, clip_cues(p.get('subtitles', []), clip, chinese, p.get('subtitleEdits')),
+                              name == 'bilingual', width, height)
+                    filters += ',' + ass_filter(ass_name)
+                command += ['-vf', filters + ',fps=30', '-r', '30', '-c:v', 'libx264', '-preset', 'veryfast',
+                            '-crf', '20', '-pix_fmt', 'yuv420p', str(part)]
+                run_ffmpeg(command, cwd=temp)
+                parts[name].append(part)
+        for name in chosen:
+            label, suffix = OUTPUT_VERSIONS[name]
+            progress('正在拼接成片：' + label)
+            listing = 'list_{}.txt'.format(name)
+            (temp / listing).write_text(''.join("file '{}'\n".format(x.name) for x in parts[name]), encoding='utf-8')
+            run_ffmpeg(['-f', 'concat', '-safe', '0', '-i', listing, '-c', 'copy',
+                        '-movflags', '+faststart', 'final_{}.mp4'.format(name)], cwd=str(temp))
+            final = temp / 'final_{}.mp4'.format(name)
+            if not final.exists() or final.stat().st_size == 0:
+                raise ValueError('成片生成失败，请检查显卡与磁盘空间')
+            filename = '成片_{}{}.mp4'.format('竖版' if portrait else '横版', suffix)
+            final.replace(folder / filename)
+            files.append({'name': filename, 'label': label})
+        shutil.rmtree(temp, ignore_errors=True)
+        if p.get('subtitleEdits'):
+            clips = [{**clip, 'english': subtitle_text(clip_cues(p.get('subtitles', []), clip, edits=p['subtitleEdits'])) or clip['english']} for clip in clips]
+        output = {'id': folder.name, 'name': files[0]['name'], 'files': files, 'count': len(clips),
+                  'seconds': round(len(clips) * card_seconds + sum(c['end'] - c['start'] for c in clips), 1),
+                  'created': time.strftime('%Y-%m-%d %H:%M:%S'),
+                  'clips': clips, 'source_video': p['video'], 'source_title': p['title'],
+                  'source_url': p.get('url', ''), 'source_description': p.get('description', ''),
+                  'portrait': bool(portrait), 'card_tip': tip}
+        with LOCK:
+            p = read_project(pid)
+            p.setdefault('outputs', []).insert(0, output)
+            save_project(p)
+        return {'folder': str(folder), 'file': str(folder / files[0]['name']), **output}
+    except JobCancelled:
+        shutil.rmtree(temp, ignore_errors=True)
+        for item in files:
+            (folder / item['name']).unlink(missing_ok=True)
+        try:
+            folder.rmdir()
+        except OSError:
+            pass
+        raise
+
 
 
 PUBLISH_PLATFORMS = {
@@ -2620,6 +2754,8 @@ class Handler(BaseHTTPRequestHandler):
                 KEY = ''
                 KEY_ERROR = ''
                 self.reply({'ok': True})
+            elif self.path == '/api/job-cancel':
+                self.reply(cancel_job(body.get('id')))
             elif self.path == '/api/library/folder':
                 self.reply(job_start(lambda progress: library_pick_folder()))
             elif self.path == '/api/library/import':
@@ -2643,7 +2779,8 @@ class Handler(BaseHTTPRequestHandler):
             elif self.path == '/api/download-playlist':
                 # 批量下载可能持续很久，不占用视频处理锁，避免挡住导出和合成。
                 self.reply(job_start(lambda progress: download_playlist(
-                    body.get('url', ''), body.get('folder', ''), body.get('limit'), progress), exclusive=False))
+                    body.get('url', ''), body.get('folder', ''), body.get('limit'), progress,
+                    body.get('retry_ids')), exclusive=False))
             elif self.path == '/api/translate':
                 key = KEY
                 self.reply(job_start(lambda progress: translate(body['english'], key)))
@@ -2659,6 +2796,11 @@ class Handler(BaseHTTPRequestHandler):
                 with LOCK:
                     p = reparse_subtitles(body['id'])
                 self.reply(p)
+            elif self.path == '/api/subtitle-edit':
+                with LOCK:
+                    result = save_subtitle_edit(body['id'], body.get('index'), body.get('source'),
+                                                body.get('english'), body.get('chinese', ''))
+                self.reply(result)
             elif self.path == '/api/save':
                 with LOCK:
                     p = read_project(body['id'])
@@ -2814,6 +2956,7 @@ class Handler(BaseHTTPRequestHandler):
                 p = read_project(self.headers.get('X-Project-Id', ''))
                 p['subtitles'] = parse_subtitles(self.rfile.read(length).decode('utf-8-sig'))
                 p['rowZh'] = {}
+                p.pop('subtitleEdits', None)
                 save_project(p)
             self.reply(p)
         else:
