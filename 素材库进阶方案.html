@@ -61,7 +61,7 @@ footer{margin-top:60px;border-top:1px solid var(--line);padding-top:22px;color:v
 <div class="wrap">
 
 <header>
-  <p class="eyebrow">DESIGN NOTE v2.3 · 2026-11-07 · P0 / P1 已落地，P2 起仍为方案</p>
+  <p class="eyebrow">DESIGN NOTE v2.4 · 2026-11-07 · P0 / P1 / P3 核心已落地，P2 的 FTS5 暂缓</p>
   <h1>大规模素材库进阶方案</h1>
   <p class="lead">核心结论：当素材从「几十条」变成「几百上千条 YouTube 视频」，瓶颈不再是模型够不够聪明，而是<strong>导入吞吐、检索是否偏斜、标注是否可维护</strong>。</p>
   <p class="sub">适用前提：单机单盘 500G、原片长期保留、短期 50–100 条视频并向更大规模演进；目标仍是「我或 AI 定主题 → 自主合成视频」。硬约束：<strong>不改动现有 GUI</strong>，AI 能力放在新增的独立页面；视频不上传 AI、Key 本机加密、只监听 127.0.0.1。</p>
@@ -174,8 +174,8 @@ app.py:749  subtitle_batches：每批 ≤60 行且 ≤8000 字符，串行逐批
   <tr><th>期</th><th>做什么</th><th>为什么现在做</th><th>依赖 / 风险</th></tr>
   <tr><td><span class="tag t">P0 · 地基</span></td><td>① <code>library_pick</code> 两段式加权召回 <span class="tag b">已完成</span><br>② 视频稳定 media_key 与路径解耦 <span class="tag b">已完成</span><br>③ 导入与分析彻底解耦 <span class="tag t">现状已满足</span></td><td>不做这三条，规模往上走时检索偏斜会放大、整理文件夹即断链、标注规则一改就要全库重算；短期做成本最低</td><td>需迁移旧 <code>sources</code> 记录；保持旧项目可读</td></tr>
   <tr><td><span class="tag b">P1 · 降错</span> <span class="tag t">已完成</span></td><td>④ 词级时间戳落盘<br>⑤ 切点可信度元信息 + 合成前质量门禁<br>⑥ 字幕轨来源写入记录</td><td>本地免费、直接对应「缺头尾字 / 多一小段」，且让大量素材下无法逐条试听的问题可自动拦</td><td>字幕行结构新增可选字段，须向后兼容</td></tr>
-  <tr><td><span class="tag a">P2 · 按主题/句型</span></td><td>⑦ FTS5 + 结构化列<br>⑧ <code>patterns</code> 接进 <code>library_pick</code> / 一键成片<br>⑨ 话题标注（惰性、仅召回集）</td><td>兑现「做一期专门讲 I am going to」；让同类句型变体可归一召回</td><td>句型归一规则需人工抽样校准，别做成固定白名单</td></tr>
-  <tr><td><span class="tag r">P3 · 意图层</span></td><td>⑩ 自然语言 → 可编辑执行计划（来源 / 句型 / 话题 / 段数 / 模板 / 画幅）<br>⑪ 计划落盘、可存预设、可复现</td><td>前三层稳了才做；否则每次猜错只能在成片里发现</td><td>必须回显计划与调用预估，禁止直接执行不可逆动作</td></tr>
+  <tr><td><span class="tag a">P2 · 按主题/句型</span> <span class="tag t">实质已完成</span></td><td>⑦ 结构化列与来源配额已在 P0①/P1 落地；FTS5 在短期 50–100 条规模下收益小、中文分词差，<strong>暂缓</strong>至例句过万<br>⑧ <code>patterns</code> 已接入 <code>library_pick</code> payload 与加权偏好<br>⑨ 惰性最小标注由现有「用户主动点分析」满足</td><td>兑现「做一期专门讲 I am going to」；让同类句型变体可归一召回</td><td>句型归一规则需人工抽样校准，别做成固定白名单</td></tr>
+  <tr><td><span class="tag r">P3 · 意图层</span> <span class="tag t">核心已落地</span></td><td>⑩ 独立 <code>web/studio.html</code>：自然语言 → 可编辑执行计划 → 复用 <code>auto_produce()</code> 执行；现有 GUI 不动，只加入口<br>⑪ 计划已可编辑并随请求落盘可查；<strong>预设持久化仍待做</strong></td><td>前三层稳了才做；否则每次猜错只能在成片里发现</td><td>必须回显计划与调用预估，禁止直接执行不可逆动作</td></tr>
 </table>
 
 <h2>5 · 每层的关键取舍</h2>
@@ -225,7 +225,7 @@ app.py:749  subtitle_batches：每批 ≤60 行且 ≤8000 字符，串行逐批
 
 <div class="good"><strong>一句话原则：</strong>先把「事实」算准、把「召回」做对，再谈「分类」和「对话框」。大量素材不会让 AI 更聪明，只会让结构性缺陷暴露得更彻底。</div>
 
-<footer>口语素材工作台 · 设计文档 v2.3（已纳入用户确认的 5 项决策与界面边界；P0、P1 已落地，P2 起仍为方案）· 2026-11-07</footer>
+<footer>口语素材工作台 · 设计文档 v2.4（已纳入用户确认的 5 项决策与界面边界；P0、P1、P3 核心已落地，P2 的 FTS5 暂缓、计划预设待做）· 2026-11-07</footer>
 
 </div>
 </body>

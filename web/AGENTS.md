@@ -1,6 +1,7 @@
 # 共享网页
 
 - 正式页面是 `index.html`，由 Windows 和 Android 共用；根目录 `android-layout-preview.html` 是独立示例预览，修改它不会改变 APK。
+- `web/studio.html` 是新增的独立 AI 工作室页面（`/studio` 路由）：自然语言 → 可编辑执行计划 → 复用 `/api/studio/plan` 与 `/api/auto-produce` 执行。它不复制数据、不另建编排链路；现有 `index.html` / `library.html` / `publish.*` 的功能与布局不要改，只在 `index.html` 顶部保留一个入口按钮。新增共享静态页要同步更新 Android `MainActivity` 的复制白名单。
 - 发布准备页在 `publish.js` / `publish.css`：每条成片独立编辑平台文案和多画幅封面，PNG 直接保存预览画布。后端入口为 `app.py` 的 `save_publication()` / `generate_publication()` / `cover_frame()`；Android 启动时需复制发布静态资源与 `library.html`。新增成片保存选段快照，旧成片不能套用当前素材列表。
 - 发布编辑区用 `selectPublishTab()` 切换面板；桌面保留封面、标题、简介、标签、参考，手机为封面、文案、参考（标题/简介/标签在文案页分区）。只隐藏面板，保留输入；验证失败应定位对应平台和输入。顶部保存与发布包作用于整条成片。
 - 手机成片页负责版本预览、保存和更多菜单中的删除；发布列表只显示封面、两行摘要与编辑/发布包入口，不重复放播放器和删除按钮。封面新增比例时同步 `publish.js`、`app.py` 的尺寸/文件名及 Android `MainActivity` 单文件保存、打包白名单，保留旧比例键和文件名。

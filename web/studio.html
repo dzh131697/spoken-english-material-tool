@@ -1,0 +1,132 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>AI 工作室 · 口语素材工作台</title>
+<style>
+:root{font-family:"Segoe UI","Microsoft YaHei",sans-serif;color:#e6eeea;background:#141b18;font-size:14px;--green:#5dcaa5;--line:#2b3a33;--panel:#1b2621;--muted:#93a89e}
+*{box-sizing:border-box}body{margin:0;padding:0 0 60px}
+header{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:18px 28px;border-bottom:1px solid var(--line);background:#18221d}
+header h1{font-size:17px;margin:0;font-weight:600}
+header small{display:block;color:var(--muted);font-size:11px;margin-top:3px}
+a{color:var(--green)}
+.wrap{max-width:880px;margin:auto;padding:30px 24px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px 24px;margin-bottom:18px}
+h2{font-size:15px;margin:0 0 12px;font-weight:600}
+p{margin:0 0 12px;line-height:1.75}
+.hint{color:var(--muted);font-size:12px;line-height:1.7}
+textarea,select,input{font:inherit;width:100%;border:1px solid var(--line);background:#111a16;color:#e6eeea;border-radius:9px;padding:11px 12px;outline:none}
+textarea:focus,select:focus,input:focus{border-color:var(--green)}
+textarea{resize:vertical;line-height:1.7;min-height:88px}
+button{font:inherit;cursor:pointer;border:1px solid var(--line);border-radius:9px;padding:10px 16px;background:#223029;color:#e6eeea}
+button:hover{border-color:var(--green)}
+button.primary{background:#1e6b52;border-color:#1e6b52;color:#fff}
+button:disabled{opacity:.45;cursor:default}
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+label{display:block;font-size:12px;color:var(--muted);margin:12px 0 6px}
+.status{border-left:3px solid var(--green);background:#16271f;padding:12px 16px;border-radius:0 8px 8px 0;font-size:13px;line-height:1.7;white-space:pre-wrap}
+.status.error{border-left-color:#e88f8f;background:#2a1b1b}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media(max-width:640px){.grid{grid-template-columns:1fr}.wrap{padding:20px 14px}header{padding:14px}}
+</style>
+</head>
+<body>
+<header><div><h1>AI 工作室</h1><small>说清想要的视频，先看计划再执行</small></div><a id="back" href="#">← 返回制作页</a></header>
+<div class="wrap">
+  <section class="panel">
+    <h2>1 · 描述需求</h2>
+    <p class="hint">例如：做一期专门讲 I am going to 表将来计划的视频，从素材库挑 8 段，横版，带双语字幕。</p>
+    <textarea id="request" placeholder="用一句话说明这一期想做什么"></textarea>
+    <div class="row" style="margin-top:12px"><button id="parse" class="primary">解析为执行计划</button><span id="parseState" class="hint"></span></div>
+  </section>
+  <section class="panel">
+    <h2>2 · 确认执行计划</h2>
+    <p class="hint">下面是可以修改的计划。mode 为 video 时用当前视频、library 时从素材库混剪；preferences.terms 是软偏好，不是硬筛选；minCutQuality 为 0 表示关闭切点门禁。</p>
+    <div class="grid">
+      <div><label>当前视频（mode=video 时生效）</label><select id="projectId"></select></div>
+      <div><label>来源模式</label><select id="mode"><option value="library">素材库混剪</option><option value="video">当前视频</option></select></div>
+    </div>
+    <label>计划 JSON（可直接编辑）</label>
+    <textarea id="plan" style="min-height:260px;font-family:Consolas,monospace;font-size:12px"></textarea>
+    <div class="row" style="margin-top:12px"><button id="run" class="primary" disabled>执行，直接合成成片</button><span id="runState" class="hint"></span></div>
+  </section>
+  <section class="panel">
+    <h2>3 · 执行结果</h2>
+    <div id="result" class="status">尚未执行。</div>
+  </section>
+</div>
+<script>
+const $=id=>document.getElementById(id);
+const token=new URLSearchParams(location.search).get('token');
+const esc=value=>String(value).replace(/[<>&]/g,'');
+$('back').href='/?token='+encodeURIComponent(token);
+async function api(path,body){
+  const r=await fetch(path,{method:body===undefined?'GET':'POST',headers:{'X-App-Token':token,'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});
+  const d=await r.json();
+  if(!r.ok||d.error)throw Error(d.error||'请求失败');
+  return d;
+}
+async function job(path,body,onProgress){
+  const started=await api(path,body);
+  const id=started.job;
+  for(;;){
+    const r=await api('/api/job?id='+encodeURIComponent(id));
+    if(onProgress&&r.message)onProgress(r.message);
+    if(r.state==='done')return r.result;
+    if(r.state==='error'||r.state==='cancelled')throw Error(r.error||r.message||'任务失败');
+    await new Promise(resolve=>setTimeout(resolve,700));
+  }
+}
+function defaultPlan(){
+  return {mode:'library',topic:'',count:4,limit:8,length:'medium',minCutQuality:50,
+    prefs:{theme:'midnight',ratio:'landscape',card:5,sound:'none',versions:['plain']},
+    preferences:{terms:[]}};
+}
+function readPlan(){
+  try{const p=JSON.parse($('plan').value);if(!p||typeof p!=='object'||Array.isArray(p))throw Error();return p}
+  catch(e){throw Error('计划不是有效的 JSON，请检查后再执行')}
+}
+function showPlan(p){$('plan').value=JSON.stringify(p,null,2);$('mode').value=p.mode==='video'?'video':'library';$('run').disabled=false}
+$('mode').onchange=()=>{try{const p=readPlan();p.mode=$('mode').value;showPlan(p)}catch(e){$('runState').textContent=e.message}};
+async function loadProjects(){
+  const d=await api('/api/projects');
+  $('projectId').innerHTML='<option value="">（不选）</option>'+d.projects.map(p=>'<option value="'+esc(p.id)+'">'+esc(p.title)+'</option>').join('');
+  const p=defaultPlan();
+  if(d.productionPreferences)p.prefs=d.productionPreferences;
+  showPlan(p);
+}
+$('parse').onclick=async()=>{
+  const text=$('request').value.trim();
+  if(!text){$('parseState').textContent='请先描述需求';return}
+  $('parse').disabled=true;$('parseState').textContent='正在解析…';
+  try{
+    const r=await job('/api/studio/plan',{text},m=>$('parseState').textContent=m);
+    showPlan(r.plan);
+    $('parseState').textContent='已生成计划，请检查或修改后执行'+(r.tokens?'（'+r.tokens+' Token）':'');
+  }catch(e){$('parseState').textContent=e.message}
+  finally{$('parse').disabled=false}
+};
+$('run').onclick=async()=>{
+  let plan;
+  try{plan=readPlan()}catch(e){$('runState').textContent=e.message;return}
+  if(plan.mode==='video'){
+    plan.id=$('projectId').value;
+    if(!plan.id){$('runState').textContent='mode=video 需要先选一个当前视频';return}
+  }
+  $('run').disabled=true;$('result').className='status';$('result').textContent='正在执行…';
+  try{
+    const r=await job('/api/auto-produce',plan,m=>{$('result').textContent=m;$('runState').textContent=m});
+    const link='/?token='+encodeURIComponent(token)+'&project='+encodeURIComponent(r.project.id);
+    $('result').innerHTML='成片已生成：<a href="'+link+'">'+esc(r.project.title)+' · 查看成片</a>'
+      +'\n共 '+r.clips.length+' 段'+(r.filtered?'，按切点可信度过滤 '+r.filtered+' 段':'')
+      +(r.tokens?'，使用 '+r.tokens+' Token':'')
+      +(r.review&&r.review.note?'；复查：'+esc(r.review.note):'');
+    $('runState').textContent='完成';
+  }catch(e){$('result').className='status error';$('result').textContent=e.message;$('runState').textContent='失败'}
+  finally{$('run').disabled=false}
+};
+loadProjects().catch(e=>{$('parseState').textContent=e.message});
+</script>
+</body>
+</html>

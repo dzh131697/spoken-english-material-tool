@@ -5,7 +5,7 @@
 - `app/src/main/java/com/spokenmaterial/app/MainActivity.java`：WindowInsets、WebView、本地服务生命周期、文件选择和 `AndroidHost`。顶部被状态栏遮挡先查 `onCreate()`，不必读完整网页和后端。
 - 同目录 `AndroidUpdate.java`：可选更新、下载校验和系统安装；相关权限及 FileProvider 见 `app/src/main/AndroidManifest.xml`、`app/src/main/res/xml/`。
 - `app/src/main/python/mobile.py`：Android 私有路径、原生媒体组件、密钥桥接。修改它可运行根目录 `python test_android_bridge.py`；这是模拟组件测试。
-- `app/build.gradle`：直接将根目录 `web/` 用作 assets，`syncSharedSource` 复制根目录 `app.py` 到生成目录。修改源文件，不修改 `app/build/` 副本。
+- `app/build.gradle`：直接将根目录 `web/` 用作 assets，`syncSharedSource` 复制根目录 `app.py` 到生成目录。修改源文件，不修改 `app/build/` 副本。新增共享静态页时不用改 build.gradle，但要同步加入 `MainActivity` 的静态页复制白名单（现有 index.html / publish.js / publish.css / library.html / studio.html）。
 - 网页改动先读 `../web/AGENTS.md`；自动发布先读 `../.github/AGENTS.md`。环境安装和使用说明按需查 `README.md`。
 
 ## 本机构建

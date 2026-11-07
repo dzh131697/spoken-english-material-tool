@@ -118,7 +118,7 @@ public class MainActivity extends Activity {
         if (!directory.isDirectory() && !directory.mkdirs()) {
             throw new IOException("无法创建网页目录");
         }
-        for (String name : new String[]{"index.html", "publish.js", "publish.css", "library.html"}) {
+        for (String name : new String[]{"index.html", "publish.js", "publish.css", "library.html", "studio.html"}) {
             try (InputStream input = getAssets().open(name);
                  OutputStream output = new FileOutputStream(new File(directory, name))) {
                 copy(input, output);
