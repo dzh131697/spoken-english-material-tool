@@ -593,6 +593,18 @@ class WorkflowTest(unittest.TestCase):
                 self.assertEqual(captured['cookiefile'], str(cookie_path))
                 self.assertIn('已过期', str(error.exception))
 
+    def test_load_yt_dlp_ignores_incomplete_certifi(self):
+        incomplete = types.ModuleType('certifi')  # 只有数据文件、没有 where()
+        complete = types.ModuleType('certifi')
+        complete.where = lambda: 'cacert.pem'
+        fake = types.ModuleType('yt_dlp')
+        with patch.dict(sys.modules, {'certifi': incomplete, 'yt_dlp': fake}):
+            self.assertIs(app.load_yt_dlp(), fake)
+            self.assertIsNone(sys.modules['certifi'])
+        with patch.dict(sys.modules, {'certifi': complete, 'yt_dlp': fake}):
+            self.assertIs(app.load_yt_dlp(), fake)
+            self.assertIs(sys.modules['certifi'], complete)
+
     def test_playlist_download_skips_finished_and_continues(self):
         state = {'entries': [{'id': 'aaa', 'title': 'A'}, {'id': 'bbb', 'title': 'B'},
                              {'id': 'ccc', 'title': 'C'}], 'failed': {'ccc'}, 'downloaded': [], 'options': []}

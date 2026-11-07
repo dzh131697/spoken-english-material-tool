@@ -496,8 +496,22 @@ def parse_chinese_subtitles(folder):
     return rows
 
 
+def load_yt_dlp():
+    """导入 yt-dlp。旧便携包可能残留只有数据文件、没有模块代码的 certifi 目录，
+    Python 会把它当成空的 namespace package，yt-dlp 导入时调用 certifi.where() 即报错。
+    这里把不完整的 certifi 标记为不可导入；no-certifi 模式本就使用系统证书。"""
+    try:
+        import certifi
+    except ImportError:
+        pass
+    else:
+        if not hasattr(certifi, 'where'):
+            sys.modules['certifi'] = None
+    return __import__('yt_dlp')
+
+
 def download_video(url, progress):
-    import yt_dlp
+    yt_dlp = load_yt_dlp()
     parsed = urllib.parse.urlparse(url)
     if parsed.scheme != 'https' or parsed.hostname not in ('youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be'):
         raise ValueError('请输入 https:// 开头的 YouTube 视频链接')
@@ -613,7 +627,7 @@ def playlist_archive(path):
 
 def download_playlist(url, folder, limit, progress, retry_ids=None):
     """按列表顺序逐个下载视频和英文字幕，已下载的自动跳过。"""
-    import yt_dlp
+    yt_dlp = load_yt_dlp()
     parsed = youtube_check(url)
     if not urllib.parse.parse_qs(parsed.query).get('list'):
         raise ValueError('请粘贴带 list= 参数的播放列表链接（例如「稍后观看」或自建收藏夹页面地址）')
@@ -2207,7 +2221,7 @@ def cover_frame(pid, output_id, mode, frame_time=0):
 
 
 def read_youtube_source(url):
-    import yt_dlp
+    yt_dlp = load_yt_dlp()
     parsed = urllib.parse.urlparse(url)
     if parsed.scheme != 'https' or parsed.hostname not in ('youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be'):
         raise ValueError('请输入 https:// 开头的 YouTube 视频链接')
