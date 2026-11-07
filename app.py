@@ -165,12 +165,19 @@ def group_sentences(words, max_words=22, max_chars=150, pause=1.4, word_ends=Non
         if not (ended or long_pause or hard or (soft and clause) or following is None):
             continue
         if text.strip():
-            end = max(start + .05, word_ends[index]) if word_ends is not None else start + .45
+            word_end = max(start + .05, word_ends[index]) if word_ends is not None else start + .45
+            end = word_end
             if following:
                 end = min(end, max(start + .05, following[1]))
-            rows.append({'start': buffer[0][1], 'end': end, 'text': tidy_text(text)})
+            rows.append({'start': buffer[0][1], 'end': end, 'text': tidy_text(text),
+                         'wordStart': buffer[0][1], 'wordEnd': word_end,
+                         'wordTimed': word_ends is not None})
         buffer = []
     return merge_short(rows)
+
+
+def clip_row_end(row):
+    return max(row['end'], min(row.get('wordEnd', row['end']), row['end'] + .15))
 
 
 def merge_short(rows, min_words=5, max_gap=2.0):
@@ -184,6 +191,8 @@ def merge_short(rows, min_words=5, max_gap=2.0):
             if short and open_end and row['start'] - previous['end'] <= max_gap:
                 previous['text'] = tidy_text(previous['text'] + ' ' + row['text'])
                 previous['end'] = row['end']
+                if 'wordEnd' in row:
+                    previous['wordEnd'] = row['wordEnd']
                 continue
         merged.append(dict(row))
     for index in range(len(merged) - 1):
@@ -554,7 +563,8 @@ def download_video(url, progress):
         rows = parse_subtitles(sub.read_text(encoding='utf-8')) if sub else []
         p = {'id': pid, 'title': info.get('title', 'YouTube 视频'), 'url': url,
              'description': str(info.get('description') or '')[:12000],
-             'video': source.name, 'subtitles': rows, 'subZh': parse_chinese_subtitles(folder), 'clips': []}
+             'video': source.name, 'subtitles': rows, 'subZh': parse_chinese_subtitles(folder), 'clips': [],
+             'subtitleTrack': sub.name if sub else '', 'subtitleTrackKind': subtitle_track_kind(sub)}
         check_cancelled()
         save_project(p)
         try:
@@ -1083,19 +1093,20 @@ def suggest_segments(pid, options, key, progress):
     clips = []
     for i, group in enumerate(merged):
         first, last = group['first'], group['last']
-        start = rows[first]['start']
-        end = min(duration, max(row['end'] for row in rows[first:last + 1]))
+        start = rows[first].get('wordStart', rows[first]['start'])
+        end = min(duration, max(clip_row_end(row) for row in rows[first:last + 1]))
         if mode == 'continuous':
             start = 0 if i == 0 else clips[-1]['end']
             end = duration if i == len(merged) - 1 else min(duration, (end + rows[merged[i + 1]['first']]['start']) / 2)
         elif mode == 'adjacent':
             # 连续对话：相邻两段共用一个切点，去掉中间的空隙，成片里是接续的。
-            start = rows[first]['start'] if i == 0 else clips[-1]['end']
+            start = rows[first].get('wordStart', rows[first]['start']) if i == 0 else clips[-1]['end']
             if i < len(merged) - 1:
                 end = min(duration, (end + rows[merged[i + 1]['first']]['start']) / 2)
         try:
             clip = validate_clip({'start': start, 'end': end, 'english': subtitle_text(rows[first:last + 1]),
-                                  'chinese': group['chinese']})
+                                  'chinese': group['chinese'],
+                                  'wordTimed': all(row.get('wordTimed', False) for row in rows[first:last + 1])})
         except ValueError as error:
             raise ValueError('字幕边界无法生成连续片段，请检查时间和长时间无字幕的部分：' + str(error)) from None
         if mode != 'continuous':
@@ -1140,6 +1151,15 @@ def validate_clip(c):
         raise ValueError('单段最多 10 分钟')
     clip = {'start': start, 'end': end, 'english': str(c.get('english', '')).strip(),
             'chinese': str(c.get('chinese', '')).strip()}
+    if c.get('wordTimed'):
+        clip['wordTimed'] = True
+    if 'cutQuality' in c:
+        try:
+            quality = max(0, min(100, int(c['cutQuality'])))
+        except (TypeError, ValueError):
+            quality = None
+        if quality is not None:
+            clip['cutQuality'] = quality
     hint = normalize_hint(c.get('hint'))
     if hint:
         clip['hint'] = hint
@@ -1624,12 +1644,12 @@ def refine_clip_edges(source, clips, duration, progress):
         if progress:
             progress('正在贴合语音切点 {}/{}'.format(index + 1, len(roles)))
         if value <= .05 or value >= duration - .05:
-            snapped[value] = value
+            snapped[value] = (value, 0)
             continue
         window_from = max(0.0, value - 1.0)
         window_to = min(duration, value + 1.0)
         if window_to - window_from < .3:
-            snapped[value] = value
+            snapped[value] = (value, 0)
             continue
         try:
             peaks = cached_envelope(source, window_from, window_to, rate)
@@ -1637,7 +1657,7 @@ def refine_clip_edges(source, clips, duration, progress):
         except JobCancelled:
             raise
         except Exception:
-            snapped[value] = value
+            snapped[value] = (value, 0)
             continue
         candidates = []
         if 'start' in roles[value]:
@@ -1658,14 +1678,17 @@ def refine_clip_edges(source, clips, duration, progress):
             chosen = value + .12
         else:
             chosen = value
-        snapped[value] = round(max(0.0, min(duration, chosen)), 3)
+        snapped[value] = (round(max(0.0, min(duration, chosen)), 3), 1 if candidates else 0)
     refined = []
     for clip in clips:
-        start = snapped[round(clip['start'], 3)]
-        end = snapped[round(clip['end'], 3)]
+        start, start_ok = snapped[round(clip['start'], 3)]
+        end, end_ok = snapped[round(clip['end'], 3)]
         if end - start < .2:
             return clips, 'kept'
-        refined.append({**clip, 'start': start, 'end': end})
+        quality = (35 if start_ok else 10) + (35 if end_ok else 15)
+        quality += 20 if clip.get('wordTimed') else 5
+        quality += 10
+        refined.append({**clip, 'start': start, 'end': end, 'cutQuality': min(100, quality)})
     for index in range(len(refined) - 1):
         if refined[index]['end'] > refined[index + 1]['start']:
             return clips, 'kept'
@@ -2335,7 +2358,7 @@ def library_db():
             CREATE TABLE IF NOT EXISTS sources (
                 id TEXT PRIMARY KEY, video TEXT UNIQUE, subtitle TEXT, title TEXT,
                 signature TEXT, rows_json TEXT, error TEXT DEFAULT '',
-                media_key TEXT NOT NULL DEFAULT '');
+                media_key TEXT NOT NULL DEFAULT '', track_kind TEXT NOT NULL DEFAULT '');
             CREATE TABLE IF NOT EXISTS batches (
                 source_id TEXT, batch_index INTEGER, PRIMARY KEY(source_id, batch_index));
             CREATE TABLE IF NOT EXISTS sentences (
@@ -2346,11 +2369,27 @@ def library_db():
             db.execute('ALTER TABLE sentences ADD COLUMN pattern_version INTEGER NOT NULL DEFAULT 0')
         if 'media_key' not in {row[1] for row in db.execute('PRAGMA table_info(sources)')}:
             db.execute("ALTER TABLE sources ADD COLUMN media_key TEXT NOT NULL DEFAULT ''")
+        if 'track_kind' not in {row[1] for row in db.execute('PRAGMA table_info(sources)')}:
+            db.execute("ALTER TABLE sources ADD COLUMN track_kind TEXT NOT NULL DEFAULT ''")
         db.execute('CREATE INDEX IF NOT EXISTS idx_sources_media_key ON sources(media_key)')
         with db:
             yield db
     finally:
         db.close()
+
+
+def subtitle_track_kind(path):
+    if not path:
+        return ''
+    try:
+        raw = Path(path).read_text(encoding='utf-8', errors='replace')
+    except OSError:
+        return ''
+    if 'en-orig' in Path(path).name.lower():
+        return 'orig'
+    if not ROLLING_TS.search(raw):
+        return 'manual'
+    return 'auto'
 
 
 def media_key_for(video, url=''):
@@ -2399,9 +2438,9 @@ def library_import(folder, progress):
                     if conflict:
                         errors.append({'name': video.name, 'error': '新路径已被其他素材占用，未重定位'})
                         continue
-                    db.execute('UPDATE sources SET video=?,subtitle=?,signature=?,title=?,error=? WHERE id=?',
+                    db.execute('UPDATE sources SET video=?,subtitle=?,signature=?,title=?,error=?,track_kind=? WHERE id=?',
                                (str(video.resolve()), str(subtitle.resolve()), signature, video.stem,
-                                '', previous['id']))
+                                '', subtitle_track_kind(subtitle), previous['id']))
                     relocated += 1
                     continue
                 target = previous['id'] if previous else sid
@@ -2416,10 +2455,11 @@ def library_import(folder, progress):
                 db.execute('DELETE FROM sentences WHERE source_id=?', (target,))
                 db.execute('DELETE FROM batches WHERE source_id=?', (target,))
                 db.execute('INSERT OR REPLACE INTO sources '
-                           '(id,video,subtitle,title,signature,rows_json,error,media_key) '
-                           'VALUES (?,?,?,?,?,?,?,?)',
+                           '(id,video,subtitle,title,signature,rows_json,error,media_key,track_kind) '
+                           'VALUES (?,?,?,?,?,?,?,?,?)',
                            (target, str(video.resolve()), str(subtitle.resolve()), video.stem,
-                            signature, json.dumps(rows, ensure_ascii=False), '', key))
+                            signature, json.dumps(rows, ensure_ascii=False), '', key,
+                            subtitle_track_kind(subtitle)))
                 added += 1
         except (OSError, ValueError) as error:
             errors.append({'name': video.name, 'error': str(error)})
@@ -2441,17 +2481,18 @@ def register_project_source(pid):
     signature = hashlib.sha256(
         (rows + str((video.stat().st_size, video.stat().st_mtime_ns))).encode('utf-8')).hexdigest()
     key = media_key_for(video, p.get('url', ''))
+    kind = p.get('subtitleTrackKind') or subtitle_track_kind(subtitle)
     with library_db() as db:
         old = db.execute('SELECT id FROM sources WHERE id=?', (sid,)).fetchone()
         if old:
-            db.execute('UPDATE sources SET title=?,media_key=? WHERE id=?',
-                       (str(p['title'])[:200], key, sid))
+            db.execute('UPDATE sources SET title=?,media_key=?,track_kind=? WHERE id=?',
+                       (str(p['title'])[:200], key, kind, sid))
             return False
         db.execute('INSERT OR REPLACE INTO sources '
-                   '(id,video,subtitle,title,signature,rows_json,error,media_key) '
-                   'VALUES (?,?,?,?,?,?,?,?)',
+                   '(id,video,subtitle,title,signature,rows_json,error,media_key,track_kind) '
+                   'VALUES (?,?,?,?,?,?,?,?,?)',
                    (sid, str(video.resolve()), str(subtitle.resolve()) if subtitle else '',
-                    str(p['title'])[:200], signature, rows, '', key))
+                    str(p['title'])[:200], signature, rows, '', key, kind))
     return True
 
 
@@ -2763,7 +2804,7 @@ def library_recall(topic, preferences, recall_limit):
     with library_db() as db:
         rows = [dict(row) for row in db.execute(
             'SELECT s.id,s.english,s.chinese,s.patterns,s.grammar,s.start,'
-            'v.id AS source_id,v.title FROM sentences s '
+            'v.id AS source_id,v.title,v.track_kind FROM sentences s '
             'JOIN sources v ON v.id=s.source_id ORDER BY v.title,s.start,s.id').fetchall()]
     if not rows:
         return []
@@ -2777,7 +2818,8 @@ def library_recall(topic, preferences, recall_limit):
             grammar = [str(x).casefold() for x in json.loads(row['grammar'] or '[]')]
         except (ValueError, TypeError):
             tags, grammar = [], []
-        score = 0.0
+        kind = row.get('track_kind') or ''
+        score = 4.0 if kind == 'manual' else 2.0 if kind == 'orig' else 0.0
         for wanted, field, weight in terms:
             if field == 'pattern':
                 found = any(wanted in tag or tag in wanted for tag in tags)
@@ -2991,7 +3033,20 @@ def auto_produce(body, key, progress):
         raise ValueError('没有可用的选段，请换个主题或减少段数')
     if any(not clip['chinese'] for clip in clips):
         raise ValueError('部分选段缺少中文，请检查字幕或翻译设置')
-    progress('开始合成成片')
+    try:
+        min_quality = max(0, min(100, int(body.get('minCutQuality', 50))))
+    except (TypeError, ValueError):
+        min_quality = 50
+    filtered = 0
+    if min_quality > 0:
+        kept = [clip for clip in clips if clip.get('cutQuality', 60) >= min_quality]
+        if kept:
+            filtered = len(clips) - len(kept)
+            clips = kept
+    if filtered and progress:
+        progress('已按切点可信度过滤 {} 段'.format(filtered))
+    if progress:
+        progress('开始合成成片')
     output = compose_video(pid, clips, prefs['ratio'] == 'portrait', prefs['card'], progress,
                            prefs['theme'], False, prefs['versions'], prefs['sound'], key,
                            read_project(pid).get('card_tip', ''))
@@ -2999,7 +3054,7 @@ def auto_produce(body, key, progress):
     return {'mode': mode, 'project': {'id': pid, 'title': current['title']},
             'output': output, 'clips': clips, 'review': result.get('review'),
             'edges': result.get('edges'), 'tokens': result.get('tokens', 0),
-            'outputs': current.get('outputs', [])}
+            'filtered': filtered, 'outputs': current.get('outputs', [])}
 
 
 class Handler(BaseHTTPRequestHandler):
