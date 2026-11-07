@@ -14,6 +14,8 @@ const sample = {
   outputs: [{ id: '20261104_123456_abcdef', name: '成片_横版.mp4', count: 1, seconds: 2 }],
 };
 
+const defaultPreferences={theme:'midnight',ratio:'landscape',card:5,sound:'none',versions:['plain']};
+
 async function openPage(browser, android, width = 390) {
   const context = await browser.newContext({ viewport: { width, height: 844 }, hasTouch: android });
   await context.addInitScript(isAndroid => {
@@ -34,7 +36,7 @@ async function openPage(browser, android, width = 390) {
       };
     }
   }, android);
-  const state = { composeCalls: [], saves: [], failNextSave: false, suggestCalls: 0, publicationSaves: {}, frames: [], generations: [], cards: [], deleted: [] };
+  const state = { preferences: structuredClone(defaultPreferences), preferenceWrites: [], exportCalls: 0, pollFailures: 0, polledJobs: [], jobError: null, composeCalls: [], saves: [], failNextSave: false, suggestCalls: 0, publicationSaves: {}, frames: [], generations: [], cards: [], deleted: [] };
   await context.route('**/*', async route => {
     const request = route.request();
     const url = new URL(request.url());
@@ -43,7 +45,8 @@ async function openPage(browser, android, width = 390) {
       contentType: url.pathname.endsWith('.js') ? 'text/javascript' : 'text/css',
       body: fs.readFileSync('web' + url.pathname, 'utf8'),
     });
-    if (url.pathname === '/api/projects') return route.fulfill({ json: { projects: [], hasKey: false } });
+    if (url.pathname === '/api/projects') return route.fulfill({ json: { projects: [], hasKey: false, productionPreferences: state.preferences } });
+    if (url.pathname === '/api/production-preferences') { const body=request.postDataJSON(); state.preferenceWrites.push(body); state.preferences=Object.keys(body).length?body:structuredClone(defaultPreferences); return route.fulfill({json:state.preferences}); }
     if (url.pathname === '/api/card-preview') {
       state.cards.push(request.postDataJSON());
       return route.fulfill({ contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360"><rect width="640" height="360" fill="#305b48"/></svg>' });
@@ -85,13 +88,16 @@ async function openPage(browser, android, width = 390) {
       state.saves.push(request.postDataJSON());
       return route.fulfill({ json: { ok: true } });
     }
-    if (url.pathname === '/api/export') return route.fulfill({ json: { job: 'export' } });
+    if (url.pathname === '/api/export') { state.exportCalls++; return route.fulfill({ json: { job: 'export' } }); }
     if (url.pathname === '/api/compose') { state.composeCalls.push(request.postDataJSON()); return route.fulfill({ json: { job: 'compose' } }); }
     if (url.pathname === '/api/suggest') {
       state.suggestCalls++;
       return route.fulfill({ json: { job: 'suggest' } });
     }
     if (url.pathname === '/api/job') {
+      state.polledJobs.push(url.searchParams.get('id'));
+      if(state.pollFailures>0){state.pollFailures--;return route.abort('connectionrefused')}
+      if(state.jobError)return route.fulfill({json:{state:'error',message:state.jobError}});
       let result;
       if (url.searchParams.get('id') === 'export') result = { count: 1, folder: '/private/导出素材/20261104_123456_abcdef' };
       if (url.searchParams.get('id') === 'compose') result = { ...sample.outputs[0], file: '/private/成片.mp4' };
@@ -110,6 +116,7 @@ async function openPage(browser, android, width = 390) {
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.goto('http://127.0.0.1:9999/?token=test');
+  await page.waitForLoadState('networkidle');
   await page.evaluate(data => load(data), structuredClone(sample));
   return { context, page, errors, state };
 }
@@ -456,6 +463,63 @@ async function openPage(browser, android, width = 390) {
     await desktop.page.screenshot({ path: 'qa/发布准备_桌面.png', fullPage: true });
     assert.deepEqual(desktop.errors, []);
     await desktop.context.close();
+    for(const android of [false,true]){
+      const {page,context,state,errors}=await openPage(browser,android,android?390:1366);
+      if(android)await page.evaluate(()=>showMobilePage('clips'));
+      await page.locator('#mobileComposeSettings summary').click();
+      await page.locator('#theme').selectOption('paper');
+      await page.locator('#ratio').selectOption('portrait');
+      await page.locator('#cardSeconds').fill('9');
+      await page.locator('#cardSound').selectOption('countdown');
+      await page.locator('#verEn').check();
+      await page.locator('#saveProductionPreferences').click();
+      await page.waitForFunction(()=>!busy);
+      assert.deepEqual(state.preferences,{theme:'paper',ratio:'portrait',card:9,sound:'countdown',versions:['plain','en']});
+      assert.deepEqual(Object.keys(state.preferenceWrites[0]).sort(),['card','ratio','sound','theme','versions']);
+      await page.reload();await page.waitForLoadState('networkidle');
+      assert.equal(await page.locator('#theme').inputValue(),'paper');
+      assert.equal(await page.locator('#ratio').inputValue(),'portrait');
+      assert.equal(await page.locator('#cardSeconds').inputValue(),'9');
+      assert.equal(await page.locator('#cardSound').inputValue(),'countdown');
+      assert.equal(await page.locator('#verEn').isChecked(),true);
+      await page.evaluate(data=>{data.card_tip='独立题卡文案';data.continuous=true;load(data)},structuredClone(sample));
+      if(android)await page.evaluate(()=>showMobilePage('clips'));
+      await page.locator('#mobileComposeSettings summary').click();
+      await page.locator('#resetProductionPreferences').click();
+      await page.waitForFunction(()=>!busy);
+      assert.deepEqual(state.preferences,defaultPreferences);
+      assert.equal(await page.locator('#theme').inputValue(),'midnight');
+      assert.equal(await page.locator('#cardTip').inputValue(),'独立题卡文案');
+      assert.equal(await page.locator('#fullCoverage').isChecked(),true);
+      assert.equal(await page.evaluate(()=>project.clips.length),1);
+      state.pollFailures=3;
+      const before=state.exportCalls;
+      await page.locator('#export').click();
+      await page.locator('#reconnectJob').waitFor({state:'visible'});
+      assert.equal(await page.locator('#reconnectJob').isEnabled(),true);
+      assert.equal(state.exportCalls,before+1);
+      assert.notEqual(await page.locator('#taskElapsed').innerText(),'0 秒');
+      assert.match(await page.locator('#taskMessage').innerText(),/不会重复提交/);
+      await page.keyboard.press('Escape');
+      assert.equal(await page.locator('#taskDialog').isVisible(),true);
+      await page.screenshot({path:android?'qa/任务断连_手机.png':'qa/任务断连_电脑.png'});
+      await page.locator('#reconnectJob').click();
+      await page.locator('#taskDialog').waitFor({state:'hidden'});
+      await page.waitForFunction(()=>!busy);
+      assert.equal(state.exportCalls,before+1,'重连只能查询原任务，不能重新提交');
+      assert(state.polledJobs.every(id=>id==='export'));
+      assert.match(await page.locator('#status').innerText(),/已导出/);
+      const clips=await page.evaluate(()=>JSON.stringify(project.clips));
+      state.jobError='模拟导出失败';
+      await page.locator('#export').click();
+      await page.locator('#status').filter({hasText:'模拟导出失败'}).waitFor();
+      await page.waitForFunction(()=>!busy);
+      assert.equal(await page.locator('#taskDialog').isVisible(),false);
+      assert.equal(state.exportCalls,before+2);
+      assert.equal(await page.evaluate(()=>JSON.stringify(project.clips)),clips);
+      assert.deepEqual(errors,[]);
+      await context.close();
+    }
     console.log('Android touch workflow and Windows selection: PASS (mocked browser interfaces)');
   } finally {
     await browser.close();

@@ -24,6 +24,55 @@ from PIL import Image
 
 
 class WorkflowTest(unittest.TestCase):
+    def test_production_preferences_persist_and_invalid_updates_preserve_saved_values(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(app, 'DATA', Path(directory)):
+            defaults = app.load_production_preferences()
+            self.assertEqual(defaults['versions'], ['plain'])
+            chosen = {'theme': 'paper', 'ratio': 'portrait', 'card': 7, 'sound': 'tick',
+                      'versions': ['bilingual', 'en', 'bilingual']}
+            saved = app.save_production_preferences(chosen)
+            self.assertEqual(saved['versions'], ['en', 'bilingual'])
+            self.assertEqual(app.load_production_preferences(), saved)
+            path = Path(directory) / 'production-preferences.json'
+            previous = path.read_bytes()
+            for invalid in ({'key': 'test-placeholder'}, {'card': True}, {'card': float('nan')},
+                            {'card': 0}, {'card': 31}, {'versions': []}, {'versions': [[]]},
+                            {'theme': 'missing'}, {'sound': {}}, []):
+                with self.assertRaises(ValueError):
+                    app.save_production_preferences(invalid)
+                self.assertEqual(path.read_bytes(), previous)
+            self.assertEqual(app.save_production_preferences({}), defaults)
+            path.write_text('{bad json', encoding='utf-8')
+            self.assertEqual(app.load_production_preferences(), defaults)
+
+    def test_production_preferences_http_requires_token_and_loads_on_another_port(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(app, 'DATA', Path(directory)), \
+                patch.object(app, 'PROJECTS', Path(directory) / 'projects'), \
+                patch.object(app, 'has_video_filter', return_value=True):
+            chosen = {'theme': 'studio', 'ratio': 'portrait', 'card': 8, 'sound': 'countdown', 'versions': ['plain', 'en']}
+            for index in range(2):
+                server = app.ThreadingHTTPServer(('127.0.0.1', 0), app.Handler)
+                thread = threading.Thread(target=server.serve_forever, daemon=True)
+                thread.start()
+                base = 'http://127.0.0.1:' + str(server.server_port)
+                try:
+                    if index == 0:
+                        denied = urllib.request.Request(base + '/api/production-preferences', data=b'{}')
+                        with self.assertRaises(urllib.error.HTTPError) as error:
+                            urllib.request.urlopen(denied)
+                        self.assertEqual(error.exception.code, 403)
+                        request = urllib.request.Request(base + '/api/production-preferences',
+                            data=json.dumps(chosen).encode('utf-8'), headers={'X-App-Token': app.TOKEN})
+                        with urllib.request.urlopen(request) as response:
+                            self.assertEqual(json.load(response), chosen)
+                    request = urllib.request.Request(base + '/api/projects', headers={'X-App-Token': app.TOKEN})
+                    with urllib.request.urlopen(request) as response:
+                        self.assertEqual(json.load(response)['productionPreferences'], chosen)
+                finally:
+                    server.shutdown()
+                    server.server_close()
+                    thread.join(timeout=2)
+
     def test_recommendations_use_unseen_cached_candidates_across_restarts(self):
         with tempfile.TemporaryDirectory() as directory, patch.object(app, 'PROJECTS', Path(directory)):
             pid = '0123456789abcdef'
@@ -852,7 +901,7 @@ class WorkflowTest(unittest.TestCase):
 
     def test_http_auth_upload_and_range(self):
         with tempfile.TemporaryDirectory() as directory, patch.object(app, 'PROJECTS', Path(directory) / 'projects'), \
-                patch.object(app, 'OUTPUT', Path(directory) / 'outputs'):
+                patch.object(app, 'OUTPUT', Path(directory) / 'outputs'), patch.object(app, 'DATA', Path(directory)):
             server = app.ThreadingHTTPServer(('127.0.0.1', 0), app.Handler)
             thread = threading.Thread(target=server.serve_forever, daemon=True)
             thread.start()

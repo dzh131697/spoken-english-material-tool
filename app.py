@@ -1429,6 +1429,37 @@ OUTPUT_VERSIONS = {'plain': ('无字幕', ''), 'en': ('英文字幕', '_英文�
 OUTPUT_FILE = re.compile(r'成片_(竖版|横版)(_英文字幕|_双语字幕)?\.mp4')
 
 
+def validate_production_preferences(value):
+    """仅保存制作参数，不接收素材、题卡文案、密钥或 Cookie。"""
+    if not isinstance(value, dict) or set(value) - {'theme', 'ratio', 'card', 'sound', 'versions'}:
+        raise ValueError('常用制作设置包含无效参数')
+    theme, ratio = value.get('theme', 'midnight'), value.get('ratio', 'landscape')
+    card, sound = value.get('card', 5), value.get('sound', 'none')
+    versions = value.get('versions', ['plain'])
+    if (theme not in ('midnight', 'paper', 'studio') or ratio not in ('landscape', 'portrait')
+            or type(card) not in (int, float) or not math.isfinite(card) or not 1 <= card <= 30
+            or not isinstance(sound, str) or sound not in CARD_SOUNDS
+            or not isinstance(versions, list) or not versions
+            or any(not isinstance(name, str) or name not in OUTPUT_VERSIONS for name in versions)):
+        raise ValueError('请选择有效的题卡、画幅、停留时间、提示音及字幕版本')
+    return {'theme': theme, 'ratio': ratio, 'card': card, 'sound': sound,
+            'versions': [name for name in OUTPUT_VERSIONS if name in versions]}
+
+
+def load_production_preferences():
+    path = DATA / 'production-preferences.json'
+    try:
+        return validate_production_preferences(json.loads(path.read_text(encoding='utf-8')))
+    except (OSError, ValueError):
+        return validate_production_preferences({})
+
+
+def save_production_preferences(value):
+    preferences = validate_production_preferences(value)
+    atomic_json(DATA / 'production-preferences.json', preferences)
+    return preferences
+
+
 def subtitle_font():
     return 'Microsoft YaHei'
 
@@ -2497,7 +2528,8 @@ class Handler(BaseHTTPRequestHandler):
                         projects.append({'id': p['id'], 'title': p['title']})
                     except (ValueError, OSError):
                         pass
-                response = {'projects': projects, 'hasKey': bool(KEY), 'burnSubtitles': has_video_filter('ass')}
+                response = {'projects': projects, 'hasKey': bool(KEY), 'burnSubtitles': has_video_filter('ass'),
+                            'productionPreferences': load_production_preferences()}
                 if KEY_ERROR:
                     response['keyError'] = KEY_ERROR
                 self.reply(response)
@@ -2572,7 +2604,10 @@ class Handler(BaseHTTPRequestHandler):
             if length > (32 if self.path == '/api/publish-save' else 1) * 1024 * 1024:
                 return self.reply({'error': '请求过大'}, 413)
             body = json.loads(self.rfile.read(length))
-            if self.path == '/api/key':
+            if self.path == '/api/production-preferences':
+                with LOCK:
+                    self.reply(save_production_preferences(body))
+            elif self.path == '/api/key':
                 key = str(body.get('key', '')).strip()
                 if not key:
                     raise ValueError('请输入 DeepSeek API Key')

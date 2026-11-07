@@ -46,6 +46,7 @@ body.android{color-scheme:light;--bg:#f7f9f7;--panel:#fff;--border:#dce6df;--mut
 .cut-details summary,.compose-settings summary{cursor:pointer;font-weight:600;line-height:1.7}
 .cut-details summary small,.compose-settings summary small{font-weight:400;margin-left:8px}
 .cut-details[open] summary,.compose-settings[open] summary{margin-bottom:12px}
+.preference-actions{margin-top:14px;padding-top:12px;border-top:1px solid var(--border)}.preference-actions small{flex:1 1 100%}.android .preference-actions small{grid-column:1/-1}#taskDialog progress{width:100%;accent-color:var(--accent)}#taskMessage{overflow-wrap:anywhere}
 .editor-actions{margin-top:12px;flex-wrap:wrap}.compose-actions{margin-top:16px;padding-top:14px;border-top:1px solid var(--border)}
 #composeControls{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;align-items:end;margin-top:14px}
 #composeControls>label{display:flex!important;flex-direction:column;align-items:stretch!important;gap:5px}
@@ -105,6 +106,7 @@ body.android{color-scheme:light;--bg:#f7f9f7;--panel:#fff;--border:#dce6df;--mut
 <details id="mobileComposeSettings" class="compose-settings"><summary>成片设置 <small>题卡、画幅、字幕与提示音</small></summary>
 <div id="composeControls" class="row wrap"><label class="muted">题卡 <select id="theme"><option value="midnight">夜间学习</option><option value="paper">清新笔记</option><option value="studio">暖光录音室</option></select></label><label class="muted">画面比例 <select id="ratio" aria-label="画面比例"><option value="landscape">横版 1920 × 1080</option><option value="portrait">竖版 1080 × 1920</option></select></label><label class="muted">题卡停留 / 秒 <input id="cardSeconds" type="number" min="1" max="30" step="1" value="5"></label><div class="sound-setting"><label class="muted">提示音 <select id="cardSound"><option value="none" selected>无声</option><option value="start">开始提示</option><option value="tick">秒针滴答</option><option value="countdown">倒数三声</option><option value="pulse">轻敲节拍</option></select></label><button id="trySound" class="quiet" title="按当前停留时长试听提示音">试听</button></div><div class="versions"><span class="muted">输出</span><label class="muted" title="只要有原声"><input id="verPlain" type="checkbox" data-version-out="plain" checked> 无字幕</label><label class="muted" title="原视频烧录英文字幕"><input id="verEn" type="checkbox" data-version-out="en"> 英文字幕</label><label class="muted" title="英文在上，中文在下"><input id="verBi" type="checkbox" data-version-out="bilingual"> 双语</label></div></div>
 <label id="coverageLabel" class="hint"><input id="fullCoverage" type="checkbox"> 合成前检查是否连续覆盖整个视频</label><p id="burnHint" class="hint hidden"></p>
+<div class="row wrap preference-actions"><button id="saveProductionPreferences">记为常用设置</button><button id="resetProductionPreferences" class="quiet">恢复初始设置</button><small class="muted">下次启动沿用题卡、画幅、时长、提示音和字幕版本。</small></div>
 </details>
 <div class="row wrap compose-actions"><button id="openOutput">打开导出目录</button><button id="export">批量导出散件</button><span class="grow"></span><button id="compose" class="primary">检查并合成</button></div>
 </section>
@@ -142,6 +144,7 @@ OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
 <dialog id="mobileSettingsDialog"><h2>设置</h2><div class="row"><button id="mobileLibrary">语法与句型素材库</button><button id="mobileKeySettings">DeepSeek 翻译设置</button><button id="mobileCookieSettings">YouTube Cookie 设置</button><button id="mobileCheckUpdates">检查更新</button><button id="mobileQuit" class="quiet">退出工具</button><button id="closeMobileSettings" class="quiet">关闭</button></div></dialog>
 <dialog id="settingsDialog"><h2>DeepSeek 翻译设置</h2><p class="muted">翻译和智能分段只提交英文字幕，不上传视频。</p><p id="keyState" class="hint"></p><label class="label" for="key">API Key</label><input id="key" type="password" autocomplete="off" class="wide" placeholder="输入新的 API Key"><p id="keyHint" class="hint">密钥由 Windows 加密并保存在当前账户，重启后自动使用。复制工具文件夹不会带走密钥。</p><div class="row"><button id="saveKey" class="primary">保存密钥</button><button id="clearKey">删除密钥</button><button id="closeSettings">关闭</button></div></dialog>
 <dialog id="cookieDialog"><h2>YouTube Cookie</h2><p class="muted">YouTube 要求登录验证时，可以导入浏览器登录后的 cookies.txt 重试。工具将它保存在本机，并在请求 YouTube 时使用。</p><div id="cookieState" class="hint">读取中…</div><input id="cookieFile" type="file" accept=".txt" hidden><div class="row"><button id="pickCookie" class="primary">选择 cookies.txt</button><button id="clearCookie" class="quiet">删除已导入的 Cookie</button></div><p class="hint">导出方式：在浏览器安装 “Get cookies.txt LOCALLY” 一类扩展，登录 YouTube 后于 youtube.com 页面导出，格式选 Netscape。Cookie 等同于登录凭证，分享工具文件夹前请先删除。</p><div class="row"><button id="closeCookie">关闭</button></div></dialog>
+<dialog id="taskDialog" aria-labelledby="taskTitle"><h2 id="taskTitle">正在处理</h2><p id="taskMessage" role="status">正在提交任务…</p><progress aria-label="任务处理中"></progress><p class="hint">已等待 <span id="taskElapsed">0 秒</span> · 处理完成前请保持工具运行。</p><button id="reconnectJob" class="hidden">重新连接当前任务</button></dialog>
 <dialog id="composeCheckDialog" aria-labelledby="composeCheckTitle"><h2 id="composeCheckTitle">合成前检查</h2><p id="composeCheckSummary" class="muted"></p><ul id="composeCheckList" class="compose-check-list"></ul><p class="hint">音频切点和翻译质量仍需试听、检查；这里不会调用 AI 或修改选段。</p><div class="row"><button id="closeComposeCheck" class="quiet">返回修改</button><button id="startCompose" class="primary">开始合成</button></div></dialog>
 <dialog id="cardDialog"><h2>中文题卡预览</h2><img id="cardPreview" alt="中文题卡预览"><button id="closeCard">关闭</button></dialog>
 <dialog id="playlistDialog"><h2>批量下载播放列表</h2><p class="muted">粘贴你收藏的播放列表链接，工具按列表顺序逐个下载视频和英文字幕；已下载的自动跳过。</p><label class="label" for="playlistUrl">播放列表链接</label><input id="playlistUrl" class="wide" placeholder="https://www.youtube.com/playlist?list=..."><label class="label" for="playlistFolder">保存到</label><div class="row"><input id="playlistFolder" class="wide" placeholder="留空保存到工具目录 data\下载素材"><button id="pickPlaylistFolder">选择文件夹</button></div><label class="label" for="playlistLimit">最多下载</label><input id="playlistLimit" type="number" min="1" max="5000" step="1" placeholder="留空表示全部"><p id="playlistState" class="hint">需要先通过顶部「Cookie 设置」导入 cookies.txt，否则下载不了自己的收藏和「稍后观看」。</p><div class="row"><button id="startPlaylist" class="primary">开始下载</button><button id="closePlaylist">关闭</button></div><p class="hint">成批下载耗时较长，单个视频失败不会中断整批。下载完成后到「语法素材库 → 选择文件夹」导入这个目录即可分析。</p></dialog>
@@ -151,15 +154,56 @@ const $=id=>document.getElementById(id), token=new URLSearchParams(location.sear
 const isAndroid=typeof window.AndroidHost!=='undefined';
 if(isAndroid){document.body.classList.add('android');$('platformBadge').textContent='本地处理 · Android';$('storageHint').textContent='素材保存在应用私有空间，可将成片或素材包保存到手机。';$('keyHint').textContent='密钥使用 Android 系统加密保存在本机，重启后自动使用。';$('openOutput').classList.add('hidden');$('playlistBtn').classList.add('hidden')}
 let project=null,selected=[],anchor=null,editIndex=-1,busy=false,stopAt=null,cardURL=null,hasKey=false,aiDraft=null,soundURL=null,soundAudio=null,currentHint=null;
-let burnSubtitles=true;
+let burnSubtitles=true,reconnectJob=null;
 let mobileRange=false,mobileWaiting=false,mobileDirty=false,mobilePage='source',mobileStatusTimer=null;
 const escapeHTML=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-function status(message,error=false){$('status').textContent=message;$('status').classList.toggle('error',error);if(isAndroid){if(document.body.classList.contains('mobile-cover-editor')&&$('publishSaved')){$('publishSaved').textContent=message;$('publishSaved').classList.toggle('error',error)}clearTimeout(mobileStatusTimer);if(!error)mobileStatusTimer=setTimeout(()=>{if(!busy&&$('status').textContent===message)$('status').textContent=''},5000);let modal=document.querySelector('dialog[open]');if(modal){let note=modal.querySelector('.dialog-status');if(!note){note=document.createElement('p');note.className='status dialog-status';note.setAttribute('role','status');modal.querySelector('h2').after(note)}note.textContent=message;note.classList.toggle('error',error)}}}
+function status(message,error=false){$('status').textContent=message;$('status').classList.toggle('error',error);if(isAndroid){if(document.body.classList.contains('mobile-cover-editor')&&$('publishSaved')){$('publishSaved').textContent=message;$('publishSaved').classList.toggle('error',error)}clearTimeout(mobileStatusTimer);if(!error)mobileStatusTimer=setTimeout(()=>{if(!busy&&$('status').textContent===message)$('status').textContent=''},5000);let modal=document.querySelector('dialog[open]:not(#taskDialog)');if(modal){let note=modal.querySelector('.dialog-status');if(!note){note=document.createElement('p');note.className='status dialog-status';note.setAttribute('role','status');modal.querySelector('h2').after(note)}note.textContent=message;note.classList.toggle('error',error)}}}
 function lock(value){busy=value;document.querySelectorAll('button,select,input,textarea').forEach(x=>x.disabled=value);if(isAndroid&&!value)renderMobileSelection()}
-async function api(path,body){let r=await fetch(path,{method:body===undefined?'GET':'POST',headers:{'X-App-Token':token,'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body)});let d=await r.json();if(!r.ok||d.error)throw Error(d.error||'请求失败');return d}
+async function api(path,body,signal){
+  const r=await fetch(path,{method:body===undefined?'GET':'POST',headers:{'X-App-Token':token,'Content-Type':'application/json'},body:body===undefined?undefined:JSON.stringify(body),signal});
+  const d=await r.json();
+  if(!r.ok||d.error){const error=Error(d.error||'请求失败');error.status=r.status;throw error}
+  return d;
+}
 async function action(fn){if(busy)return;lock(true);try{await fn()}catch(e){status(e.message,true)}finally{lock(false)}}
-async function job(path,body,onProgress){let {job:id}=await api(path,body);for(;;){await new Promise(r=>setTimeout(r,650));let d=await api('/api/job?id='+id);status(d.message);if(onProgress)onProgress(d.message);if(d.state==='error')throw Error(d.message);if(d.state==='done')return d.result}}
-async function refreshProjects(){let d=await api('/api/projects');hasKey=d.hasKey;burnSubtitles=d.burnSubtitles!==false;$('keyState').textContent=d.keyError||(hasKey?'已保存密钥，可直接使用。':'尚未保存密钥。');$('projects').innerHTML='<option value="">打开历史素材…</option>'+d.projects.map(p=>`<option value="${p.id}">${escapeHTML(p.title)}</option>`).join('');if(project)$('projects').value=project.id;renderVersionOptions()}
+$('taskDialog').oncancel=e=>e.preventDefault();
+$('reconnectJob').onclick=()=>{if(reconnectJob){const resume=reconnectJob;reconnectJob=null;resume()}};
+async function job(path,body,onProgress){
+  const names={'/api/download':'获取视频与字幕','/api/download-playlist':'批量下载','/api/compose':'合成成片','/api/export':'导出散件','/api/suggest':'AI 智能分段','/api/translate':'翻译中文','/api/hint':'生成题卡提示','/api/publish-generate':'生成发布文案','/api/publish-source':'读取参考来源','/api/publish-package':'生成发布包'};
+  const started=Date.now();
+  $('taskTitle').textContent=names[path]||'正在处理';$('taskMessage').textContent='正在提交任务…';$('taskElapsed').textContent='0 秒';$('reconnectJob').classList.add('hidden');
+  $('taskDialog').showModal();
+  const timer=setInterval(()=>{const seconds=Math.floor((Date.now()-started)/1000);$('taskElapsed').textContent=seconds<60?seconds+' 秒':Math.floor(seconds/60)+' 分 '+seconds%60+' 秒'},1000);
+  try{
+    let id;
+    try{({job:id}=await api(path,body))}catch(error){if(error instanceof TypeError)throw Error('未能确认任务是否提交，后台可能已开始处理。请先检查服务和已有结果，避免重复提交。');throw error}
+    let failures=0,lastMessage='';
+    for(;;){
+      await new Promise(resolve=>setTimeout(resolve,650));
+      const controller=new AbortController(),timeout=setTimeout(()=>controller.abort(),10000);
+      let d;
+      try{d=await api('/api/job?id='+id,undefined,controller.signal)}
+      catch(error){
+        if(error.status&&error.status<500)throw error;
+        lastMessage='';failures++;
+        const message=failures<3?'连接中断，正在重新查询当前任务（'+failures+'/3）…':'暂时无法读取进度，后台任务可能仍在执行。恢复连接后点击下方按钮，不会重复提交任务。';
+        $('taskMessage').textContent=message;status(message,true);if(onProgress)onProgress(message);
+        if(failures>=3){
+          $('reconnectJob').classList.remove('hidden');$('reconnectJob').disabled=false;
+          await new Promise(resolve=>reconnectJob=resolve);
+          $('reconnectJob').classList.add('hidden');$('reconnectJob').disabled=true;failures=0;
+        }
+        continue;
+      }finally{clearTimeout(timeout)}
+      failures=0;
+      $('taskMessage').textContent=d.message;
+      if(d.message!==lastMessage){status(d.message);if(onProgress)onProgress(d.message);lastMessage=d.message}
+      if(d.state==='error')throw Error(d.message);
+      if(d.state==='done')return d.result;
+    }
+  }finally{clearInterval(timer);reconnectJob=null;$('taskDialog').close();$('reconnectJob').classList.add('hidden')}
+}
+async function refreshProjects(){let d=await api('/api/projects');hasKey=d.hasKey;burnSubtitles=d.burnSubtitles!==false;$('keyState').textContent=d.keyError||(hasKey?'已保存密钥，可直接使用。':'尚未保存密钥。');$('projects').innerHTML='<option value="">打开历史素材…</option>'+d.projects.map(p=>`<option value="${p.id}">${escapeHTML(p.title)}</option>`).join('');if(project)$('projects').value=project.id;renderVersionOptions();return d}
 function renderVersionOptions(){for(let id of ['verEn','verBi']){$(id).closest('label').classList.toggle('hidden',!burnSubtitles);if(!burnSubtitles)$(id).checked=false}if(!burnSubtitles&&!$('verPlain').checked)$('verPlain').checked=true;$('burnHint').classList.toggle('hidden',burnSubtitles);if(!burnSubtitles)$('burnHint').textContent='当前 FFmpeg 不支持烧录字幕，只能输出无字幕版。'}
 function load(p){if(isAndroid&&$('mobileCardPreview'))$('closeMobileCard').click();project=p;selected=[];anchor=null;editIndex=-1;stopAt=null;aiDraft=null;$('fullCoverage').checked=Boolean(p.continuous);if($('cardTip')){$('cardTip').value=p.card_tip||'';updateCardTipCount()}$('outputVideo').pause();$('outputVideo').removeAttribute('src');$('outputVideo').classList.add('hidden');$('outputNotice').classList.add('hidden');$('video').pause();$('video').src='/media?id='+p.id+'&token='+encodeURIComponent(token);$('video').classList.remove('hidden');$('empty').classList.add('hidden');$('title').textContent=p.title;$('title').title=p.title;clearEditor();renderSubs();renderClips();renderOutputs();status(p.subtitles.length?(isAndroid?'字幕已载入，可选择一句或连续多句。':'字幕已载入。点击选择，Shift + 点击选择连续多句。'):'视频已载入，但没有英文字幕。请导入 SRT / VTT。');if(isAndroid){if($('mobileSourceDialog').open)$('mobileSourceDialog').close();showMobilePage('source')}}
 function fmt(t){return Math.floor(t/60).toString().padStart(2,'0')+':'+(t%60).toFixed(2).padStart(5,'0')}
@@ -383,6 +427,22 @@ $('new').onclick=()=>{if(mayDiscardMobileDraft())clearEditor()};
 $('clips').onclick=e=>{if(busy||!project)return;if(e.target.dataset.edit!==undefined){if(!mayDiscardMobileDraft())return;let i=Number(e.target.dataset.edit),c=project.clips[i];editIndex=i;selected=[];anchor=null;mobileWaiting=false;mobileDirty=false;for(let k of ['start','end','english','chinese'])$(k).value=c[k];currentHint=c.hint?{keywords:(c.hint.keywords||[]).map(item=>({...item})),phrase:c.hint.phrase||'',grammar:c.hint.grammar||''}:null;renderHint();$('editLabel').textContent='编辑第 '+(i+1)+' 段';$('add').textContent='保存修改';renderSubs();loadWave();if(isAndroid){$('mobileSave').textContent=$('add').textContent;showMobilePage('edit')}else $('english').scrollIntoView({behavior:'smooth',block:'center'})}if(e.target.dataset.delete!==undefined){if(!mayDiscardMobileDraft())return;let i=Number(e.target.dataset.delete);if(confirm('移除第 '+(i+1)+' 个选段？'))action(async()=>{let clips=project.clips.slice();clips.splice(i,1);await save(clips);clearEditor();renderClips()})}};
 $('export').onclick=()=>action(async()=>{needProject();if(editIndex>=0)throw Error('请先保存正在编辑的修改');let r=await job('/api/export',{id:project.id,clips:project.clips,portrait:$('ratio').value==='portrait',theme:$('theme').value,tip:$('cardTip').value});status('已导出 '+r.count+' 段素材。'+(isAndroid?'请选择位置保存素材包。':'\n'+r.folder));if(isAndroid)window.AndroidHost.saveBatch(r.folder)});
 $('trySound').onclick=()=>action(async()=>{let sound=$('cardSound').value,seconds=Number($('cardSeconds').value)||5;if(sound==='none')throw Error('当前选择的是无声，换成其他提示音再试听');let response=await fetch('/api/card-sound',{method:'POST',headers:{'X-App-Token':token,'Content-Type':'application/json'},body:JSON.stringify({sound,seconds})});if(!response.ok){let d=await response.json();throw Error(d.error||'无法生成提示音')}if(soundURL)URL.revokeObjectURL(soundURL);soundURL=URL.createObjectURL(await response.blob());soundAudio=new Audio(soundURL);await soundAudio.play();status('正在试听 '+seconds+' 秒的题卡提示音：'+$('cardSound').selectedOptions[0].text+'。')});
+function applyProductionPreferences(preferences){
+  for(const [id,key] of [['theme','theme'],['ratio','ratio'],['cardSeconds','card'],['cardSound','sound']]){
+    if(preferences[key]!==undefined)$(id).value=preferences[key];
+  }
+  if(Array.isArray(preferences.versions))document.querySelectorAll('[data-version-out]').forEach(input=>input.checked=preferences.versions.includes(input.dataset.versionOut));
+  renderVersionOptions();updateComposeSummary();
+}
+$('saveProductionPreferences').onclick=()=>action(async()=>{
+  const preferences={theme:$('theme').value,ratio:$('ratio').value,card:Number($('cardSeconds').value),sound:$('cardSound').value,versions:[...document.querySelectorAll('[data-version-out]:checked')].map(input=>input.dataset.versionOut)};
+  applyProductionPreferences(await api('/api/production-preferences',preferences));
+  status('常用制作设置已保存，下次启动自动沿用。当前题卡文案和连续覆盖选项按素材单独保存。');
+});
+$('resetProductionPreferences').onclick=()=>action(async()=>{
+  applyProductionPreferences(await api('/api/production-preferences',{}));
+  status('已恢复初始制作设置；素材、选段和题卡文案保持原样。');
+});
 function updateComposeSummary(){
   const clips=project?.clips||[],card=Number($('cardSeconds').value);
   const seconds=clips.reduce((sum,c)=>sum+(Number.isFinite(c.end-c.start)?Math.max(0,c.end-c.start):0),0)+clips.length*(Number.isFinite(card)?card:0);
@@ -544,7 +604,8 @@ else {
   libraryButton.onclick=()=>window.open('/library?token='+encodeURIComponent(token),'_blank','noopener');
   $('desktopPages').append(libraryButton);
 }
-refreshProjects().then(async()=>{
+refreshProjects().then(async data=>{
+  applyProductionPreferences(data.productionPreferences||{});
   const pid=new URLSearchParams(location.search).get('project');
   if(pid){load(await api('/api/project?id='+encodeURIComponent(pid)));if(isAndroid)showMobilePage('clips')}
 }).catch(e=>status(e.message,true));
