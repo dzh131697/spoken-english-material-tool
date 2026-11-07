@@ -2759,6 +2759,64 @@ def library_topic(ids, title, progress):
         raise
 
 
+def apply_review(items, review):
+    if not review or review.get('status') == 'unavailable':
+        return list(items)
+    off = review.get('off_topic') or []
+    order = review.get('order') or []
+    if (not isinstance(off, list) or not isinstance(order, list)
+            or len(order) != len(items) or sorted(order) != list(range(len(items)))):
+        return list(items)
+    dropped = set(off)
+    picked = [items[index] for index in order if index not in dropped]
+    return picked or list(items)
+
+
+def auto_produce(body, key, progress):
+    mode = body.get('mode')
+    if mode not in ('video', 'library'):
+        raise ValueError('请选择内容来源')
+    topic = str(body.get('topic', '') or '').strip().replace('\n', ' ').replace('\r', ' ')
+    if len(topic) > 80:
+        raise ValueError('本期主题最多 80 字')
+    prefs = body.get('prefs')
+    prefs = validate_production_preferences(prefs) if isinstance(prefs, dict) else load_production_preferences()
+    check_cancelled()
+    if mode == 'video':
+        if not body.get('id'):
+            raise ValueError('请先导入视频')
+        options = {'mode': 'highlights', 'count': body.get('count', 4),
+                   'length': body.get('length', 'medium'), 'topic': topic}
+        result = suggest_segments(body['id'], options, key, progress)
+        pid = body['id']
+        clips = apply_review(result['clips'], result['review'])
+    else:
+        if not topic:
+            raise ValueError('请先填写本期主题')
+        result = library_pick(topic, body.get('limit', 8), key, progress)
+        items = apply_review(result['items'], result['review'])
+        progress('正在准备多视频片段')
+        check_cancelled()
+        project = library_topic([item['id'] for item in items], topic, progress)
+        pid = project['id']
+        clips = project['clips']
+    check_cancelled()
+    clips = [validate_clip(clip) for clip in clips]
+    if not clips:
+        raise ValueError('没有可用的选段，请换个主题或减少段数')
+    if any(not clip['chinese'] for clip in clips):
+        raise ValueError('部分选段缺少中文，请检查字幕或翻译设置')
+    progress('开始合成成片')
+    output = compose_video(pid, clips, prefs['ratio'] == 'portrait', prefs['card'], progress,
+                           prefs['theme'], False, prefs['versions'], prefs['sound'], key,
+                           read_project(pid).get('card_tip', ''))
+    current = read_project(pid)
+    return {'mode': mode, 'project': {'id': pid, 'title': current['title']},
+            'output': output, 'clips': clips, 'review': result.get('review'),
+            'edges': result.get('edges'), 'tokens': result.get('tokens', 0),
+            'outputs': current.get('outputs', [])}
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, *args):
         pass
@@ -3009,6 +3067,9 @@ class Handler(BaseHTTPRequestHandler):
                     body['id'], body['clips'], body.get('portrait', False), body.get('card', 5), progress,
                     body.get('theme', 'midnight'), body.get('continuous', False),
                     body.get('versions') or ['plain'], body.get('sound', 'none'), key, body.get('tip', ''))))
+            elif self.path == '/api/auto-produce':
+                key = KEY
+                self.reply(job_start(lambda progress: auto_produce(body, key, progress)))
             elif self.path == '/api/publish-frame':
                 data, frame_time = cover_frame(body['id'], body['output'], body.get('mode', 'manual'), body.get('time', 0))
                 self.send_response(200)
