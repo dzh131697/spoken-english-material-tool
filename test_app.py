@@ -599,17 +599,53 @@ class WorkflowTest(unittest.TestCase):
             root = Path(directory)
             cookie_path = root / 'cookies.txt'
             with patch.object(app, 'COOKIES', cookie_path), patch.object(app, 'PROJECTS', root / 'projects'), \
+                    patch.object(app, 'ffmpeg', return_value='unused'), \
                     patch.dict(sys.modules, {'yt_dlp': fake}):
                 state['error'] = bot_check
                 with self.assertRaises(ValueError) as error:
                     app.download_video('https://www.youtube.com/watch?v=abc', lambda message: None)
                 self.assertNotIn('cookiefile', captured)
                 self.assertIn('Cookie 设置', str(error.exception))
-                cookie_path.write_text('.youtube.com\tTRUE\t/\tTRUE\t1893456000\tSID\tabc\n', encoding='utf-8')
+                cookie_text = '.youtube.com\tTRUE\t/\tTRUE\t1893456000\tSID\tabc\n'
+                cookie_path.write_text(cookie_text, encoding='utf-8')
                 with self.assertRaises(ValueError) as error:
                     app.download_video('https://www.youtube.com/watch?v=abc', lambda message: None)
-                self.assertEqual(captured['cookiefile'], str(cookie_path))
+                self.assertIsInstance(captured['cookiefile'], io.StringIO)
+                self.assertEqual(captured['cookiefile'].getvalue(), cookie_text)
+                self.assertEqual(cookie_path.read_text(encoding='utf-8'), cookie_text)
                 self.assertIn('已过期', str(error.exception))
+
+    def test_video_format_caps_every_fallback(self):
+        for height in (360, 480, 720, 1080):
+            expression = app.video_format(str(height))
+            self.assertEqual(expression.count('height<=%d' % height), 3)
+            self.assertIn('ba[ext=m4a]', expression)
+        self.assertEqual(app.video_format(None), app.video_format(1080))
+        self.assertEqual(app.video_format('720p'), app.video_format(1080))
+        self.assertEqual(app.video_format('1080; DROP TABLE'), app.video_format(1080))
+        self.assertEqual(app.video_format(9999), app.video_format(1080))
+
+    def test_youtube_options_keeps_cookie_file_untouched(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            cookie_path = root / 'cookies.txt'
+            text = ('# Netscape HTTP Cookie File\n'
+                    '#HttpOnly_.youtube.com\tTRUE\t/\tTRUE\t1893456000\tSID\tabc\n'
+                    '.youtube.com\tTRUE\t/\tTRUE\t1893456000\tLOGIN_INFO\txyz\n')
+            cookie_path.write_text(text, encoding='utf-8')
+            base = {'quiet': True}
+            with patch.object(app, 'COOKIES', cookie_path):
+                first = app.youtube_options(base)
+                second = app.youtube_options(base)
+            self.assertNotIn('cookiefile', base)
+            self.assertIsNot(first, second)
+            self.assertIsInstance(first['cookiefile'], io.StringIO)
+            self.assertIsNot(first['cookiefile'], second['cookiefile'])
+            self.assertEqual(first['cookiefile'].getvalue(), text)
+            self.assertEqual(second['cookiefile'].getvalue(), text)
+            self.assertEqual(cookie_path.read_text(encoding='utf-8'), text)
+            with patch.object(app, 'COOKIES', root / 'missing.txt'):
+                self.assertNotIn('cookiefile', app.youtube_options(base))
 
     def test_readable_size(self):
         self.assertEqual(app.readable_size(0), '0 B')
@@ -665,11 +701,15 @@ class WorkflowTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             with patch.object(app, 'COOKIES', root / 'cookies.txt'), \
+                    patch.object(app, 'ffmpeg', return_value='unused'), \
                     patch.dict(sys.modules, {'yt_dlp': fake}):
                 messages = []
                 first = app.download_playlist('https://www.youtube.com/playlist?list=PLx',
-                                              str(root / 'videos'), 0, messages.append)
+                                              str(root / 'videos'), 0, messages.append, max_height=480)
                 self.assertEqual((first['total'], first['downloaded'], first['skipped']), (3, 2, 0))
+                self.assertTrue(all('height<=480' in item['format'] for item in state['options']))
+                self.assertEqual(state['options'][0]['format'].count('height<=480'), 3)
+                self.assertTrue(all(state['options'][0] is not item for item in state['options'][1:]))
                 self.assertTrue(any('512 B / 1.0 KB' in message for message in messages))
                 self.assertEqual(first['failedCount'], 1)
                 self.assertEqual(first['failed'][0]['title'], 'C')

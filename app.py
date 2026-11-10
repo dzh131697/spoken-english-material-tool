@@ -517,7 +517,32 @@ def load_yt_dlp():
     return __import__('yt_dlp')
 
 
-def download_video(url, progress):
+MAX_VIDEO_HEIGHTS = (360, 480, 720, 1080)
+
+
+def video_format(max_height):
+    try:
+        height = int(max_height)
+    except (TypeError, ValueError):
+        height = 1080
+    if height not in MAX_VIDEO_HEIGHTS:
+        height = 1080
+    return ('bv*[ext=mp4][vcodec^=avc1][height<={0}]+ba[ext=m4a]'
+            '/b[ext=mp4][height<={0}]/best[height<={0}]').format(height)
+
+
+def youtube_options(base):
+    options = dict(base)
+    try:
+        text = COOKIES.read_text(encoding='utf-8', errors='replace')
+    except OSError:
+        return options
+    if text.strip():
+        options['cookiefile'] = io.StringIO(text)
+    return options
+
+
+def download_video(url, progress, max_height=None):
     yt_dlp = load_yt_dlp()
     parsed = urllib.parse.urlparse(url)
     if parsed.scheme != 'https' or parsed.hostname not in ('youtube.com', 'www.youtube.com', 'm.youtube.com', 'youtu.be'):
@@ -546,7 +571,7 @@ def download_video(url, progress):
 
         options = {
             'outtmpl': str(folder / 'source.%(ext)s'), 'noplaylist': True,
-            'format': 'bv*[ext=mp4][vcodec^=avc1][height<=1080]+ba[ext=m4a]/b[ext=mp4]/best[height<=1080]',
+            'format': video_format(max_height),
             'merge_output_format': 'mp4', 'writesubtitles': True, 'writeautomaticsub': True,
             'subtitleslangs': ['en', 'en-US', 'en-GB', 'en-orig', 'zh-Hans', 'zh-CN', 'zh', 'zh-Hant', 'zh-TW'],
             'subtitlesformat': 'vtt',
@@ -558,10 +583,8 @@ def download_video(url, progress):
         }
         options['postprocessor_hooks'] = [lambda status: check_cancelled()]
         progress('读取 YouTube 视频信息和英文字幕')
-        if COOKIES.exists():
-            options['cookiefile'] = str(COOKIES)
         try:
-            with yt_dlp.YoutubeDL(options) as ydl:
+            with yt_dlp.YoutubeDL(youtube_options(options)) as ydl:
                 info = ydl.extract_info(url, download=True)
         except yt_dlp.utils.DownloadError as error:
             check_cancelled()
@@ -645,7 +668,7 @@ def readable_size(num):
     return '{:.1f} TB'.format(value)
 
 
-def download_playlist(url, folder, limit, progress, retry_ids=None):
+def download_playlist(url, folder, limit, progress, retry_ids=None, max_height=None):
     """按列表顺序逐个下载视频和英文字幕，已下载的自动跳过。"""
     yt_dlp = load_yt_dlp()
     parsed = youtube_check(url)
@@ -670,7 +693,7 @@ def download_playlist(url, folder, limit, progress, retry_ids=None):
     archive = target / '.已下载.txt'
     options = {
         'outtmpl': str(target / '%(playlist_title).80B' / '%(title).120B [%(id)s].%(ext)s'),
-        'format': 'bv*[ext=mp4][vcodec^=avc1][height<=1080]+ba[ext=m4a]/b[ext=mp4]/best[height<=1080]',
+        'format': video_format(max_height),
         'merge_output_format': 'mp4', 'writesubtitles': True, 'writeautomaticsub': True,
         'subtitleslangs': ['en', 'en-US', 'en-GB', 'en-orig', 'zh-Hans', 'zh-CN', 'zh', 'zh-Hant', 'zh-TW'],
         'subtitlesformat': 'vtt', 'ffmpeg_location': ffmpeg(),
@@ -693,10 +716,8 @@ def download_playlist(url, folder, limit, progress, retry_ids=None):
 
     options['progress_hooks'] = [download_progress]
     options['postprocessor_hooks'] = [lambda status: check_cancelled()]
-    if COOKIES.exists():
-        options['cookiefile'] = str(COOKIES)
     progress('读取播放列表信息')
-    listing = {key: value for key, value in options.items() if key != 'download_archive'}
+    listing = youtube_options({key: value for key, value in options.items() if key != 'download_archive'})
     listing.update({'extract_flat': 'in_playlist', 'skip_download': True})
     try:
         with yt_dlp.YoutubeDL(listing) as ydl:
@@ -731,7 +752,7 @@ def download_playlist(url, folder, limit, progress, retry_ids=None):
         current['label'] = label
         progress(label)
         try:
-            with yt_dlp.YoutubeDL(options) as ydl:
+            with yt_dlp.YoutubeDL(youtube_options(options)) as ydl:
                 ydl.download(['https://www.youtube.com/watch?v=' + vid])
             downloaded += 1
             done.add(vid)
@@ -2283,10 +2304,8 @@ def read_youtube_source(url):
         raise ValueError('请输入 https:// 开头的 YouTube 视频链接')
     options = {'quiet': True, 'no_warnings': True, 'noplaylist': True, 'skip_download': True,
                'socket_timeout': 20, 'retries': 1, 'compat_opts': ['no-certifi']}
-    if COOKIES.exists():
-        options['cookiefile'] = str(COOKIES)
     try:
-        with yt_dlp.YoutubeDL(options) as ydl:
+        with yt_dlp.YoutubeDL(youtube_options(options)) as ydl:
             info = ydl.extract_info(url, download=False)
     except yt_dlp.utils.DownloadError:
         raise ValueError('无法获取来源信息，请检查网络或 Cookie；也可手动填写参考文字') from None
@@ -3445,12 +3464,13 @@ class Handler(BaseHTTPRequestHandler):
             elif self.path == '/api/library/topic':
                 self.reply(job_start(lambda progress: library_topic(body.get('ids'), body.get('title', ''), progress)))
             elif self.path == '/api/download':
-                self.reply(job_start(lambda progress: download_video(body['url'], progress)))
+                self.reply(job_start(lambda progress: download_video(
+                    body['url'], progress, body.get('max_height'))))
             elif self.path == '/api/download-playlist':
                 # 批量下载可能持续很久，不占用视频处理锁，避免挡住导出和合成。
                 self.reply(job_start(lambda progress: download_playlist(
                     body.get('url', ''), body.get('folder', ''), body.get('limit'), progress,
-                    body.get('retry_ids')), exclusive=False))
+                    body.get('retry_ids'), body.get('max_height')), exclusive=False))
             elif self.path == '/api/translate':
                 key = KEY
                 self.reply(job_start(lambda progress: translate(body['english'], key)))
