@@ -84,6 +84,7 @@ body.android{color-scheme:light;--bg:#f7f9f7;--panel:#fff;--border:#dce6df;--mut
 }
 #watchSection{margin-bottom:16px}
 .watch-source{margin:0 0 4px}.watch-source input{flex:1;min-width:240px}
+.watch-target{margin:8px 0 0}.watch-target input{flex:1;min-width:260px}
 .watch-body{display:grid;grid-template-columns:minmax(340px,1.2fr) minmax(300px,1fr);gap:18px;align-items:start;margin-top:6px}
 .watch-player{min-width:0}
 .watch-player .video-empty{aspect-ratio:16/9;display:grid;place-content:center;padding:18px;background:#0b1118}
@@ -152,6 +153,10 @@ body.android{color-scheme:light;--bg:#f7f9f7;--panel:#fff;--border:#dce6df;--mut
 <label class="muted">清晰度 <select id="watchHeight" aria-label="保存清晰度"><option value="1080">1080p</option><option value="720">720p</option><option value="480">480p</option><option value="360">360p</option></select></label>
 </div>
 <p class="hint">一次只保存正在看的这一条，不会像批量下载那样一次请求整份收藏夹；播放用浏览器自己的通道，下载在后台排队，互不影响。</p>
+<div class="row wrap watch-target">
+<input id="watchFolder" class="grow" placeholder="保存到：留空用上次的目录，没有就用工具目录 data\下载素材">
+<button id="pickWatchFolder" class="quiet">选择文件夹</button>
+</div>
 <div class="watch-body">
 <div class="watch-player">
 <div id="watchStage" class="video-empty">读取列表后，点右侧任意一条开始边看边下。</div>
@@ -276,7 +281,7 @@ async function job(path,body,onProgress){
     }
   }finally{clearInterval(timer);reconnectJob=null;$('cancelTask').onclick=null;$('taskDialog').close();$('reconnectJob').classList.add('hidden')}
 }
-async function refreshProjects(){let d=await api('/api/projects');hasKey=d.hasKey;burnSubtitles=d.burnSubtitles!==false;$('keyState').textContent=d.keyError||(hasKey?'已保存密钥，可直接使用。':'尚未保存密钥。');$('projects').innerHTML='<option value="">打开历史素材…</option>'+d.projects.map(p=>`<option value="${p.id}">${escapeHTML(p.title)}</option>`).join('');if(project)$('projects').value=project.id;renderVersionOptions();return d}
+async function refreshProjects(){let d=await api('/api/projects');hasKey=d.hasKey;burnSubtitles=d.burnSubtitles!==false;$('keyState').textContent=d.keyError||(hasKey?'已保存密钥，可直接使用。':'尚未保存密钥。');$('projects').innerHTML='<option value="">打开历史素材…</option>'+d.projects.map(p=>`<option value="${p.id}">${escapeHTML(p.title)}</option>`).join('');if(project)$('projects').value=project.id;if(d.downloadFolder){for(const id of ['playlistFolder','watchFolder']){const field=$(id);if(field&&!field.value.trim())field.value=d.downloadFolder}}renderVersionOptions();return d}
 function renderVersionOptions(){for(let id of ['verEn','verBi']){$(id).closest('label').classList.toggle('hidden',!burnSubtitles);if(!burnSubtitles)$(id).checked=false}if(!burnSubtitles&&!$('verPlain').checked)$('verPlain').checked=true;$('burnHint').classList.toggle('hidden',burnSubtitles);if(!burnSubtitles)$('burnHint').textContent='当前 FFmpeg 不支持烧录字幕，只能输出无字幕版。'}
 function load(p){if(isAndroid&&$('mobileCardPreview'))$('closeMobileCard').click();project=p;selected=[];anchor=null;editIndex=-1;stopAt=null;aiDraft=null;$('fullCoverage').checked=Boolean(p.continuous);if($('cardTip')){$('cardTip').value=p.card_tip||'';updateCardTipCount()}$('outputVideo').pause();$('outputVideo').removeAttribute('src');$('outputVideo').classList.add('hidden');$('outputNotice').classList.add('hidden');$('video').pause();$('video').src='/media?id='+p.id+'&token='+encodeURIComponent(token);$('video').classList.remove('hidden');$('empty').classList.add('hidden');$('title').textContent=p.title;$('title').title=p.title;clearEditor();renderSubs();renderClips();renderOutputs();status(p.subtitles.length?(isAndroid?'字幕已载入，可选择一句或连续多句。':'字幕已载入。点击选择，Shift + 点击选择连续多句。'):'视频已载入，但没有英文字幕。请导入 SRT / VTT。');if(isAndroid){if($('mobileSourceDialog').open)$('mobileSourceDialog').close();showMobilePage('source')}}
 function fmt(t){return Math.floor(t/60).toString().padStart(2,'0')+':'+(t%60).toFixed(2).padStart(5,'0')}
@@ -495,6 +500,10 @@ $('local').onclick=()=>{if(mayDiscardMobileDraft())$('videoFile').click()};$('vi
 $('playlistBtn').onclick=()=>$('playlistDialog').showModal();
 $('closePlaylist').onclick=()=>$('playlistDialog').close();
 $('pickPlaylistFolder').onclick=()=>action(async()=>{let r=await job('/api/library/folder',{});if(r.folder)$('playlistFolder').value=r.folder});
+$('pickWatchFolder').onclick=async()=>{
+  try{const {job:id}=await api('/api/library/folder',{});const r=await watchPollJob(id);if(r.folder)$('watchFolder').value=r.folder}
+  catch(error){status(error.message,true)}
+};
 function showPlaylistResult(result,request){
   const failed=result.failed||[],items=result.items||[];
   playlistRetry=failed.length?{url:request.url,folder:result.folder,limit:0,max_height:request.max_height||'1080',retry_ids:failed.map(item=>item.id)}:null;
@@ -508,6 +517,7 @@ function showPlaylistResult(result,request){
 $('startPlaylist').onclick=()=>{
   const url=$('playlistUrl').value.trim();
   const request={url,folder:$('playlistFolder').value.trim(),limit:Number($('playlistLimit').value)||0,max_height:$('playlistHeight').value};
+  rememberDownloadFolder(request.folder);
   $('playlistDialog').close();action(async()=>showPlaylistResult(await job('/api/download-playlist',request),request));
 };
 $('retryPlaylist').onclick=()=>action(async()=>{
@@ -517,6 +527,11 @@ $('retryPlaylist').onclick=()=>action(async()=>{
 });
 let watchItems=[],watchIndex=-1,watchRunning=false,watchQueue=[];
 const watchWait=ms=>new Promise(resolve=>setTimeout(resolve,ms));
+function rememberDownloadFolder(folder){
+  const text=String(folder||'').trim();
+  if(!text)return;
+  api('/api/download-folder',{folder:text}).catch(()=>{});
+}
 function watchClock(seconds){seconds=Math.max(0,Math.round(Number(seconds)||0));return Math.floor(seconds/60)+':'+String(seconds%60).padStart(2,'0')}
 function updateWatchSummary(list){
   const saved=watchItems.filter(item=>item.state==='saved').length;
@@ -585,13 +600,15 @@ async function pumpWatchQueue(){
   item.state='downloading';item.progress='正在提交任务…';renderWatchList();syncWatchControls();
   if(isCurrent())$('watchNow').textContent='正在保存：'+item.title;
   try{
-    const {job:id}=await api('/api/watch/save',{id:item.id,max_height:$('watchHeight').value});
+    const folder=$('watchFolder').value.trim();
+    const {job:id}=await api('/api/watch/save',{id:item.id,max_height:$('watchHeight').value,folder});
     item.job=id;
     const result=await watchPollJob(id,message=>{
       item.progress=message;watchRowNote(item,message);
       if(isCurrent())$('watchNow').textContent='正在保存：'+item.title+' · '+message;
     });
     item.state='saved';item.progress='';item.sizeText=result.sizeText||'';
+    rememberDownloadFolder(result.folder||folder);
     status('已保存 «'+item.title+'» 到 '+result.folder);
     if(isCurrent())$('watchNow').textContent='已保存：'+item.title+(result.state==='skipped'?'（之前已下过，直接复用）':'')+'。可以点「在工作台编辑」选句了。';
   }catch(error){
@@ -648,7 +665,7 @@ $('watchEdit').onclick=async()=>{
   if(!item)return;
   try{
     status('正在把这条放进工作台…');
-    const {job:id}=await api('/api/watch/open',{id:item.id});
+    const {job:id}=await api('/api/watch/open',{id:item.id,folder:$('watchFolder').value.trim()});
     const p=await watchPollJob(id);
     load(p);await refreshProjects();updateWorkflowGuide();
     $('productionTab').click();

@@ -829,6 +829,89 @@ class WorkflowTest(unittest.TestCase):
                     app.watch_open('abc12345678', '')
                 self.assertIn('还没保存', str(error.exception))
 
+    def test_download_folder_is_remembered_and_used_as_default(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            target = root / 'videoData'
+            with patch.object(app, 'DATA', root), patch.object(app, 'PLAYLIST_DIR', root / '下载素材'):
+                self.assertEqual(app.load_download_folder(), '')
+                self.assertEqual(app.watch_target(''), app.PLAYLIST_DIR)
+                self.assertEqual(app.save_download_folder(str(target)), {'folder': str(target)})
+                self.assertEqual(app.load_download_folder(), str(target))
+                self.assertEqual(app.watch_target(''), target)
+                self.assertEqual(app.watch_target(str(root / 'other')), root / 'other')
+                with self.assertRaises(ValueError):
+                    app.save_download_folder('videoData')
+                self.assertEqual(app.load_download_folder(), str(target))
+                app.save_download_folder('')
+                self.assertEqual(app.load_download_folder(), '')
+                (root / 'download-settings.json').write_text('{bad json', encoding='utf-8')
+                self.assertEqual(app.load_download_folder(), '')
+
+    def test_legacy_empty_media_key_is_backfilled_from_filename(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'data').mkdir()
+            with patch.object(app, 'DATA', root / 'data'), patch.object(app, 'PROJECTS', root / 'projects'):
+                with app.library_db() as db:
+                    db.execute('INSERT INTO sources (id,video,subtitle,title,signature,rows_json,error,media_key,track_kind) '
+                               'VALUES (?,?,?,?,?,?,?,?,?)',
+                               ('legacy0000000001', r'C:\old\Clip [Y2Un9HHcJ3I].mp4', '', 'Clip', 'sig', '[]', '', '', 'auto'))
+                    db.execute('INSERT INTO sources (id,video,subtitle,title,signature,rows_json,error,media_key,track_kind) '
+                               'VALUES (?,?,?,?,?,?,?,?,?)',
+                               ('plain00000000001', r'C:\old\no id here.mp4', '', 'Plain', 'sig', '[]', '', '', 'auto'))
+                with app.library_db() as db:
+                    keys = {row['id']: row['media_key'] for row in db.execute('SELECT id, media_key FROM sources')}
+            self.assertEqual(keys['legacy0000000001'], 'yt:Y2Un9HHcJ3I')
+            self.assertEqual(keys['plain00000000001'], '')
+
+    def test_import_relocates_moved_source_and_projects_without_losing_analysis(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            data = root / 'data'
+            data.mkdir()
+            old_dir, new_dir = root / 'old', root / 'new'
+            old_dir.mkdir()
+            new_dir.mkdir()
+            name = 'Morning talk [abc12345678].mp4'
+            (old_dir / name).write_bytes(b'video')
+            (new_dir / name).write_bytes(b'video')
+            (new_dir / (Path(name).stem + '.en.vtt')).write_text(
+                'WEBVTT\n\n00:00:00.500 --> 00:00:02.000\nHello there.\n', encoding='utf-8')
+            projects = root / 'projects'
+            projects.mkdir()
+            old_video = str((old_dir / name).resolve())
+            new_video = str((new_dir / name).resolve())
+            with patch.object(app, 'DATA', data), patch.object(app, 'PROJECTS', projects):
+                with app.library_db() as db:
+                    db.execute('INSERT INTO sources (id,video,subtitle,title,signature,rows_json,error,media_key,track_kind) '
+                               'VALUES (?,?,?,?,?,?,?,?,?)',
+                               ('sid0000000000001', old_video, '', 'Morning talk', 'sig', '[]', '', 'yt:abc12345678', 'auto'))
+                    db.execute('INSERT INTO sentences (source_id,start,end,english,chinese,grammar,patterns) '
+                               'VALUES (?,?,?,?,?,?,?)',
+                               ('sid0000000000001', 0.5, 2.0, 'Hello there.', '你好', '', '[]'))
+                    db.execute('INSERT INTO batches (source_id,batch_index) VALUES (?,?)', ('sid0000000000001', 0))
+                app.save_project({'id': '0123456789abcdef', 'title': 'Morning talk', 'video': 'source.mp4',
+                                  'library_video': old_video, 'library_source': 'sid0000000000001',
+                                  'library_media_key': 'yt:abc12345678', 'subtitles': [], 'clips': []})
+                app.save_project({'id': 'fedcba9876543210', 'title': 'Old project', 'video': 'source.mp4',
+                                  'library_video': old_video, 'library_source': 'sid0000000000001',
+                                  'library_media_key': '', 'subtitles': [], 'clips': []})
+                result = app.library_import(str(new_dir), lambda message: None)
+                self.assertEqual((result['added'], result['relocated'], result['missing']), (0, 1, []))
+                with app.library_db() as db:
+                    row = db.execute('SELECT video, subtitle FROM sources WHERE id=?', ('sid0000000000001',)).fetchone()
+                    self.assertEqual(Path(row['video']), (new_dir / name).resolve())
+                    self.assertEqual(Path(row['subtitle']), (new_dir / (Path(name).stem + '.en.vtt')).resolve())
+                    self.assertEqual(db.execute('SELECT COUNT(*) FROM sentences WHERE source_id=?',
+                                                ('sid0000000000001',)).fetchone()[0], 1)
+                    self.assertEqual(db.execute('SELECT COUNT(*) FROM batches WHERE source_id=?',
+                                                ('sid0000000000001',)).fetchone()[0], 1)
+                for pid in ('0123456789abcdef', 'fedcba9876543210'):
+                    moved = json.loads((projects / pid / 'project.json').read_text(encoding='utf-8'))
+                    self.assertEqual(moved['library_video'], new_video)
+                    self.assertEqual(moved['video'], 'source.mp4')
+
     def test_video_format_caps_every_fallback(self):
         for height in (360, 480, 720, 1080):
             expression = app.video_format(str(height))

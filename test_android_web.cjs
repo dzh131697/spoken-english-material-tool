@@ -36,7 +36,7 @@ async function openPage(browser, android, width = 390) {
       };
     }
   }, android);
-  const state = { subtitleEdits: {}, subtitleWrites: [], reparseCalls: 0, playlistRequests: [], playlistResult: null, jobRunning: false, jobCancelled: false, cancelCalls: [], preferences: structuredClone(defaultPreferences), preferenceWrites: [], exportCalls: 0, pollFailures: 0, polledJobs: [], jobError: null, composeCalls: [], saves: [], failNextSave: false, suggestCalls: 0, publicationSaves: {}, frames: [], generations: [], cards: [], deleted: [], watchListRequests: [], watchSaves: [], watchOpens: [], watchList: null };
+  const state = { subtitleEdits: {}, subtitleWrites: [], reparseCalls: 0, playlistRequests: [], playlistResult: null, jobRunning: false, jobCancelled: false, cancelCalls: [], preferences: structuredClone(defaultPreferences), preferenceWrites: [], exportCalls: 0, pollFailures: 0, polledJobs: [], jobError: null, composeCalls: [], saves: [], failNextSave: false, suggestCalls: 0, publicationSaves: {}, frames: [], generations: [], cards: [], deleted: [], watchListRequests: [], watchSaves: [], watchOpens: [], watchList: null, downloadFolderSaves: [] };
   await context.route('**/*', async route => {
     const request = route.request();
     const url = new URL(request.url());
@@ -59,6 +59,7 @@ async function openPage(browser, android, width = 390) {
     if(url.pathname==='/api/watch/list'){state.watchListRequests.push(request.postDataJSON());return route.fulfill({json:{job:'watch-list'}})}
     if(url.pathname==='/api/watch/save'){state.watchSaves.push(request.postDataJSON());return route.fulfill({json:{job:'watch-save'}})}
     if(url.pathname==='/api/watch/open'){state.watchOpens.push(request.postDataJSON());return route.fulfill({json:{job:'watch-open'}})}
+    if(url.pathname==='/api/download-folder'){state.downloadFolderSaves.push(request.postDataJSON());return route.fulfill({json:{folder:request.postDataJSON().folder}})}
     if (url.pathname === '/api/card-preview') {
       state.cards.push(request.postDataJSON());
       return route.fulfill({ contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360"><rect width="640" height="360" fill="#305b48"/></svg>' });
@@ -610,17 +611,19 @@ async function openPage(browser, android, width = 390) {
         assert.equal(await page.locator('.watch-item').count(),2);
         assert.equal((await page.locator('.watch-item .watch-title').first().innerText()).trim(),'Watch <b>A</b>');
         assert.match(await page.locator('#watchCount').textContent(),/2 条/);
+        await page.locator('#watchFolder').fill('F:/qa-videoData');
         await page.locator('.watch-item').first().click();
         assert.match(await page.locator('#watchStage iframe').getAttribute('src'),/youtube\.com\/embed\/watchAAAAA1/);
         assert.equal(await page.locator('#taskDialog').isVisible(),false);
         await page.waitForFunction(()=>watchItems[0].state==='saved',null,{timeout:20000});
-        assert.deepEqual(state.watchSaves[0],{id:'watchAAAAA1',max_height:'1080'});
+        assert.deepEqual(state.watchSaves[0],{id:'watchAAAAA1',max_height:'1080',folder:'F:/qa-videoData'});
+        assert.ok(state.downloadFolderSaves.length>=1);
         assert.match(await page.locator('.watch-item').first().innerText(),/已保存/);
         assert.match(await page.locator('.watch-item').first().innerText(),/9\.9 MB/);
         await page.locator('#watchEdit').waitFor({state:'visible',timeout:10000});
         await page.locator('#watchEdit').click();
         await page.locator('#watchSection').waitFor({state:'hidden',timeout:20000});
-        assert.deepEqual(state.watchOpens[0],{id:'watchAAAAA1'});
+        assert.deepEqual(state.watchOpens[0],{id:'watchAAAAA1',folder:'F:/qa-videoData'});
         assert.equal(await page.locator('#productionPage').isVisible(),true);
         assert.equal(await page.locator('#watchSection').isVisible(),false);
         assert.match(await page.locator('#subCount').textContent(),/3 条/);

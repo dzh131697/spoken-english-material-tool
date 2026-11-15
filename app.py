@@ -644,6 +644,27 @@ def watch_link(url):
     return text or DEFAULT_PLAYLIST
 
 
+DOWNLOAD_SETTINGS_NAME = 'download-settings.json'
+
+
+def load_download_folder():
+    """记住上次用的下载目录；批量下载和边看边下都默认用它。"""
+    try:
+        data = json.loads((DATA / DOWNLOAD_SETTINGS_NAME).read_text(encoding='utf-8'))
+    except (OSError, ValueError):
+        return ''
+    folder = data.get('folder') if isinstance(data, dict) else ''
+    return str(folder or '').strip()[:400]
+
+
+def save_download_folder(folder):
+    text = str(folder or '').strip()[:400]
+    if text and not Path(text).expanduser().is_absolute():
+        raise ValueError('请填写完整路径，例如 F:\\videoData')
+    atomic_json(DATA / DOWNLOAD_SETTINGS_NAME, {'folder': text})
+    return {'folder': text}
+
+
 def youtube_check(url):
     """校验 YouTube 链接并返回解析结果。"""
     parsed = urllib.parse.urlparse(str(url).strip())
@@ -704,7 +725,7 @@ def download_playlist(url, folder, limit, progress, retry_ids=None, max_height=N
                 or any(not isinstance(vid, str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,64}', vid) for vid in retry_ids)):
             raise ValueError('失败项编号无效，请重新读取下载结果')
         retry_ids = list(dict.fromkeys(retry_ids))
-    target = Path(str(folder or '').strip() or PLAYLIST_DIR).expanduser()
+    target = Path(str(folder or '').strip() or load_download_folder() or PLAYLIST_DIR).expanduser()
     if not target.is_absolute():
         raise ValueError('请填写保存文件夹的完整路径')
     try:
@@ -853,8 +874,8 @@ WATCH_LIST_LIMIT = 500
 
 
 def watch_target(folder):
-    """「边看边下」的保存目录，留空就用工具内的下载素材目录。"""
-    target = Path(str(folder or '').strip() or PLAYLIST_DIR).expanduser()
+    """「边看边下」的保存目录：本次填写 > 上次记住的目录 > 工具内下载素材目录。"""
+    target = Path(str(folder or '').strip() or load_download_folder() or PLAYLIST_DIR).expanduser()
     if not target.is_absolute():
         raise ValueError('请填写保存文件夹的完整路径')
     try:
@@ -2727,6 +2748,15 @@ def library_db():
         if 'track_kind' not in {row[1] for row in db.execute('PRAGMA table_info(sources)')}:
             db.execute("ALTER TABLE sources ADD COLUMN track_kind TEXT NOT NULL DEFAULT ''")
         db.execute('CREATE INDEX IF NOT EXISTS idx_sources_media_key ON sources(media_key)')
+        # media_key 是后加的列，早期记录是空字符串。文件名里有 [视频ID] 的按 ID 补上：
+        # 素材换目录后 library_import() 靠它重定位，空键会被当成新素材、已解析例句对不上。
+        legacy = db.execute("SELECT id, video FROM sources WHERE media_key=''").fetchall()
+        if legacy:
+            with db:
+                for row in legacy:
+                    key = media_key_for(row[1])
+                    if key.startswith('yt:'):
+                        db.execute('UPDATE sources SET media_key=? WHERE id=?', (key, row[0]))
         with db:
             yield db
     finally:
@@ -2755,6 +2785,28 @@ def media_key_for(video, url=''):
     if match:
         return 'yt:' + match.group(1)
     return 'path:' + hashlib.sha256(str(video.resolve()).casefold().encode('utf-8')).hexdigest()[:16]
+
+
+def relocate_library_projects(old_video, new_video, key=''):
+    """素材换目录后，把引用它的项目改成新路径：项目只存指针，不复制视频。"""
+    moved = 0
+    for path in PROJECTS.glob('*/project.json'):
+        try:
+            p = json.loads(path.read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            continue
+        if not isinstance(p, dict) or not p.get('id'):
+            continue
+        if p.get('library_video') == new_video:
+            continue
+        if p.get('library_video') == old_video or (key and p.get('library_media_key') == key):
+            p['library_video'] = new_video
+            p['video'] = 'source' + Path(new_video).suffix.lower()
+            if key:
+                p['library_media_key'] = key
+            save_project(p)
+            moved += 1
+    return moved
 
 
 def library_import(folder, progress):
@@ -2796,6 +2848,7 @@ def library_import(folder, progress):
                     db.execute('UPDATE sources SET video=?,subtitle=?,signature=?,title=?,error=?,track_kind=? WHERE id=?',
                                (str(video.resolve()), str(subtitle.resolve()), signature, video.stem,
                                 '', subtitle_track_kind(subtitle), previous['id']))
+                    relocate_library_projects(previous['video'], str(video.resolve()), key)
                     relocated += 1
                     continue
                 target = previous['id'] if previous else sid
@@ -3569,7 +3622,8 @@ class Handler(BaseHTTPRequestHandler):
                     except (ValueError, OSError):
                         pass
                 response = {'projects': projects, 'hasKey': bool(KEY), 'burnSubtitles': has_video_filter('ass'),
-                            'productionPreferences': load_production_preferences()}
+                            'productionPreferences': load_production_preferences(),
+                            'downloadFolder': load_download_folder()}
                 if KEY_ERROR:
                     response['keyError'] = KEY_ERROR
                 self.reply(response)
@@ -3649,6 +3703,9 @@ class Handler(BaseHTTPRequestHandler):
             if self.path == '/api/production-preferences':
                 with LOCK:
                     self.reply(save_production_preferences(body))
+            elif self.path == '/api/download-folder':
+                with LOCK:
+                    self.reply(save_download_folder(body.get('folder', '')))
             elif self.path == '/api/key':
                 key = str(body.get('key', '')).strip()
                 if not key:
