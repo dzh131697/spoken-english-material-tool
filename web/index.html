@@ -169,7 +169,7 @@ body.android{color-scheme:light;--bg:#f7f9f7;--panel:#fff;--border:#dce6df;--mut
 <button id="watchEdit" class="quiet hidden">在工作台编辑</button>
 </div>
 <p id="watchNow" class="hint" role="status"></p>
-<p class="hint"><a id="watchExternal" href="https://www.youtube.com/playlist?list=WL" target="_blank" rel="noreferrer">这条在工具里放不出来时，用浏览器打开 ↗</a></p>
+<p class="hint"><a id="watchExternal" href="https://www.youtube.com/playlist?list=WL" target="_blank" rel="noreferrer">这条在工具里放不出来时，用浏览器打开 ↗</a>（作者禁止站外嵌入的视频只能这样看，后台保存不受影响）</p>
 </div>
 <div class="watch-side">
 <div class="row watch-list-head"><input id="watchFilter" class="grow" placeholder="筛选标题或视频编号"><span id="watchCount" class="muted"></span></div>
@@ -628,7 +628,9 @@ function openWatch(index){
   watchIndex=index;
   const stage=$('watchStage');
   stage.className='watch-stage';
-  stage.innerHTML='<iframe src="https://www.youtube.com/embed/'+encodeURIComponent(item.id)+'?autoplay=1&rel=0" title="'+escapeHTML(item.title)+'" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>';
+  // 页面整体是 Referrer-Policy: no-referrer，YouTube 内嵌播放器缺 referer 会报 Error 153；
+  // 这里单独给 iframe 指定 origin，只暴露 http://127.0.0.1:端口，不带页面里的 token。
+  stage.innerHTML='<iframe src="https://www.youtube.com/embed/'+encodeURIComponent(item.id)+'?autoplay=1&rel=0" referrerpolicy="origin" title="'+escapeHTML(item.title)+'" allow="autoplay; encrypted-media; picture-in-picture; fullscreen" allowfullscreen></iframe>';
   $('watchNow').textContent='正在看：'+item.title+(item.state==='saved'?'（已保存）':'');
   $('watchExternal').href=item.url||('https://www.youtube.com/watch?v='+encodeURIComponent(item.id));
   syncWatchControls();
