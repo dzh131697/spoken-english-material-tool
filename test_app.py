@@ -748,6 +748,47 @@ class WorkflowTest(unittest.TestCase):
                     app.download_playlist('https://example.com/playlist?list=PLx', str(root / 'v'), 0,
                                           lambda message: None)
 
+    def test_playlist_aborts_after_repeated_bot_checks(self):
+        state = {'calls': [], 'entries': [{'id': v, 'title': v.upper()}
+                                          for v in ('aaa', 'bbb', 'ccc', 'ddd', 'eee')]}
+
+        class FakeYDL:
+            def __init__(self, options):
+                self.options = options
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def extract_info(self, url, download=False):
+                return {'title': '收藏夹', 'entries': state['entries']}
+
+            def download(self, urls):
+                vid = urls[0].rsplit('=', 1)[-1]
+                state['calls'].append(vid)
+                raise RuntimeError("ERROR: [youtube] %s: Sign in to confirm you're not a bot" % vid)
+
+        fake = types.SimpleNamespace(YoutubeDL=FakeYDL,
+                                     utils=types.SimpleNamespace(DownloadError=RuntimeError))
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with patch.object(app, 'COOKIES', root / 'cookies.txt'), \
+                    patch.object(app, 'ffmpeg', return_value='unused'), \
+                    patch.object(app, 'BOT_RETRY_WAIT', 0), \
+                    patch.dict(sys.modules, {'yt_dlp': fake}):
+                messages = []
+                result = app.download_playlist('https://www.youtube.com/playlist?list=PLx',
+                                               str(root / 'videos'), 0, messages.append)
+                # 第一个视频等待后重试一次，之后不再等待；连续 3 个风控即中止，剩余项标为未尝试。
+                self.assertEqual(state['calls'], ['aaa', 'aaa', 'bbb', 'ccc'])
+                self.assertEqual(result['downloaded'], 0)
+                self.assertEqual(result['failedCount'], 5)
+                self.assertEqual([item['state'] for item in result['items']], ['failed'] * 5)
+                self.assertTrue(any('已中止本次批量' in message for message in messages))
+                self.assertTrue(any('等待 0 秒后重试一次' in message for message in messages))
+
     def test_youtube_rolling_captions_become_sentences(self):
         # YouTube 自动字幕：每个 cue 上行是残留、下行是正在累积的当前行，并带逐词时间戳。
         sample = ('WEBVTT\n\n'

@@ -518,6 +518,8 @@ def load_yt_dlp():
 
 
 MAX_VIDEO_HEIGHTS = (360, 480, 720, 1080)
+BOT_RETRY_WAIT = 45      # 命中 YouTube 风控后等待多久再重试一次（秒）
+BOT_STREAK_LIMIT = 3     # 连续这么多个视频被风控就中止本批，避免白跑完整份列表
 
 
 def video_format(max_height):
@@ -639,8 +641,9 @@ def youtube_error_hint(detail):
     if bot_check and not COOKIES.exists():
         return 'YouTube 要求验证登录身份（风控）。请点击顶部「Cookie 设置」导入 cookies.txt 后重试。'
     if bot_check:
-        return ('YouTube 仍要求验证登录身份：cookies.txt 可能已过期，或当前网络出口 IP 被标记。'
-                '请重新导出 Cookie 或更换网络节点。')
+        return ('YouTube 仍要求验证登录身份：多半是当前出口 IP 被风控，不是 Cookie 过期。'
+                '请先在 Clash 的「🎬媒体解锁」策略组换一条线路后重试；'
+                '换节点仍失败，再重新导出 cookies.txt。')
     if 'Private video' in detail or 'members-only' in detail:
         return '列表里有私有或会员专属视频，需要有效的 cookies.txt 才能下载。'
     return 'YouTube 获取失败。请确认网络可访问 YouTube，且视频无需登录。'
@@ -697,7 +700,7 @@ def download_playlist(url, folder, limit, progress, retry_ids=None, max_height=N
         'merge_output_format': 'mp4', 'writesubtitles': True, 'writeautomaticsub': True,
         'subtitleslangs': ['en', 'en-US', 'en-GB', 'en-orig', 'zh-Hans', 'zh-CN', 'zh', 'zh-Hant', 'zh-TW'],
         'subtitlesformat': 'vtt', 'ffmpeg_location': ffmpeg(),
-        'download_archive': str(archive), 'sleep_interval': 2, 'max_sleep_interval': 4,
+        'download_archive': str(archive), 'sleep_interval': 8, 'max_sleep_interval': 15,
         'socket_timeout': 30, 'retries': 10, 'fragment_retries': 10,
         'http_chunk_size': 1048576, 'quiet': True, 'noplaylist': True,
         'js_runtimes': {'node': {'path': str(ROOT / 'tools' / 'node.exe')}},
@@ -740,6 +743,28 @@ def download_playlist(url, folder, limit, progress, retry_ids=None, max_height=N
     done = playlist_archive(archive)
     downloaded, skipped, failed = 0, 0, missing
     items = [{'id': item['id'], 'title': item['title'], 'state': 'failed'} for item in missing]
+
+    def blocked_by_bot_check(detail):
+        return 'Sign in to confirm' in detail or 'not a bot' in detail
+
+    def download_one(vid, allow_retry):
+        """下载单个视频；命中风控时等待后重试一次。返回 (成功, 错误文本, 是否风控)。"""
+        for attempt in range(2):
+            try:
+                with yt_dlp.YoutubeDL(youtube_options(options)) as ydl:
+                    ydl.download(['https://www.youtube.com/watch?v=' + vid])
+                return True, '', False
+            except yt_dlp.utils.DownloadError as error:
+                detail = str(error)
+                blocked = blocked_by_bot_check(detail)
+                if blocked and allow_retry and attempt == 0:
+                    progress('YouTube 风控拦截，等待 {} 秒后重试一次…'.format(BOT_RETRY_WAIT))
+                    time.sleep(BOT_RETRY_WAIT)
+                    continue
+                return False, detail, blocked
+        return False, '', False
+
+    bot_streak = 0
     for index, entry in enumerate(entries, 1):
         vid = entry['id']
         title = str(entry.get('title') or vid)[:120]
@@ -751,15 +776,34 @@ def download_playlist(url, folder, limit, progress, retry_ids=None, max_height=N
             continue
         current['label'] = label
         progress(label)
-        try:
-            with yt_dlp.YoutubeDL(youtube_options(options)) as ydl:
-                ydl.download(['https://www.youtube.com/watch?v=' + vid])
+        ok, error_text, blocked = download_one(vid, allow_retry=bot_streak == 0)
+        if ok:
             downloaded += 1
             done.add(vid)
             items.append({'id': vid, 'title': title, 'state': 'downloaded'})
-        except yt_dlp.utils.DownloadError as error:
-            failed.append({'id': vid, 'title': title, 'error': str(error)[:300]})
-            items.append({'id': vid, 'title': title, 'state': 'failed'})
+            bot_streak = 0
+            continue
+        failed.append({'id': vid, 'title': title, 'error': error_text[:300]})
+        items.append({'id': vid, 'title': title, 'state': 'failed'})
+        if not blocked:
+            bot_streak = 0
+            continue
+        bot_streak += 1
+        if bot_streak >= BOT_STREAK_LIMIT:
+            progress('连续 {} 个视频被 YouTube 风控拦截，已中止本次批量：这不是 Cookie 失效，'
+                     '请在 Clash 的「🎬媒体解锁」策略组换一条线路后重试，已下载的视频会自动跳过。'
+                     .format(bot_streak))
+            for rest in entries[index:]:
+                rest_id = rest['id']
+                rest_title = str(rest.get('title') or rest_id)[:120]
+                if rest_id in done:
+                    skipped += 1
+                    items.append({'id': rest_id, 'title': rest_title, 'state': 'skipped'})
+                else:
+                    failed.append({'id': rest_id, 'title': rest_title,
+                                   'error': '已因连续风控中止，未尝试'})
+                    items.append({'id': rest_id, 'title': rest_title, 'state': 'failed'})
+            break
     current['label'] = ''
     # 按文件名里的 [视频ID] 汇总实际落盘大小（视频 + 字幕），一次遍历即可。
     sizes = {}
