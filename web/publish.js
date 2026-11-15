@@ -117,6 +117,7 @@ function closePublishEditor(){
 function showPublishingPage(){
   if(isAndroid){showMobilePage('publish')}else{
     $('productionPage').classList.add('hidden');$('publishSection').classList.remove('hidden');
+    $('watchSection').classList.add('hidden');$('watchTab').classList.remove('primary');
     $('publishingTab').classList.add('primary');$('productionTab').classList.remove('primary');
     $('video').pause();$('outputVideo').pause();window.scrollTo(0,0);
   }
@@ -125,6 +126,7 @@ function showPublishingPage(){
 $('publishingTab').onclick=showPublishingPage;
 $('productionTab').onclick=()=>{
   $('productionPage').classList.remove('hidden');$('publishSection').classList.add('hidden');
+  $('watchSection').classList.add('hidden');$('watchTab').classList.remove('primary');
   $('productionTab').classList.add('primary');$('publishingTab').classList.remove('primary');
   $('publishVideo').pause();$('coverSourceVideo').pause();
 };

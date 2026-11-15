@@ -601,31 +601,47 @@ def download_video(url, progress, max_height=None):
             else:
                 hint = 'YouTube 获取失败。请确认网络可访问 YouTube，且视频无需登录。也可以导入本地视频和字幕。'
             raise ValueError(hint + '\n' + detail[-700:]) from None
-        videos = [x for x in folder.glob('source.*') if x.suffix.lower() in ('.mp4', '.mkv', '.webm', '.mov')]
-        if not videos:
-            raise ValueError('没有找到下载的视频文件')
-        source = max(videos, key=lambda x: x.stat().st_size)
-        sub = pick_subtitle_file(folder)
-        rows = parse_subtitles(sub.read_text(encoding='utf-8')) if sub else []
-        p = {'id': pid, 'title': info.get('title', 'YouTube 视频'), 'url': url,
-             'description': str(info.get('description') or '')[:12000],
-             'video': source.name, 'subtitles': rows, 'subZh': parse_chinese_subtitles(folder), 'clips': [],
-             'subtitleTrack': sub.name if sub else '', 'subtitleTrackKind': subtitle_track_kind(sub)}
-        check_cancelled()
-        save_project(p)
-        try:
-            if register_project_source(pid) and progress:
-                progress('已同步到素材库，可在句型库勾选分析')
-        except Exception:
-            pass
-        return p
+        return project_from_folder(folder, pid, url, info, progress)
     except JobCancelled:
         shutil.rmtree(folder, ignore_errors=True)
         raise
 
 
+def project_from_folder(folder, pid, url, info, progress=None):
+    """把已落到 folder 的 source.* 视频与字幕整理成项目。
+    「获取视频与字幕」和「边看边下」共用这段，避免两套解析规则。"""
+    videos = [x for x in folder.glob('source.*') if x.suffix.lower() in ('.mp4', '.mkv', '.webm', '.mov')]
+    if not videos:
+        raise ValueError('没有找到下载的视频文件')
+    source = max(videos, key=lambda x: x.stat().st_size)
+    sub = pick_subtitle_file(folder)
+    rows = parse_subtitles(sub.read_text(encoding='utf-8')) if sub else []
+    p = {'id': pid, 'title': str(info.get('title') or 'YouTube 视频'), 'url': url,
+         'description': str(info.get('description') or '')[:12000],
+         'video': source.name, 'subtitles': rows, 'subZh': parse_chinese_subtitles(folder), 'clips': [],
+         'subtitleTrack': sub.name if sub else '', 'subtitleTrackKind': subtitle_track_kind(sub)}
+    check_cancelled()
+    save_project(p)
+    try:
+        if register_project_source(pid) and progress:
+            progress('已同步到素材库，可在句型库勾选分析')
+    except Exception:
+        pass
+    return p
+
+
 
 PLAYLIST_DIR = DATA / '下载素材'
+# 链接留空时默认用「稍后观看」，用户不用每次去页面复制地址。
+DEFAULT_PLAYLIST = 'https://www.youtube.com/playlist?list=WL'
+VIDEO_EXTS = ('.mp4', '.mkv', '.webm', '.mov', '.m4v')
+SUBTITLE_EXTS = ('.vtt', '.srt')
+
+
+def watch_link(url):
+    """统一处理播放列表地址：留空就用「稍后观看」。"""
+    text = str(url or '').strip()
+    return text or DEFAULT_PLAYLIST
 
 
 def youtube_check(url):
@@ -646,6 +662,11 @@ def youtube_error_hint(detail):
                 '换节点仍失败，再重新导出 cookies.txt。')
     if 'Private video' in detail or 'members-only' in detail:
         return '列表里有私有或会员专属视频，需要有效的 cookies.txt 才能下载。'
+    if 'Requested format is not available' in detail or 'SABR' in detail:
+        return ('这条视频只拿到音频流：YouTube 对当前线路启用了 SABR 限制，视频流被屏蔽。'
+                '请在 Clash 的「🎬媒体解锁」策略组换一条线路，或把清晰度降到 720p / 480p 再重试。')
+    if 'Video unavailable' in detail or 'This video is unavailable' in detail:
+        return '视频不可用：可能已被删除、地区限制或需要登录。'
     return 'YouTube 获取失败。请确认网络可访问 YouTube，且视频无需登录。'
 
 
@@ -674,9 +695,10 @@ def readable_size(num):
 def download_playlist(url, folder, limit, progress, retry_ids=None, max_height=None):
     """按列表顺序逐个下载视频和英文字幕，已下载的自动跳过。"""
     yt_dlp = load_yt_dlp()
+    url = watch_link(url)
     parsed = youtube_check(url)
     if not urllib.parse.parse_qs(parsed.query).get('list'):
-        raise ValueError('请粘贴带 list= 参数的播放列表链接（例如「稍后观看」或自建收藏夹页面地址）')
+        raise ValueError('请粘贴带 list= 参数的播放列表链接，或留空使用「稍后观看」')
     if retry_ids is not None:
         if (not isinstance(retry_ids, list) or not 1 <= len(retry_ids) <= 5000
                 or any(not isinstance(vid, str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,64}', vid) for vid in retry_ids)):
@@ -825,6 +847,165 @@ def download_playlist(url, folder, limit, progress, retry_ids=None, max_height=N
             'failed': failed, 'failedCount': len(failed), 'items': items,
             'totalBytes': total_bytes, 'totalSizeText': readable_size(total_bytes),
             'hasCookies': COOKIES.exists()}
+
+
+WATCH_LIST_LIMIT = 500
+
+
+def watch_target(folder):
+    """「边看边下」的保存目录，留空就用工具内的下载素材目录。"""
+    target = Path(str(folder or '').strip() or PLAYLIST_DIR).expanduser()
+    if not target.is_absolute():
+        raise ValueError('请填写保存文件夹的完整路径')
+    try:
+        target.mkdir(parents=True, exist_ok=True)
+    except OSError as error:
+        raise ValueError('无法创建保存文件夹：' + str(error)) from None
+    return target
+
+
+def watch_files(folder, vid):
+    """按文件名里的 [视频ID] 找到已落盘的视频和字幕。"""
+    video, subs = None, []
+    for path in Path(folder).rglob('*'):
+        if not path.is_file():
+            continue
+        match = re.search(r'\[([A-Za-z0-9_-]{1,64})\]\.', path.name)
+        if not match or match.group(1) != vid:
+            continue
+        suffix = path.suffix.lower()
+        if suffix in VIDEO_EXTS:
+            if video is None or path.stat().st_size > video.stat().st_size:
+                video = path
+        elif suffix in SUBTITLE_EXTS:
+            subs.append(path)
+    return video, sorted(subs)
+
+
+def watch_playlist(url, progress=None):
+    """读取收藏夹/播放列表，供「边看边下」逐条播放。链接留空默认「稍后观看」。"""
+    progress = progress or (lambda message: None)
+    yt_dlp = load_yt_dlp()
+    link = watch_link(url)
+    parsed = youtube_check(link)
+    if not urllib.parse.parse_qs(parsed.query).get('list'):
+        raise ValueError('请粘贴带 list= 参数的播放列表链接，或留空使用「稍后观看」')
+    progress('读取播放列表，正在获取标题和时长')
+    options = {
+        'quiet': True, 'no_warnings': True, 'skip_download': True, 'extract_flat': 'in_playlist',
+        'playlistend': WATCH_LIST_LIMIT + 1, 'socket_timeout': 30, 'retries': 3,
+        'js_runtimes': {'node': {'path': str(ROOT / 'tools' / 'node.exe')}},
+        'compat_opts': ['no-certifi'],
+    }
+    try:
+        with yt_dlp.YoutubeDL(youtube_options(options)) as ydl:
+            info = ydl.extract_info(link, download=False)
+    except yt_dlp.utils.DownloadError as error:
+        raise ValueError(youtube_error_hint(str(error)) + '\n' + str(error)[-500:]) from None
+    entries = [entry for entry in (info.get('entries') or []) if entry and entry.get('id')]
+    if not entries:
+        raise ValueError('播放列表没有可看的内容（私有列表请先导入 cookies.txt）')
+    items = []
+    for entry in entries[:WATCH_LIST_LIMIT]:
+        vid = str(entry['id'])
+        try:
+            duration = int(entry.get('duration') or 0)
+        except (TypeError, ValueError):
+            duration = 0
+        items.append({'id': vid, 'title': str(entry.get('title') or vid)[:200], 'duration': duration,
+                      'url': 'https://www.youtube.com/watch?v=' + vid,
+                      'thumb': 'https://i.ytimg.com/vi/{}/mqdefault.jpg'.format(vid)})
+    return {'url': link, 'title': str(info.get('title') or '播放列表'), 'count': len(items),
+            'total': len(entries), 'truncated': len(entries) > len(items),
+            'items': items, 'hasCookies': COOKIES.exists()}
+
+
+def watch_save(vid, folder='', max_height=None, progress=None):
+    """保存正在看的那一条：和批量下载共用归档，已下过的直接跳过。"""
+    progress = progress or (lambda message: None)
+    if not isinstance(vid, str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,64}', vid):
+        raise ValueError('视频编号无效，请重新读取列表')
+    yt_dlp = load_yt_dlp()
+    target = watch_target(folder)
+    archive = target / '.已下载.txt'
+    options = {
+        'outtmpl': str(target / '%(title).120B [%(id)s].%(ext)s'),
+        'format': video_format(max_height),
+        'merge_output_format': 'mp4', 'writesubtitles': True, 'writeautomaticsub': True,
+        'subtitleslangs': ['en', 'en-US', 'en-GB', 'en-orig', 'zh-Hans', 'zh-CN', 'zh', 'zh-Hant', 'zh-TW'],
+        'subtitlesformat': 'vtt', 'ffmpeg_location': ffmpeg(),
+        'download_archive': str(archive),
+        'socket_timeout': 30, 'retries': 10, 'fragment_retries': 10,
+        'http_chunk_size': 1048576, 'quiet': True, 'noplaylist': True,
+        'js_runtimes': {'node': {'path': str(ROOT / 'tools' / 'node.exe')}},
+        'compat_opts': ['no-certifi'],
+    }
+
+    def hook(status):
+        check_cancelled()
+        if status.get('status') == 'downloading':
+            received = status.get('downloaded_bytes') or 0
+            expected = status.get('total_bytes') or status.get('total_bytes_estimate') or 0
+            if expected:
+                progress('保存中 {:.0%}（{} / {}）'.format(received / expected,
+                                                       readable_size(received), readable_size(expected)))
+
+    options['progress_hooks'] = [hook]
+    options['postprocessor_hooks'] = [lambda status: check_cancelled()]
+    done_before = playlist_archive(archive)
+    progress('准备保存')
+    info = None
+    for attempt in range(2):
+        try:
+            with yt_dlp.YoutubeDL(youtube_options(options)) as ydl:
+                info = ydl.extract_info('https://www.youtube.com/watch?v=' + vid, download=True)
+            break
+        except yt_dlp.utils.DownloadError as error:
+            check_cancelled()
+            detail = str(error)
+            if ('Sign in to confirm' in detail or 'not a bot' in detail) and attempt == 0:
+                progress('YouTube 风控拦截，等待 {} 秒后重试一次…'.format(BOT_RETRY_WAIT))
+                time.sleep(BOT_RETRY_WAIT)
+                continue
+            raise ValueError(youtube_error_hint(detail) + '\n' + detail[-500:]) from None
+    check_cancelled()
+    video, subs = watch_files(target, vid)
+    title = str((info or {}).get('title') or (video.stem.rsplit(' [', 1)[0] if video else vid))[:200]
+    size = 0
+    for path in ([video] if video else []) + subs:
+        try:
+            size += path.stat().st_size
+        except OSError:
+            continue
+    reused = vid in done_before and vid in playlist_archive(archive)
+    return {'id': vid, 'title': title, 'state': 'skipped' if reused else 'saved',
+            'folder': str(target), 'videoPath': str(video or ''), 'hasSubtitles': bool(subs),
+            'size': size, 'sizeText': readable_size(size)}
+
+
+def watch_open(vid, folder=''):
+    """把已保存的视频和字幕建成项目，直接进入选段编辑。"""
+    if not isinstance(vid, str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,64}', vid):
+        raise ValueError('视频编号无效，请重新读取列表')
+    target = watch_target(folder)
+    video, subs = watch_files(target, vid)
+    if video is None:
+        raise ValueError('这条还没保存到本地，先点「保存这一条」再打开')
+    pid = secrets.token_hex(8)
+    proj = project_dir(pid)
+    proj.mkdir(parents=True)
+    try:
+        shutil.copy2(video, proj / ('source' + video.suffix.lower()))
+        for sub in subs:
+            parts = sub.name.split('.')
+            lang = parts[-2] if len(parts) >= 3 else 'en'
+            shutil.copy2(sub, proj / ('source.{}{}'.format(lang, sub.suffix.lower())))
+        title = video.stem.rsplit(' [', 1)[0]
+        return project_from_folder(proj, pid, 'https://www.youtube.com/watch?v=' + vid,
+                                   {'title': title, 'description': ''}, None)
+    except Exception:
+        shutil.rmtree(proj, ignore_errors=True)
+        raise
 
 
 def deepseek(messages, key, max_tokens, json_output=False):
@@ -3515,6 +3696,17 @@ class Handler(BaseHTTPRequestHandler):
                 self.reply(job_start(lambda progress: download_playlist(
                     body.get('url', ''), body.get('folder', ''), body.get('limit'), progress,
                     body.get('retry_ids'), body.get('max_height')), exclusive=False))
+            elif self.path == '/api/watch/list':
+                self.reply(job_start(lambda progress: watch_playlist(
+                    body.get('url', ''), progress), exclusive=False))
+            elif self.path == '/api/watch/save':
+                # 一边看一边存，同样不占用视频锁，用户还能同时编辑已有素材。
+                self.reply(job_start(lambda progress: watch_save(
+                    body.get('id', ''), body.get('folder', ''), body.get('max_height'), progress),
+                    exclusive=False))
+            elif self.path == '/api/watch/open':
+                self.reply(job_start(lambda progress: watch_open(
+                    body.get('id', ''), body.get('folder', ''))))
             elif self.path == '/api/translate':
                 key = KEY
                 self.reply(job_start(lambda progress: translate(body['english'], key)))

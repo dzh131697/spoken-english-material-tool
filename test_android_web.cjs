@@ -36,7 +36,7 @@ async function openPage(browser, android, width = 390) {
       };
     }
   }, android);
-  const state = { subtitleEdits: {}, subtitleWrites: [], reparseCalls: 0, playlistRequests: [], playlistResult: null, jobRunning: false, jobCancelled: false, cancelCalls: [], preferences: structuredClone(defaultPreferences), preferenceWrites: [], exportCalls: 0, pollFailures: 0, polledJobs: [], jobError: null, composeCalls: [], saves: [], failNextSave: false, suggestCalls: 0, publicationSaves: {}, frames: [], generations: [], cards: [], deleted: [] };
+  const state = { subtitleEdits: {}, subtitleWrites: [], reparseCalls: 0, playlistRequests: [], playlistResult: null, jobRunning: false, jobCancelled: false, cancelCalls: [], preferences: structuredClone(defaultPreferences), preferenceWrites: [], exportCalls: 0, pollFailures: 0, polledJobs: [], jobError: null, composeCalls: [], saves: [], failNextSave: false, suggestCalls: 0, publicationSaves: {}, frames: [], generations: [], cards: [], deleted: [], watchListRequests: [], watchSaves: [], watchOpens: [], watchList: null };
   await context.route('**/*', async route => {
     const request = route.request();
     const url = new URL(request.url());
@@ -56,6 +56,9 @@ async function openPage(browser, android, width = 390) {
     if(url.pathname==='/api/reparse'){state.reparseCalls++;return route.fulfill({json:structuredClone(sample)})}
     if(url.pathname==='/api/job-cancel'){state.cancelCalls.push(request.postDataJSON());state.jobCancelled=true;return route.fulfill({json:{state:'cancelling'}})}
     if(url.pathname==='/api/download-playlist'){state.jobCancelled=false;state.playlistRequests.push(request.postDataJSON());return route.fulfill({json:{job:'playlist'}})}
+    if(url.pathname==='/api/watch/list'){state.watchListRequests.push(request.postDataJSON());return route.fulfill({json:{job:'watch-list'}})}
+    if(url.pathname==='/api/watch/save'){state.watchSaves.push(request.postDataJSON());return route.fulfill({json:{job:'watch-save'}})}
+    if(url.pathname==='/api/watch/open'){state.watchOpens.push(request.postDataJSON());return route.fulfill({json:{job:'watch-open'}})}
     if (url.pathname === '/api/card-preview') {
       state.cards.push(request.postDataJSON());
       return route.fulfill({ contentType: 'image/svg+xml', body: '<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360"><rect width="640" height="360" fill="#305b48"/></svg>' });
@@ -111,6 +114,9 @@ async function openPage(browser, android, width = 390) {
       if(state.jobRunning)return route.fulfill({json:{state:'running',message:'正在处理当前片段'}});
       let result;
       if(url.searchParams.get('id')==='playlist')result=state.playlistResult;
+      if(url.searchParams.get('id')==='watch-list')result=state.watchList;
+      if(url.searchParams.get('id')==='watch-save')result={state:'saved',folder:'C:/qa-downloads',sizeText:'9.9 MB',hasSubtitles:true};
+      if(url.searchParams.get('id')==='watch-open')result=structuredClone(sample);
       if (url.searchParams.get('id') === 'export') result = { count: 1, folder: '/private/导出素材/20261104_123456_abcdef' };
       if (url.searchParams.get('id') === 'compose') result = { ...sample.outputs[0], file: '/private/成片.mp4' };
       if (url.searchParams.get('id') === 'suggest') result = {
@@ -587,9 +593,37 @@ async function openPage(browser, android, width = 390) {
         await page.locator('#retryPlaylist').click();
         await page.waitForFunction(()=>!busy);
         assert.equal(state.playlistRequests.length,2);
-        assert.deepEqual(state.playlistRequests[1],{url:'https://www.youtube.com/playlist?list=PLtest',folder:'C:/qa-downloads',limit:0,retry_ids:['ccc']});
+        assert.deepEqual(state.playlistRequests[1],{url:'https://www.youtube.com/playlist?list=PLtest',folder:'C:/qa-downloads',limit:0,max_height:'1080',retry_ids:['ccc']});
         assert.equal(await page.locator('#retryPlaylist').isVisible(),false);
         assert.equal(await page.locator('#playlistSizes li').count(),1);
+        state.watchList={url:'https://www.youtube.com/playlist?list=WL',title:'稍后观看',count:2,total:2,truncated:false,items:[
+          {id:'watchAAAAA1',title:'Watch <b>A</b>',duration:125,thumb:'https://i.ytimg.com/vi/watchAAAAA1/mqdefault.jpg'},
+          {id:'watchBBBBB2',title:'Watch B',duration:59,thumb:'https://i.ytimg.com/vi/watchBBBBB2/mqdefault.jpg'},
+        ]};
+        await page.locator('#watchTab').click();
+        assert.equal(await page.locator('#watchSection').isVisible(),true);
+        assert.equal(await page.locator('#productionPage').isVisible(),false);
+        await page.locator('#watchUrl').fill('');
+        await page.locator('#watchLoad').click();
+        await page.waitForFunction(()=>watchItems.length===2,null,{timeout:10000});
+        assert.deepEqual(state.watchListRequests[0],{url:''});
+        assert.equal(await page.locator('.watch-item').count(),2);
+        assert.equal((await page.locator('.watch-item .watch-title').first().innerText()).trim(),'Watch <b>A</b>');
+        assert.match(await page.locator('#watchCount').textContent(),/2 条/);
+        await page.locator('.watch-item').first().click();
+        assert.match(await page.locator('#watchStage iframe').getAttribute('src'),/youtube\.com\/embed\/watchAAAAA1/);
+        assert.equal(await page.locator('#taskDialog').isVisible(),false);
+        await page.waitForFunction(()=>watchItems[0].state==='saved',null,{timeout:20000});
+        assert.deepEqual(state.watchSaves[0],{id:'watchAAAAA1',max_height:'1080'});
+        assert.match(await page.locator('.watch-item').first().innerText(),/已保存/);
+        assert.match(await page.locator('.watch-item').first().innerText(),/9\.9 MB/);
+        await page.locator('#watchEdit').waitFor({state:'visible',timeout:10000});
+        await page.locator('#watchEdit').click();
+        await page.locator('#watchSection').waitFor({state:'hidden',timeout:20000});
+        assert.deepEqual(state.watchOpens[0],{id:'watchAAAAA1'});
+        assert.equal(await page.locator('#productionPage').isVisible(),true);
+        assert.equal(await page.locator('#watchSection').isVisible(),false);
+        assert.match(await page.locator('#subCount').textContent(),/3 条/);
       }
       await page.locator('#workflowNext').click();
       assert.equal(await page.locator('#outputSection').isVisible(),true);

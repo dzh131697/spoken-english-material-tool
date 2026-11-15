@@ -6,6 +6,7 @@
 - 发布准备页在 `publish.js` / `publish.css`：每条成片独立编辑平台文案和多画幅封面，PNG 直接保存预览画布。后端入口为 `app.py` 的 `save_publication()` / `generate_publication()` / `cover_frame()`；Android 启动时需复制发布静态资源与 `library.html`。新增成片保存选段快照，旧成片不能套用当前素材列表。
 - 发布编辑区用 `selectPublishTab()` 切换面板；桌面保留封面、标题、简介、标签、参考，手机为封面、文案、参考（标题/简介/标签在文案页分区）。只隐藏面板，保留输入；验证失败应定位对应平台和输入。顶部保存与发布包作用于整条成片。
 - 手机成片页负责版本预览、保存和更多菜单中的删除；发布列表只显示封面、两行摘要与编辑/发布包入口，不重复放播放器和删除按钮。封面新增比例时同步 `publish.js`、`app.py` 的尺寸/文件名及 Android `MainActivity` 单文件保存、打包白名单，保留旧比例键和文件名。
+- 「边看边下」是 `index.html` 的独立页面 `#watchSection`（不是弹窗）：`POST /api/watch/list` 读列表（链接留空默认 `list=WL`），点条目用 YouTube 官方内嵌播放器播放，同时 `POST /api/watch/save` 逐条保存，存完 `POST /api/watch/open` 建项目回主页面。它的轮询必须用 `watchPollJob()`，不能改用会锁屏并弹任务框的 `job()`，否则边看边下会被自己挡住；保存目录与批量下载共用 `data/下载素材/.已下载.txt`。Android 隐藏入口（`watchTab`），保存仍走 yt-dlp，只在 Windows 可用。
 - Android 分支入口为 `isAndroid`、`setupMobile()`；手机页面切换查 `showMobilePage()`，连续选句查 `renderMobileSelection()`，素材保存查 `getClip()` / `save()`，AI 审核查 `applySegments()`。先定位元素 ID、事件和对应函数，再读必要范围。
 - 保留 Windows 行为；手机编辑页必须能看到视频并试听，保留现有视频元素和切点逻辑。状态栏、刘海、键盘安全区域由原生 `MainActivity.onCreate()` 的 WindowInsets 处理，相关问题先查原生，避免叠加固定 CSS 顶部空白。
 - 页面通过 `api()` / `job()` 调用本机后端，通过 `window.AndroidHost` 调用原生能力；改协议才读取对应后端或原生方法。

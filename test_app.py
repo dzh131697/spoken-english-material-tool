@@ -77,6 +77,75 @@ class WorkflowTest(unittest.TestCase):
                 server.server_close()
                 thread.join(timeout=2)
 
+    def test_http_watch_routes_list_save_and_open(self):
+        entries = [{'id': 'abc12345678', 'title': 'Morning talk', 'duration': 95},
+                   {'id': 'def98765432', 'title': 'Small talk', 'duration': 60}]
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            downloads = root / '下载素材'
+            downloads.mkdir()
+            projects = root / 'projects'
+            projects.mkdir()
+
+            class FakeYDL:
+                def __init__(self, options):
+                    self.options = options
+
+                def __enter__(self):
+                    return self
+
+                def __exit__(self, *args):
+                    return False
+
+                def extract_info(self, url, download=False):
+                    if not download:
+                        return {'title': '稍后观看', 'entries': entries}
+                    (downloads / 'Morning talk [abc12345678].mp4').write_bytes(b'video-bytes')
+                    (downloads / 'Morning talk [abc12345678].en.vtt').write_text(
+                        'WEBVTT\n\n00:00:00.500 --> 00:00:02.000\nHello there.\n', encoding='utf-8')
+                    return {'title': 'Morning talk', 'description': ''}
+
+            fake = types.SimpleNamespace(YoutubeDL=FakeYDL, utils=types.SimpleNamespace(DownloadError=RuntimeError))
+            with patch.object(app, 'PROJECTS', projects), patch.object(app, 'DATA', root), \
+                    patch.object(app, 'PLAYLIST_DIR', downloads), \
+                    patch.object(app, 'COOKIES', root / 'cookies.txt'), \
+                    patch.object(app, 'ffmpeg', return_value='unused'), patch.dict(sys.modules, {'yt_dlp': fake}):
+                server = app.ThreadingHTTPServer(('127.0.0.1', 0), app.Handler)
+                thread = threading.Thread(target=server.serve_forever, daemon=True)
+                thread.start()
+                base = 'http://127.0.0.1:' + str(server.server_port)
+
+                def post(path, body):
+                    request = urllib.request.Request(
+                        base + path, data=json.dumps(body).encode('utf-8'),
+                        headers={'X-App-Token': app.TOKEN, 'Content-Type': 'application/json'})
+                    with urllib.request.urlopen(request) as response:
+                        return json.load(response)
+
+                try:
+                    listing = self.wait_job(post('/api/watch/list', {'url': ''})['job'])
+                    self.assertEqual(listing['state'], 'done')
+                    self.assertEqual(listing['result']['url'], app.DEFAULT_PLAYLIST)
+                    self.assertEqual([item['id'] for item in listing['result']['items']],
+                                     ['abc12345678', 'def98765432'])
+                    self.assertEqual(listing['result']['items'][0]['thumb'],
+                                     'https://i.ytimg.com/vi/abc12345678/mqdefault.jpg')
+                    saved = self.wait_job(post('/api/watch/save',
+                                               {'id': 'abc12345678', 'max_height': '720'})['job'])
+                    self.assertEqual(saved['state'], 'done')
+                    self.assertEqual(saved['result']['state'], 'saved')
+                    self.assertEqual(saved['result']['title'], 'Morning talk')
+                    self.assertGreater(saved['result']['size'], 0)
+                    opened = self.wait_job(post('/api/watch/open', {'id': 'abc12345678'})['job'])
+                    self.assertEqual(opened['state'], 'done')
+                    self.assertEqual(opened['result']['title'], 'Morning talk')
+                    self.assertEqual(opened['result']['subtitles'][0]['text'], 'Hello there.')
+                    self.assertTrue((projects / opened['result']['id'] / 'source.mp4').is_file())
+                finally:
+                    server.shutdown()
+                    server.server_close()
+                    thread.join(timeout=2)
+
     def wait_job(self, jid):
         deadline = time.monotonic() + 5
         while time.monotonic() < deadline:
@@ -614,6 +683,151 @@ class WorkflowTest(unittest.TestCase):
                 self.assertEqual(captured['cookiefile'].getvalue(), cookie_text)
                 self.assertEqual(cookie_path.read_text(encoding='utf-8'), cookie_text)
                 self.assertIn('已过期', str(error.exception))
+
+    def test_watch_link_defaults_to_watch_later(self):
+        self.assertIn('list=WL', app.DEFAULT_PLAYLIST)
+        self.assertEqual(app.watch_link(''), app.DEFAULT_PLAYLIST)
+        self.assertEqual(app.watch_link('   '), app.DEFAULT_PLAYLIST)
+        self.assertEqual(app.watch_link(None), app.DEFAULT_PLAYLIST)
+        self.assertEqual(app.watch_link(' https://www.youtube.com/playlist?list=PLx '),
+                         'https://www.youtube.com/playlist?list=PLx')
+
+    def test_download_playlist_uses_watch_later_when_url_empty(self):
+        seen = {}
+
+        class FakeYDL:
+            def __init__(self, options):
+                pass
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def extract_info(self, url, download=False):
+                seen['url'] = url
+                raise RuntimeError("ERROR: [youtube] WL: Sign in to confirm you're not a bot.")
+
+        fake = types.SimpleNamespace(YoutubeDL=FakeYDL, utils=types.SimpleNamespace(DownloadError=RuntimeError))
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with patch.object(app, 'COOKIES', root / 'cookies.txt'), \
+                    patch.object(app, 'ffmpeg', return_value='unused'), patch.dict(sys.modules, {'yt_dlp': fake}):
+                with self.assertRaises(ValueError) as error:
+                    app.download_playlist('', str(root / 'out'), 0, lambda text: None)
+            self.assertEqual(seen['url'], app.DEFAULT_PLAYLIST)
+            self.assertIn('Cookie 设置', str(error.exception))
+
+    def test_watch_playlist_builds_items_and_caps_long_lists(self):
+        entries = [{'id': 'v{:03d}'.format(i), 'title': 'Clip {}'.format(i), 'duration': 61 + i}
+                   for i in range(app.WATCH_LIST_LIMIT + 20)]
+
+        class FakeYDL:
+            def __init__(self, options):
+                pass
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def extract_info(self, url, download=False):
+                self.url = url
+                return {'title': '稍后观看', 'entries': entries}
+
+        fake = types.SimpleNamespace(YoutubeDL=FakeYDL, utils=types.SimpleNamespace(DownloadError=RuntimeError))
+        with tempfile.TemporaryDirectory() as directory:
+            with patch.object(app, 'COOKIES', Path(directory) / 'cookies.txt'), \
+                    patch.dict(sys.modules, {'yt_dlp': fake}):
+                result = app.watch_playlist('', lambda text: None)
+        self.assertEqual(result['title'], '稍后观看')
+        self.assertEqual(result['url'], app.DEFAULT_PLAYLIST)
+        self.assertEqual(result['total'], app.WATCH_LIST_LIMIT + 20)
+        self.assertEqual(result['count'], app.WATCH_LIST_LIMIT)
+        self.assertTrue(result['truncated'])
+        first = result['items'][0]
+        self.assertEqual(first['url'], 'https://www.youtube.com/watch?v=v000')
+        self.assertEqual(first['duration'], 61)
+        self.assertIn('/vi/v000/mqdefault.jpg', first['thumb'])
+        self.assertEqual(result['items'][0]['title'], 'Clip 0')
+
+    def test_watch_save_maps_bot_check_and_retries_once(self):
+        calls = []
+
+        class FakeYDL:
+            def __init__(self, options):
+                calls.append(options)
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *args):
+                return False
+
+            def extract_info(self, url, download=True):
+                raise RuntimeError("ERROR: [youtube] abc: Sign in to confirm you're not a bot.")
+
+        fake = types.SimpleNamespace(YoutubeDL=FakeYDL, utils=types.SimpleNamespace(DownloadError=RuntimeError))
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with patch.object(app, 'COOKIES', root / 'cookies.txt'), patch.object(app, 'BOT_RETRY_WAIT', 0), \
+                    patch.object(app, 'ffmpeg', return_value='unused'), patch.dict(sys.modules, {'yt_dlp': fake}):
+                with self.assertRaises(ValueError) as error:
+                    app.watch_save('abc12345678', str(root / 'out'), '720', lambda text: None)
+            self.assertIn('Cookie 设置', str(error.exception))
+            self.assertEqual(len(calls), 2)
+            self.assertIn('height<=720', calls[0]['format'])
+            self.assertNotIn('cookiefile', calls[0])
+            self.assertEqual(str(app.watch_target(str(root / 'out'))), str(root / 'out'))
+
+    def test_watch_files_picks_largest_video_and_its_subtitles(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'A [vid1234567].mp4').write_bytes(b'x' * 10)
+            (root / 'A [vid1234567].webm').write_bytes(b'x' * 99)
+            (root / 'A [vid1234567].en.vtt').write_text('WEBVTT\n', encoding='utf-8')
+            (root / 'B [other12345].mp4').write_bytes(b'x' * 500)
+            video, subs = app.watch_files(root, 'vid1234567')
+        self.assertEqual(video.name, 'A [vid1234567].webm')
+        self.assertEqual([path.name for path in subs], ['A [vid1234567].en.vtt'])
+        self.assertEqual(app.watch_files(root, 'missing0000'), (None, []))
+
+    def test_watch_open_builds_project_with_subtitles(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            downloads = root / 'downloads'
+            downloads.mkdir()
+            (downloads / 'Morning talk [abc12345678].mp4').write_bytes(b'video-bytes')
+            (downloads / 'Morning talk [abc12345678].en.vtt').write_text(
+                'WEBVTT\n\n00:00:00.500 --> 00:00:02.000\nHow was your weekend?\n', encoding='utf-8')
+            projects = root / 'projects'
+            projects.mkdir()
+            with patch.object(app, 'PROJECTS', projects), patch.object(app, 'DATA', root), \
+                    patch.object(app, 'PLAYLIST_DIR', downloads), \
+                    patch.object(app, 'COOKIES', root / 'cookies.txt'):
+                p = app.watch_open('abc12345678')
+                folder = projects / p['id']
+                self.assertTrue((folder / 'source.mp4').is_file())
+                self.assertTrue((folder / 'source.en.vtt').is_file())
+                self.assertTrue((folder / 'project.json').is_file())
+        self.assertEqual(p['title'], 'Morning talk')
+        self.assertEqual(p['url'], 'https://www.youtube.com/watch?v=abc12345678')
+        self.assertEqual(len(p['subtitles']), 1)
+        self.assertEqual(p['subtitles'][0]['text'], 'How was your weekend?')
+        self.assertEqual(p['subtitleTrack'], 'source.en.vtt')
+
+    def test_watch_invalid_video_id_and_missing_files(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            with patch.object(app, 'PLAYLIST_DIR', root), patch.object(app, 'DATA', root):
+                with self.assertRaises(ValueError) as error:
+                    app.watch_save('../etc/passwd', '', None, None)
+                self.assertIn('视频编号无效', str(error.exception))
+                with self.assertRaises(ValueError) as error:
+                    app.watch_open('abc12345678', '')
+                self.assertIn('还没保存', str(error.exception))
 
     def test_video_format_caps_every_fallback(self):
         for height in (360, 480, 720, 1080):
